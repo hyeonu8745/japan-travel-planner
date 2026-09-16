@@ -1,9 +1,15 @@
 services:
   postgres:
-    image: 'postgres:latest'
+    image: 'postgis/postgis:16-3.4'          # ← PostGIS 이미지로 변경!
+    container_name: japan-travel-db           # ← 컨테이너 이름 지정
     environment:
-      - 'POSTGRES_DB=mydatabase'
-      - 'POSTGRES_PASSWORD=secret'
-      - 'POSTGRES_USER=myuser'
+      - 'POSTGRES_DB=japan_travel'            # ← 우리 DB명
+      - 'POSTGRES_PASSWORD=1234'              # ← 통일된 비밀번호
+      - 'POSTGRES_USER=postgres'              # ← 통일된 사용자명
     ports:
-      - '5432'
+      - '5432:5432'                           # ← 포트 명시적으로 매핑
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # ← 데이터 영구 저장
+
+volumes:
+  postgres_data:

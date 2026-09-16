@@ -35,3 +35,26 @@ out/
 
 ### VS Code ###
 .vscode/
+
+
+# ===== 대용량 원본 데이터 (Git에 올리면 안 됨) =====
+data/raw/*.csv
+data/processed/geocode_cache.csv
+
+# ===== 민감 정보 =====
+application-secret.yaml
+application-local.yaml
+.env
+
+# ===== IntelliJ =====
+.idea/
+*.iml
+out/
+
+# ===== Gradle =====
+.gradle/
+build/
+
+# ===== OS 관련 =====
+.DS_Store
+Thumbs.db
