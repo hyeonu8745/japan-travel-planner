@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface RestaurantRepository extends JpaRepository<Restaurant, Long> {
+public interface RestaurantRepository extends JpaRepository<Restaurant, Long>, RestaurantSearchRepository {
 
     // store_id로 조회 (중복 적재 방지용)
     Optional<Restaurant> findByStoreId(String storeId);
@@ -48,4 +48,6 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, Long> {
 
     // 위경도(location)가 아직 없는 데이터 조회 (Geocoding 배치 처리용)
     List<Restaurant> findByLocationIsNull();
+    // 예산 파싱이 이미 실행됐는지 확인 (마이그레이션 Runner 중복 실행 방지용)
+    boolean existsByBudgetDinnerMinIsNotNull();
 }

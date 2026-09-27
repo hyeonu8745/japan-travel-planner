@@ -6,6 +6,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.example.japantravelplanner.dto.RestaurantSearchCondition;
+import com.example.japantravelplanner.dto.RestaurantSearchResponseDto;
 
 import java.util.List;
 
@@ -22,5 +24,10 @@ public class RestaurantController {
             @RequestParam(defaultValue = "500") double radius
     ) {
         return restaurantService.findNearbyRestaurants(lat, lng, radius);
+    }
+
+    @GetMapping("/api/restaurants/search")
+    public RestaurantSearchResponseDto searchRestaurants(RestaurantSearchCondition condition) {
+        return restaurantService.search(condition);
     }
 }

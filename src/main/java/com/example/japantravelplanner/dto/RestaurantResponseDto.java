@@ -19,8 +19,13 @@ public class RestaurantResponseDto {
     private String nearestStation;
     private Double latitude;
     private Double longitude;
+    private Integer distanceMeters; // 위치 검색일 때만 값이 있음
 
     public static RestaurantResponseDto from(Restaurant restaurant) {
+        return from(restaurant, null);
+    }
+
+    public static RestaurantResponseDto from(Restaurant restaurant, Integer distanceMeters) {
         Double lat = null;
         Double lng = null;
 
@@ -41,6 +46,7 @@ public class RestaurantResponseDto {
                 .nearestStation(restaurant.getNearestStation())
                 .latitude(lat)
                 .longitude(lng)
+                .distanceMeters(distanceMeters)
                 .build();
     }
 }
