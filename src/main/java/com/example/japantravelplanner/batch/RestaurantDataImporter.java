@@ -99,7 +99,7 @@ public class RestaurantDataImporter implements CommandLineRunner {
             location = GEOMETRY_FACTORY.createPoint(new Coordinate(lng, lat));
         }
 
-        return Restaurant.builder()
+        Restaurant restaurant = Restaurant.builder()
                 .storeId(row[0])
                 .name(row[1])
                 .nearestStation(nullIfBlank(row[2]))
@@ -118,6 +118,9 @@ public class RestaurantDataImporter implements CommandLineRunner {
                 .municipalities3(nullIfBlank(row[15]))
                 .location(location)
                 .build();
+        // 예산 텍스트 → 숫자 min/max 변환
+        restaurant.parseBudget();
+        return restaurant;
     }
 
     private boolean isNotBlank(String s) {

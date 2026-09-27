@@ -1,6 +1,8 @@
 package com.example.japantravelplanner.entity;
 
 import jakarta.persistence.*;
+import com.example.japantravelplanner.util.BudgetParser;
+import com.example.japantravelplanner.util.BudgetRange;
 import lombok.*;
 import org.locationtech.jts.geom.Point;
 
@@ -50,6 +52,19 @@ public class Restaurant {
     @Column(name = "budget_lunch")
     private String budgetLunch;
 
+    // 예산 텍스트를 파싱한 숫자 값 (엔 단위, null = 정보 없음 또는 상한 없음)
+    @Column(name = "budget_dinner_min")
+    private Integer budgetDinnerMin;
+
+    @Column(name = "budget_dinner_max")
+    private Integer budgetDinnerMax;
+
+    @Column(name = "budget_lunch_min")
+    private Integer budgetLunchMin;
+
+    @Column(name = "budget_lunch_max")
+    private Integer budgetLunchMax;
+
     @Column(name = "holiday")
     private String holiday;
 
@@ -76,6 +91,16 @@ public class Restaurant {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    /** 원본 예산 텍스트(budgetDinner/budgetLunch)를 파싱해 숫자 컬럼을 채운다. */
+    public void parseBudget() {
+        BudgetRange dinner = BudgetParser.parse(this.budgetDinner);
+        BudgetRange lunch = BudgetParser.parse(this.budgetLunch);
+        this.budgetDinnerMin = dinner.min();
+        this.budgetDinnerMax = dinner.max();
+        this.budgetLunchMin = lunch.min();
+        this.budgetLunchMax = lunch.max();
+    }
 
     @PrePersist
     protected void onCreate() {
