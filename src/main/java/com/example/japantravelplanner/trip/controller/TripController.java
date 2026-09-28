@@ -28,7 +28,8 @@ public class TripController {
     }
 
     @GetMapping("/{tripId}")
-    public TripResponseDto getTrip(@PathVariable Long tripId) {
-        return tripService.getTrip(tripId);   // 소유자 확인은 다음 단계(#1)에서
+    public TripResponseDto getTrip(@AuthenticationPrincipal Long userId,
+                                   @PathVariable Long tripId) {
+        return tripService.getTrip(userId, tripId);
     }
 }
