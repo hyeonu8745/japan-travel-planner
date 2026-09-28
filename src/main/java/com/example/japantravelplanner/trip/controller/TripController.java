@@ -4,7 +4,7 @@ import com.example.japantravelplanner.trip.dto.TripRequestDto;
 import com.example.japantravelplanner.trip.dto.TripResponseDto;
 import com.example.japantravelplanner.trip.service.TripService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,23 +17,18 @@ public class TripController {
     private final TripService tripService;
 
     @PostMapping
-    public TripResponseDto createTrip(@RequestBody TripRequestDto request) {
-        Long userId = getCurrentUserId();
+    public TripResponseDto createTrip(@AuthenticationPrincipal Long userId,
+                                      @RequestBody TripRequestDto request) {
         return tripService.createTrip(userId, request);
     }
 
     @GetMapping
-    public List<TripResponseDto> getMyTrips() {
-        Long userId = getCurrentUserId();
+    public List<TripResponseDto> getMyTrips(@AuthenticationPrincipal Long userId) {
         return tripService.getMyTrips(userId);
     }
 
     @GetMapping("/{tripId}")
     public TripResponseDto getTrip(@PathVariable Long tripId) {
-        return tripService.getTrip(tripId);
-    }
-
-    private Long getCurrentUserId() {
-        return (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return tripService.getTrip(tripId);   // 소유자 확인은 다음 단계(#1)에서
     }
 }
