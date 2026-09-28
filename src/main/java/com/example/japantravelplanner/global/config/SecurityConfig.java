@@ -35,7 +35,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 로그인 없이 접근 가능한 경로
                         .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/restaurants/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/restaurants/**", "/api/attractions/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         // 그 외 모든 요청은 인증 필요
                         .anyRequest().authenticated()

@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface AttractionRepository extends JpaRepository<Attraction, Long> {
+public interface AttractionRepository extends JpaRepository<Attraction, Long>, AttractionSearchRepository {
 
     Optional<Attraction> findByPlaceId(String placeId);
 
