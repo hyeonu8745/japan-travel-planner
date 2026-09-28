@@ -10,10 +10,10 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.example.japantravelplanner.restaurant.dto.RestaurantSearchCondition;
-import com.example.japantravelplanner.restaurant.dto.RestaurantSearchResponseDto;
 import com.example.japantravelplanner.global.util.GeoUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.japantravelplanner.global.dto.PageResponseDto;
 
 @Service
 @RequiredArgsConstructor
@@ -30,16 +30,13 @@ public class RestaurantService {
     }
 
     @Transactional(readOnly = true)
-    public RestaurantSearchResponseDto search(RestaurantSearchCondition condition) {
+    public PageResponseDto<RestaurantResponseDto> search(RestaurantSearchCondition condition) {
         condition.validate();
 
-        Page<Restaurant> result = restaurantRepository.search(condition);
+        Page<RestaurantResponseDto> result = restaurantRepository.search(condition)
+                .map(restaurant -> RestaurantResponseDto.from(restaurant, distanceFrom(condition, restaurant)));
 
-        List<RestaurantResponseDto> content = result.getContent().stream()
-                .map(restaurant -> RestaurantResponseDto.from(restaurant, distanceFrom(condition, restaurant)))
-                .toList();
-
-        return RestaurantSearchResponseDto.of(result, content);
+        return PageResponseDto.from(result);
     }
 
     private Integer distanceFrom(RestaurantSearchCondition condition, Restaurant restaurant) {

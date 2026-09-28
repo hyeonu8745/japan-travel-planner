@@ -1,11 +1,16 @@
 package com.example.japantravelplanner.restaurant.dto;
 
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;   // ← 추가
 import lombok.Builder;
 import lombok.Getter;
 
 @Getter
 @Builder
+@JsonPropertyOrder({                                         // ← 추가 (여기부터)
+        "id", "name", "distanceMeters", "genre", "ratingVal", "reviewCnt",
+        "budgetLunch", "budgetDinner", "nearestStation", "address", "latitude", "longitude"
+})
 public class RestaurantResponseDto {
 
     private Long id;

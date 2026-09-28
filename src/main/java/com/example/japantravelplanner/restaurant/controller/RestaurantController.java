@@ -7,7 +7,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import com.example.japantravelplanner.restaurant.dto.RestaurantSearchCondition;
-import com.example.japantravelplanner.restaurant.dto.RestaurantSearchResponseDto;
+import com.example.japantravelplanner.global.dto.PageResponseDto;
+
 
 import java.util.List;
 
@@ -27,7 +28,7 @@ public class RestaurantController {
     }
 
     @GetMapping("/api/restaurants/search")
-    public RestaurantSearchResponseDto searchRestaurants(RestaurantSearchCondition condition) {
+    public PageResponseDto<RestaurantResponseDto> searchRestaurants(RestaurantSearchCondition condition) {
         return restaurantService.search(condition);
     }
 }
