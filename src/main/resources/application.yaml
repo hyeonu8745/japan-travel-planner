@@ -27,3 +27,7 @@ logging:
 jwt:
   secret: "japan-travel-planner-jwt-secret-key-please-change-this-later-32bytes-minimum"
   expiration-ms: 3600000  # 1시간
+
+app:
+  cors:
+    allowed-origins: http://localhost:5173
