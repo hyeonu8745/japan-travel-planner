@@ -11,6 +11,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.japantravelplanner.global.exception.ConflictException;
+import org.springframework.dao.DataIntegrityViolationException;
+
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -24,18 +28,26 @@ public class UserService {
 
     @Transactional
     public SignupResponseDto signup(SignupRequestDto request) {
+        String email = normalizeEmail(request.getEmail());
 
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new IllegalArgumentException("이미 가입된 이메일입니다.");
+        if (userRepository.existsByEmail(email)) {
+            throw new ConflictException("이미 가입된 이메일입니다.");
         }
 
         User user = User.builder()
-                .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword())) // 암호화!
+                .email(email)
+                .password(passwordEncoder.encode(request.getPassword()))
                 .nickname(request.getNickname())
                 .build();
 
-        User savedUser = userRepository.save(user);
+        User savedUser;
+        try {
+            // 거의 동시에 같은 이메일로 가입하면 existsByEmail을 둘 다 통과할 수 있음
+            // → DB unique 제약에서 걸리는 경우도 409로 응답
+            savedUser = userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException e) {
+            throw new ConflictException("이미 가입된 이메일입니다.");
+        }
 
         return SignupResponseDto.builder()
                 .id(savedUser.getId())
@@ -45,7 +57,7 @@ public class UserService {
     }
 
     public LoginResponseDto login(LoginRequestDto request) {
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmail(normalizeEmail(request.getEmail()))
                 .orElseThrow(() -> new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다."));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
@@ -59,5 +71,10 @@ public class UserService {
                 .userId(user.getId())
                 .nickname(user.getNickname())
                 .build();
+    }
+
+    /** 앞뒤 공백 제거 + 소문자 변환 (Test@Example.com과 test@example.com을 같은 계정으로) */
+    private String normalizeEmail(String email) {
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 }
