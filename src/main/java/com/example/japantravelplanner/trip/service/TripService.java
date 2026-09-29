@@ -9,17 +9,20 @@ import com.example.japantravelplanner.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import com.example.japantravelplanner.global.exception.NotFoundException;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class TripService {
 
     private final TripRepository tripRepository;
     private final UserRepository userRepository;
 
+    @Transactional
     public TripResponseDto createTrip(Long userId, TripRequestDto request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다."));

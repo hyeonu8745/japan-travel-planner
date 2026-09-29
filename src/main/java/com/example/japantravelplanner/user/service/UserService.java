@@ -10,9 +10,11 @@ import com.example.japantravelplanner.global.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)          // ← 추가: 기본은 읽기 전용
 public class UserService {
 
     private final UserRepository userRepository;
@@ -20,6 +22,7 @@ public class UserService {
     private final JwtTokenProvider jwtTokenProvider; // ⭐ 추가
 
 
+    @Transactional
     public SignupResponseDto signup(SignupRequestDto request) {
 
         if (userRepository.existsByEmail(request.getEmail())) {
