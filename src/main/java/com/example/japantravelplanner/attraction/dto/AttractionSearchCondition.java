@@ -26,6 +26,7 @@ public class AttractionSearchCondition {
     private String ward;            // 千代田区, 港区 등 (정확 일치)
     private List<String> types;     // museum, park 등 (하나라도 일치하면 포함)
     private Double minRating;
+    private Integer minReviews;     // 최소 리뷰 수
 
     // 정렬, 페이징
     private AttractionSortType sort = AttractionSortType.RATING;
@@ -41,6 +42,9 @@ public class AttractionSearchCondition {
     }
 
     public void validate() {
+        if (minReviews != null && minReviews < 0) {
+            throw new IllegalArgumentException("minReviews는 0 이상이어야 합니다.");
+        }
         if ((lat == null) != (lng == null)) {
             throw new IllegalArgumentException("lat과 lng는 함께 보내야 합니다.");
         }

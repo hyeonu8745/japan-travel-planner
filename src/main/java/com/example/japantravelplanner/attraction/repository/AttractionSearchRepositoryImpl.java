@@ -87,6 +87,11 @@ public class AttractionSearchRepositoryImpl implements AttractionSearchRepositor
             params.put("minRating", c.getMinRating());
         }
 
+        if (c.getMinReviews() != null) {
+            conditions.add("a.review_cnt >= :minReviews");
+            params.put("minReviews", c.getMinReviews());
+        }
+
         if (conditions.isEmpty()) {
             return "";
         }

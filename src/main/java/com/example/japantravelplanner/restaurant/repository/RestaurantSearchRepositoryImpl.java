@@ -73,6 +73,11 @@ public class RestaurantSearchRepositoryImpl implements RestaurantSearchRepositor
             params.put("minRating", c.getMinRating());
         }
 
+        if (c.getMinReviews() != null) {
+            conditions.add("r.review_cnt >= :minReviews");
+            params.put("minReviews", c.getMinReviews());
+        }
+
         if (c.getMaxBudget() != null) {
             // 컬럼명은 사용자 입력이 아니라 enum으로만 결정된다 (SQL 인젝션 불가)
             String budgetColumn = switch (c.getMealType()) {

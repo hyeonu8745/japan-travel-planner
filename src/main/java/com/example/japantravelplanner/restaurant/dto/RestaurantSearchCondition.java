@@ -22,6 +22,7 @@ public class RestaurantSearchCondition {
     // 필터
     private String genre;
     private Double minRating;
+    private Integer minReviews;     // 최소 리뷰 수
     private Integer maxBudget;        // 엔 단위, 상한(max) 기준 엄격 비교
     private MealType mealType = MealType.DINNER;
 
@@ -36,6 +37,9 @@ public class RestaurantSearchCondition {
 
     /** 조건 조합이 올바른지 검사한다. 잘못되면 IllegalArgumentException. */
     public void validate() {
+        if (minReviews != null && minReviews < 0) {
+            throw new IllegalArgumentException("minReviews는 0 이상이어야 합니다.");
+        }
         if ((lat == null) != (lng == null)) {
             throw new IllegalArgumentException("lat과 lng는 함께 보내야 합니다.");
         }
