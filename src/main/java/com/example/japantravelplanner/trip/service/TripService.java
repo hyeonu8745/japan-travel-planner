@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +31,7 @@ public class TripService {
 
         Trip trip = Trip.builder()
                 .user(user)
+                .title(defaultTitle(request.getStartDate(), request.getEndDate()))
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
                 .travelers(request.getTravelers())
@@ -44,6 +47,18 @@ public class TripService {
 
         Trip savedTrip = tripRepository.save(trip);
         return TripResponseDto.from(savedTrip);
+    }
+
+    /** 날짜로 기본 제목 생성: "도쿄 3박 4일", 같은 날이면 "도쿄 당일치기" */
+    private String defaultTitle(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            return "도쿄 여행";
+        }
+        long nights = ChronoUnit.DAYS.between(startDate, endDate);
+        if (nights <= 0) {
+            return "도쿄 당일치기";
+        }
+        return "도쿄 " + nights + "박 " + (nights + 1) + "일";
     }
 
     public List<TripResponseDto> getMyTrips(Long userId) {

@@ -27,19 +27,27 @@ public class Trip {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    // 여행 제목 (생성 시 날짜로 자동 생성, 예: "도쿄 3박 4일")
+    @Column(length = 100)
+    private String title;
+
     private LocalDate startDate;
     private LocalDate endDate;
 
-    private String travelers; // "혼자", "커플", "가족(4인)" 등
+    // 인원 수 (1~20)
+    private Integer travelers;
 
+    // 전체 여행 예산 (원화, 인원 전체 합계 기준)
     private Integer budget;
 
-    private String travelPace; // "여유", "보통", "빡빡" 등
+    @Enumerated(EnumType.STRING)
+    private TravelPace travelPace;
 
     @ElementCollection
     @CollectionTable(name = "trip_interests", joinColumns = @JoinColumn(name = "trip_id"))
+    @Enumerated(EnumType.STRING)
     @Column(name = "interest")
-    private List<String> interests; // ["현지음식", "전통명소", "야경"]
+    private List<Interest> interests;
 
     @Column(length = 500)
     private String allergies;
@@ -56,7 +64,7 @@ public class Trip {
     private String accommodationAddress;
 
     @Column(columnDefinition = "geometry(Point,4326)")
-    private Point accommodationLocation; // 지금은 null, 나중에 채움
+    private Point accommodationLocation; // 일정 생성 시 Geocoding으로 채움
 
     @Enumerated(EnumType.STRING)
     @Builder.Default
