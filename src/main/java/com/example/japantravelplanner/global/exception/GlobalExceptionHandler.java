@@ -68,4 +68,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleAiService(AiServiceException e) {
         return error(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), "AI 서비스에 일시적인 문제가 있습니다.");
     }
+
+    // 호출 제한 초과 → 429
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<Map<String, String>> handleTooManyRequests(TooManyRequestsException e) {
+        return error(HttpStatus.TOO_MANY_REQUESTS, e.getMessage(), "요청이 너무 많습니다.");
+    }
 }

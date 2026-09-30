@@ -44,7 +44,20 @@ public class OpenAiClient {
                 .build();
     }
 
+    /** 자유 텍스트로 답변 받기 */
     public AiResult generate(AiModelTier tier, String instructions, String input) {
+        return call(tier, instructions, input, null);
+    }
+
+    /**
+     * 정해진 JSON 형식(Structured Output)으로 답변 받기
+     * @param format Responses API의 text.format 값 (json_schema)
+     */
+    public AiResult generateJson(AiModelTier tier, String instructions, String input, Map<String, Object> format) {
+        return call(tier, instructions, input, format);
+    }
+
+    private AiResult call(AiModelTier tier, String instructions, String input, Map<String, Object> format) {
         boolean advanced = tier == AiModelTier.ADVANCED;
         String model = advanced ? properties.getAdvancedModel() : properties.getBasicModel();
 
@@ -57,6 +70,9 @@ public class OpenAiClient {
             // 추론 모델에만 추론 강도를 보냄 (4o mini에 보내면 에러)
             body.put("reasoning", Map.of("effort", properties.getAdvancedReasoningEffort()));
         }
+        if (format != null) {
+            body.put("text", Map.of("format", format));
+        }
 
         long start = System.currentTimeMillis();
         ResponsesApiResponse response;
@@ -68,12 +84,10 @@ public class OpenAiClient {
                     .retrieve()
                     .body(ResponsesApiResponse.class);
         } catch (RestClientResponseException e) {
-            // OpenAI가 에러 응답을 준 경우 (키 오류, 모델 이름 오류, 한도 초과 등)
             log.error("[OpenAI] 호출 실패 model={} status={} body={}",
                     model, e.getStatusCode().value(), e.getResponseBodyAsString());
             throw new AiServiceException("AI 응답을 받지 못했습니다. 잠시 후 다시 시도해주세요.", e);
         } catch (RestClientException e) {
-            // 연결 실패, 시간 초과 등
             log.error("[OpenAI] 연결 실패 model={} message={}", model, e.getMessage());
             throw new AiServiceException("AI 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.", e);
         }
