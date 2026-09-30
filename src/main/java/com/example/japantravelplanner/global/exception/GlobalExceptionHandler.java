@@ -62,4 +62,10 @@ public class GlobalExceptionHandler {
         String body = Objects.requireNonNullElse(message, Objects.requireNonNullElse(fallback, "오류가 발생했습니다."));
         return ResponseEntity.status(status).body(Map.of("message", body));
     }
+
+    // 외부 AI 서비스 장애 → 503
+    @ExceptionHandler(AiServiceException.class)
+    public ResponseEntity<Map<String, String>> handleAiService(AiServiceException e) {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), "AI 서비스에 일시적인 문제가 있습니다.");
+    }
 }
