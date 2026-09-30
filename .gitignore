@@ -45,7 +45,8 @@ data/processed/geocode_cache.csv
 application-secret.yaml
 application-local.yaml
 .env
-
+.env.*
+!.env.example
 # ===== IntelliJ =====
 .idea/
 *.iml

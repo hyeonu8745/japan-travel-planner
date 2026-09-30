@@ -2,10 +2,13 @@ spring:
   application:
     name: japan-travel-planner
 
+  config:
+    import: optional:file:.env[.properties]
+
   datasource:
     url: jdbc:postgresql://localhost:5432/japan_travel
-    username: postgres
-    password: 1234
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -25,9 +28,13 @@ logging:
     org.hibernate.SQL: DEBUG
 
 jwt:
-  secret: "japan-travel-planner-jwt-secret-key-please-change-this-later-32bytes-minimum"
+  secret: ${JWT_SECRET}
   expiration-ms: 3600000  # 1시간
 
 app:
   cors:
     allowed-origins: http://localhost:5173
+  openai:
+    api-key: ${OPENAI_API_KEY}
+  google:
+    api-key: ${GOOGLE_MAPS_API_KEY}
