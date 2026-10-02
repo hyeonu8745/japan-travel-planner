@@ -74,4 +74,10 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleTooManyRequests(TooManyRequestsException e) {
         return error(HttpStatus.TOO_MANY_REQUESTS, e.getMessage(), "요청이 너무 많습니다.");
     }
+
+    // 외부 지도 API 장애 → 503
+    @ExceptionHandler(ExternalApiException.class)
+    public ResponseEntity<Map<String, String>> handleExternalApi(ExternalApiException e) {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), "외부 서비스에 일시적인 문제가 있습니다.");
+    }
 }
