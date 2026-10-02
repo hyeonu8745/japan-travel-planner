@@ -59,3 +59,7 @@ build/
 # ===== OS 관련 =====
 .DS_Store
 Thumbs.db
+
+# ===== 데이터 파일 (Git에 올리면 안 됨) =====
+data/raw/*.csv
+data/processed/*.csv
