@@ -43,16 +43,18 @@ public class GoogleRoutesClient {
     public record RouteElement(int originIndex, int destinationIndex, int seconds, int distanceMeters) {
     }
 
-    public List<RouteElement> computeMatrix(List<TravelPoint> origins, List<TravelPoint> destinations,
-                                            LegMode mode, Instant departureTime) {
+    /** 경로가 있는 구간만 돌려준다. 일본은 대중교통(TRANSIT)을 제공하지 않으므로 WALK·DRIVE만 쓴다 */
+    public List<RouteElement> computeMatrix(List<TravelPoint> origins, List<TravelPoint> destinations, LegMode mode) {
+        if (mode == LegMode.TRANSIT) {
+            throw new IllegalArgumentException("Routes API는 일본 대중교통 경로를 제공하지 않습니다.");
+        }
+
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("origins", origins.stream().map(this::waypoint).toList());
         body.put("destinations", destinations.stream().map(this::waypoint).toList());
-        body.put("travelMode", mode == LegMode.DRIVE ? "DRIVE" : "TRANSIT");
+        body.put("travelMode", mode == LegMode.DRIVE ? "DRIVE" : "WALK");
         if (mode == LegMode.DRIVE) {
-            body.put("routingPreference", "TRAFFIC_UNAWARE");   // 실시간 교통 미반영 (기본 요금)
-        } else {
-            body.put("departureTime", departureTime.toString());  // 대중교통은 출발 시각 기준 시간표
+            body.put("routingPreference", "TRAFFIC_UNAWARE");
         }
 
         MatrixElement[] response;

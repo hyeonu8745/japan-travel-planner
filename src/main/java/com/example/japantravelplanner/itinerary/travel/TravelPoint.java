@@ -6,7 +6,4 @@ package com.example.japantravelplanner.itinerary.travel;
  */
 public record TravelPoint(String name, double lat, double lng) {
 
-    public String cacheKey() {
-        return String.format("%.4f,%.4f", lat, lng);
-    }
 }

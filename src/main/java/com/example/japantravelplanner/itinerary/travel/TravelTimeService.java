@@ -5,134 +5,97 @@ import com.example.japantravelplanner.global.google.GoogleRoutesClient;
 import com.example.japantravelplanner.global.google.GoogleRoutesClient.RouteElement;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 장소 목록의 이동 시간 표를 만든다.
- * 순서: 800m 이내는 도보 → 캐시 → Routes API → 실패하면 직선거리 추정
+ *
+ * 기본은 자체 계산 (Google Routes는 일본 대중교통을 제공하지 않고, 이동 시간 캐시는 약관상 허용되지 않음)
+ *  - 도보 시간이 기준 이내면 도보
+ *  - 넘으면 대중교통 모델과 비교해 빠른 쪽
+ *  - 렌트카는 운전 모델
+ * use-google-routes를 켜면 도보 시간만 Google에서 실시간으로 받는다 (저장하지 않음)
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TravelTimeService {
 
-    private static final double WALK_THRESHOLD_M = 800;
-    private static final double WALK_M_PER_MIN = 80;          // 도보 분속
-    private static final double TRANSIT_M_PER_MIN = 333;      // 대중교통 평균 (시속 20km, 환승 포함)
-    private static final double DRIVE_M_PER_MIN = 416;        // 도심 운전 평균 (시속 25km)
-    private static final double DETOUR_FACTOR = 1.3;          // 실제 길은 직선보다 돌아감
-    private static final int CACHE_DAYS = 30;
-
+    private final TravelProperties props;
     private final GoogleRoutesClient routesClient;
-    private final TravelTimeCacheRepository cacheRepository;
 
     /**
      * @param baseMode 여행의 이동수단 (TRANSIT 또는 DRIVE)
-     * @param departureTime 대중교통 시간표 기준 시각
+     * @param walkThresholdMinutes 이 시간 이내는 걸어감 (여유 속도·이동 제약이면 더 짧게)
      */
-    public TravelMatrix buildMatrix(List<TravelPoint> points, LegMode baseMode, Instant departureTime) {
+    public TravelMatrix buildMatrix(List<TravelPoint> points, LegMode baseMode, int walkThresholdMinutes) {
         int n = points.size();
         TravelLeg[][] legs = new TravelLeg[n][n];
-        List<int[]> needApi = new ArrayList<>();
 
-        // ① 가까운 곳은 도보, ② 캐시 확인
-        Map<String, TravelTimeCache> cached = loadCache(points, baseMode);
+        Map<String, RouteElement> googleWalk = (props.isUseGoogleRoutes() && baseMode == LegMode.TRANSIT)
+                ? fetchGoogleWalk(points)
+                : Map.of();
+
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < n; j++) {
                 if (i == j) continue;
                 double straight = straightDistance(points.get(i), points.get(j));
-                if (straight <= WALK_THRESHOLD_M && baseMode == LegMode.TRANSIT) {
-                    legs[i][j] = walkLeg(straight);
+
+                if (baseMode == LegMode.DRIVE) {
+                    legs[i][j] = driveLeg(straight);
                     continue;
                 }
-                TravelTimeCache hit = cached.get(points.get(i).cacheKey() + ">" + points.get(j).cacheKey());
-                if (hit != null) {
-                    legs[i][j] = new TravelLeg(hit.getMinutes(), hit.getDistanceMeters(), baseMode, false);
+
+                TravelLeg walk = walkLeg(straight, googleWalk.get(i + ">" + j));
+                if (walk.minutes() <= walkThresholdMinutes) {
+                    legs[i][j] = walk;
                 } else {
-                    needApi.add(new int[]{i, j});
+                    TravelLeg transit = transitLeg(straight);
+                    legs[i][j] = transit.minutes() < walk.minutes() ? transit : walk;
                 }
             }
         }
-
-        // ③ 남은 구간만 API로
-        if (!needApi.isEmpty()) {
-            fillFromApi(points, baseMode, departureTime, legs, needApi);
-        }
-
-        // ④ 그래도 빈 칸(API 실패, 경로 없음)은 직선거리로 추정
-        int estimatedCount = 0;
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
-                if (i != j && legs[i][j] == null) {
-                    legs[i][j] = estimatedLeg(straightDistance(points.get(i), points.get(j)), baseMode);
-                    estimatedCount++;
-                }
-            }
-        }
-
-        log.info("[Travel] 장소 {}개, API 요청 구간 {}개, 추정 구간 {}개", n, needApi.size(), estimatedCount);
         return new TravelMatrix(points, legs);
     }
 
-    private Map<String, TravelTimeCache> loadCache(List<TravelPoint> points, LegMode mode) {
-        Set<String> keys = new HashSet<>();
-        points.forEach(p -> keys.add(p.cacheKey()));
-        Map<String, TravelTimeCache> result = new HashMap<>();
-        cacheRepository.findByModeAndOriginKeyInAndDestinationKeyInAndCreatedAtAfter(
-                        mode, keys, keys, LocalDateTime.now().minusDays(CACHE_DAYS))
-                .forEach(c -> result.put(c.getOriginKey() + ">" + c.getDestinationKey(), c));
-        return result;
-    }
-
-    private void fillFromApi(List<TravelPoint> points, LegMode mode, Instant departureTime,
-                             TravelLeg[][] legs, List<int[]> needApi) {
-        List<RouteElement> elements;
+    /** Google 도보 경로를 실시간으로 (저장하지 않음). 실패하면 빈 Map → 자체 계산 */
+    private Map<String, RouteElement> fetchGoogleWalk(List<TravelPoint> points) {
         try {
-            // 행렬 API는 출발지 × 도착지 전체를 한 번에 계산 (필요한 칸만 골라 쓴다)
-            elements = routesClient.computeMatrix(points, points, mode, departureTime);
+            Map<String, RouteElement> result = new HashMap<>();
+            for (RouteElement e : routesClient.computeMatrix(points, points, LegMode.WALK)) {
+                result.put(e.originIndex() + ">" + e.destinationIndex(), e);
+            }
+            return result;
         } catch (ExternalApiException e) {
-            log.warn("[Travel] Routes API 실패, 직선거리로 추정합니다");
-            return;   // 빈 칸은 ④에서 추정
-        }
-
-        Set<String> needed = new HashSet<>();
-        needApi.forEach(p -> needed.add(p[0] + ">" + p[1]));
-
-        List<TravelTimeCache> toSave = new ArrayList<>();
-        for (RouteElement e : elements) {
-            int i = e.originIndex();
-            int j = e.destinationIndex();
-            if (i == j || !needed.contains(i + ">" + j)) continue;
-
-            int minutes = Math.max(1, (int) Math.ceil(e.seconds() / 60.0));
-            legs[i][j] = new TravelLeg(minutes, e.distanceMeters(), mode, false);
-            toSave.add(new TravelTimeCache(points.get(i).cacheKey(), points.get(j).cacheKey(),
-                    mode, minutes, e.distanceMeters()));
-        }
-
-        try {
-            cacheRepository.saveAll(toSave);
-        } catch (DataIntegrityViolationException ignored) {
-            // 동시에 같은 구간을 저장한 경우. 이미 있으니 무시
+            log.warn("[Travel] Google 도보 경로 실패, 자체 계산으로 대체합니다");
+            return Map.of();
         }
     }
 
-    private TravelLeg walkLeg(double straight) {
-        double distance = straight * 1.25;
-        return new TravelLeg(Math.max(1, (int) Math.ceil(distance / WALK_M_PER_MIN)),
-                (int) distance, LegMode.WALK, false);
+    private TravelLeg walkLeg(double straight, RouteElement google) {
+        if (google != null) {
+            int minutes = Math.max(1, (int) Math.ceil(google.seconds() / 60.0));
+            return new TravelLeg(minutes, google.distanceMeters(), LegMode.WALK, false);
+        }
+        double distance = straight * props.getWalkDetour();
+        int minutes = Math.max(1, (int) Math.ceil(distance / props.getWalkMetersPerMinute()));
+        return new TravelLeg(minutes, (int) distance, LegMode.WALK, false);
     }
 
-    private TravelLeg estimatedLeg(double straight, LegMode mode) {
-        double distance = straight * DETOUR_FACTOR;
-        double speed = mode == LegMode.DRIVE ? DRIVE_M_PER_MIN : TRANSIT_M_PER_MIN;
-        int waiting = mode == LegMode.DRIVE ? 5 : 8;   // 주차, 역까지 걷기·대기
-        return new TravelLeg((int) Math.ceil(distance / speed) + waiting, (int) distance, mode, true);
+    private TravelLeg transitLeg(double straight) {
+        double distance = straight * props.getTransitDetour();
+        int minutes = (int) Math.ceil(distance / props.getTransitMetersPerMinute()) + props.getTransitOverheadMinutes();
+        return new TravelLeg(minutes, (int) distance, LegMode.TRANSIT, false);
+    }
+
+    private TravelLeg driveLeg(double straight) {
+        double distance = straight * props.getTransitDetour();
+        int minutes = (int) Math.ceil(distance / props.getDriveMetersPerMinute()) + props.getDriveOverheadMinutes();
+        return new TravelLeg(minutes, (int) distance, LegMode.DRIVE, false);
     }
 
     static double straightDistance(TravelPoint a, TravelPoint b) {
