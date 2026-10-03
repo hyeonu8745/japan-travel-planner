@@ -3,6 +3,7 @@ package com.example.japantravelplanner.itinerary.travel;
 import com.example.japantravelplanner.global.exception.ExternalApiException;
 import com.example.japantravelplanner.global.google.GoogleRoutesClient;
 import com.example.japantravelplanner.global.google.GoogleRoutesClient.RouteElement;
+import com.example.japantravelplanner.global.util.GeoUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -99,11 +100,6 @@ public class TravelTimeService {
     }
 
     static double straightDistance(TravelPoint a, TravelPoint b) {
-        double dLat = Math.toRadians(b.lat() - a.lat());
-        double dLng = Math.toRadians(b.lng() - a.lng());
-        double h = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                + Math.cos(Math.toRadians(a.lat())) * Math.cos(Math.toRadians(b.lat()))
-                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        return 2 * 6_371_000 * Math.asin(Math.sqrt(h));
+        return GeoUtils.distanceMeters(a.lat(), a.lng(), b.lat(), b.lng());
     }
 }

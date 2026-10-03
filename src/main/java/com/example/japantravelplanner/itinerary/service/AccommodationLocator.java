@@ -2,6 +2,7 @@ package com.example.japantravelplanner.itinerary.service;
 
 import com.example.japantravelplanner.global.google.GoogleGeocodingClient;
 import com.example.japantravelplanner.global.google.GoogleGeocodingClient.GeocodeResult;
+import com.example.japantravelplanner.global.util.GeoUtils;
 import com.example.japantravelplanner.trip.entity.Trip;
 import lombok.RequiredArgsConstructor;
 import org.locationtech.jts.geom.Coordinate;
@@ -40,7 +41,9 @@ public class AccommodationLocator {
                 .orElseThrow(() -> new IllegalArgumentException(
                         "숙소 주소를 찾지 못했어요. 여행 조건에서 숙소 이름이나 주소를 확인해주세요."));
 
-        if (distance(result.lat(), result.lng()) > MAX_DISTANCE_FROM_TOKYO_M) {
+        double fromTokyoStation = GeoUtils.distanceMeters(
+                TOKYO_STATION_LAT, TOKYO_STATION_LNG, result.lat(), result.lng());
+        if (fromTokyoStation > MAX_DISTANCE_FROM_TOKYO_M) {
             throw new IllegalArgumentException(
                     "숙소가 도쿄 서비스 범위에서 너무 멀어요. 주소를 확인해주세요. (찾은 주소: " + result.formattedAddress() + ")");
         }
@@ -49,14 +52,5 @@ public class AccommodationLocator {
         Point point = GEOMETRY_FACTORY.createPoint(new Coordinate(result.lng(), result.lat()));
         trip.setAccommodationLocation(point);
         return point;
-    }
-
-    private double distance(double lat, double lng) {
-        double dLat = Math.toRadians(lat - TOKYO_STATION_LAT);
-        double dLng = Math.toRadians(lng - TOKYO_STATION_LNG);
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                + Math.cos(Math.toRadians(TOKYO_STATION_LAT)) * Math.cos(Math.toRadians(lat))
-                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        return 2 * 6_371_000 * Math.asin(Math.sqrt(a));
     }
 }

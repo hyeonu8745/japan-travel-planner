@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.itinerary.zone;
 
+import com.example.japantravelplanner.global.util.GeoUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -26,13 +27,8 @@ public enum TripZone {
     private final double centerLat;
     private final double centerLng;
 
-    /** 이 지역 중심에서 주어진 좌표까지의 거리(미터, Haversine) */
+    /** 이 지역 중심에서 주어진 좌표까지의 거리(미터) */
     public double distanceTo(double lat, double lng) {
-        double dLat = Math.toRadians(lat - centerLat);
-        double dLng = Math.toRadians(lng - centerLng);
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                + Math.cos(Math.toRadians(centerLat)) * Math.cos(Math.toRadians(lat))
-                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(a));
+        return GeoUtils.distanceMeters(centerLat, centerLng, lat, lng);
     }
 }
