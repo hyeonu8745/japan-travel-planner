@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.itinerary.controller;
 
+import com.example.japantravelplanner.itinerary.meal.Meal;
 import com.example.japantravelplanner.itinerary.service.ItineraryPreviewService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,5 +20,14 @@ public class ItineraryDevController {
     @GetMapping("/{tripId}/candidates")
     public List<Map<String, Object>> candidates(@AuthenticationPrincipal Long userId, @PathVariable Long tripId) {
         return previewService.previewCandidates(userId, tripId);
+    }
+
+    @GetMapping("/{tripId}/restaurants")
+    public Map<String, Object> restaurants(@AuthenticationPrincipal Long userId,
+                                           @PathVariable Long tripId,
+                                           @RequestParam double lat,
+                                           @RequestParam double lng,
+                                           @RequestParam(defaultValue = "LUNCH") Meal meal) {
+        return previewService.previewRestaurants(userId, tripId, lat, lng, meal);
     }
 }

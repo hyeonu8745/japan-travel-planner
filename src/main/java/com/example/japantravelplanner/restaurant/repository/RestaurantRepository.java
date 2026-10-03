@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+
 import java.util.List;
 import java.util.Optional;
 
@@ -40,11 +41,14 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, Long>, R
                 ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography
             )
             """, nativeQuery = true)
+
     List<Restaurant> findWithinRadius(
             @Param("lat") double lat,
             @Param("lng") double lng,
             @Param("radiusMeters") double radiusMeters
     );
+
+
 
     // 위경도(location)가 아직 없는 데이터 조회 (Geocoding 배치 처리용)
     List<Restaurant> findByLocationIsNull();

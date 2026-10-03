@@ -4,6 +4,7 @@ import com.example.japantravelplanner.attraction.repository.AttractionRepository
 import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.itinerary.candidate.*;
 import com.example.japantravelplanner.itinerary.dictionary.PlaceTypeLabels;
+import com.example.japantravelplanner.itinerary.meal.*;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.trip.entity.TripPreference;
 import com.example.japantravelplanner.trip.repository.TripPreferenceRepository;
@@ -28,6 +29,9 @@ public class ItineraryPreviewService {
     private final AttractionScorer scorer;
     private final DayZonePlanner dayZonePlanner;
     private final PlaceTypeLabels typeLabels;
+    private final MealBudgetCalculator mealBudgetCalculator;
+    private final FoodFilterResolver foodFilterResolver;
+    private final RestaurantFinder restaurantFinder;
 
     @Transactional
     public List<Map<String, Object>> previewCandidates(Long userId, Long tripId) {
@@ -62,5 +66,36 @@ public class ItineraryPreviewService {
                     "candidates", candidates));
         }
         return result;
+    }
+    @Transactional(readOnly = true)
+    public Map<String, Object> previewRestaurants(Long userId, Long tripId, double lat, double lng, Meal meal) {
+        Trip trip = tripRepository.findByIdAndUserId(tripId, userId)
+                .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
+        TripPreference preference = preferenceRepository.findByTripId(tripId).orElse(null);
+
+        int days = (int) ChronoUnit.DAYS.between(trip.getStartDate(), trip.getEndDate()) + 1;
+        double foodRatio = preference == null ? 0.4 : preference.getFoodBudgetRatio();
+        MealBudget budget = mealBudgetCalculator.calculate(trip.getBudget(), trip.getTravelers(), days, foodRatio);
+        FoodFilter filter = foodFilterResolver.resolve(
+                preference == null ? List.of() : preference.getConstraints(), trip.getAllergies());
+
+        List<Map<String, Object>> candidates = restaurantFinder
+                .find(lat, lng, meal, budget.of(meal), filter, Set.of(), 5).stream()
+                .map(c -> Map.<String, Object>of(
+                        "name", c.restaurant().getName(),
+                        "genre", c.restaurant().getGenre(),
+                        "rating", c.restaurant().getRatingVal(),
+                        "budget", meal == Meal.LUNCH ? c.restaurant().getBudgetLunch() : c.restaurant().getBudgetDinner(),
+                        "distanceMeters", c.distanceMeters(),
+                        "score", Math.round(c.score() * 100) / 100.0,
+                        "budgetRelaxed", c.budgetRelaxed()))
+                .toList();
+
+        return Map.of(
+                "mealBudget", Map.of("lunchMaxYen", budget.lunchMaxYen(), "dinnerMaxYen", budget.dinnerMaxYen()),
+                "preferGenres", filter.preferGenres(),
+                "avoidGenres", filter.avoidGenres(),
+                "avoidSmoky", filter.avoidSmoky(),
+                "candidates", candidates);
     }
 }
