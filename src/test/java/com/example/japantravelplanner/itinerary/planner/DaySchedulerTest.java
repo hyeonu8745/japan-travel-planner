@@ -323,4 +323,34 @@ class DaySchedulerTest {
         assertThat(day.dropped()).isNotEmpty();
         assertThat(names(day)).doesNotContain("예비1");
     }
+
+    @Test
+    void 멀리_돌아가야_하는_예비는_채우지_않고_가까운_예비를_쓴다() {
+        // 실제 DAY2: 점심 뒤에 롯폰기 쪽으로 되돌아가는 なだれ坂가 들어가 이동이 30분 넘게 늘었다
+        // 숙소에서 서쪽으로 약 3km 떨어진 예비 (끼우면 오가는 데 20분 넘게 더 걸린다)
+        ScoredAttraction far = spot(24, "먼예비", "tourist_attraction", 35.6951, 139.7380, 4.5);
+
+        ScheduledDay day = scheduler.schedule(
+                route(List.of(a1, a2), List.of(a3, a4), deck, List.of(far, spare1)),
+                new DayMeals(lunch, dinner), window("09:30", "22:00", true, true),
+                HOTEL, transit, 1.0);
+
+        assertThat(names(day)).doesNotContain("먼예비");
+        assertThat(names(day)).contains("예비1");   // 먼 예비를 건너뛰고 다음 예비를 본다
+    }
+
+    @Test
+    void 가까운_예비는_이동_상한_안에서_채운다() {
+        ScheduledDay noFill = scheduler.schedule(route(List.of(a1, a2), List.of(a3, a4), deck),
+                new DayMeals(lunch, dinner), window("09:30", "22:00", true, true), HOTEL, transit, 1.0);
+        ScheduledDay filled = scheduler.schedule(route(List.of(a1, a2), List.of(a3, a4), deck, List.of(spare1)),
+                new DayMeals(lunch, dinner), window("09:30", "22:00", true, true), HOTEL, transit, 1.0);
+
+        int before = noFill.stops().stream().mapToInt(s -> s.travelIn().minutes()).sum();
+        int after = filled.stops().stream().mapToInt(s -> s.travelIn().minutes()).sum();
+
+        assertThat(names(filled)).contains("예비1");
+        assertThat(after - before).isLessThanOrEqualTo(DayScheduler.MAX_FILL_DETOUR_MINUTES);
+    }
+
 }
