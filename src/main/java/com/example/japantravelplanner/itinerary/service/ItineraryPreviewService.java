@@ -41,6 +41,7 @@ public class ItineraryPreviewService {
     private final RouteOptimizer routeOptimizer;
     private final TravelProperties travelProperties;
     private final MealPlanner mealPlanner;
+    private final DayScheduler dayScheduler;
 
     /** ②③ 날짜별 지역과 관광지 후보 */
     @Transactional
@@ -94,7 +95,7 @@ public class ItineraryPreviewService {
                 "candidates", candidates);
     }
 
-    /** ④⑤ 날짜별 관광지 방문 순서(TSP) + 점심·저녁 */
+    /** ④⑤⑥ 날짜별 관광지 순서(TSP) + 점심·저녁 + 시각 */
     @Transactional
     public Map<String, Object> previewRoutes(Long userId, Long tripId) {
         Trip trip = findTrip(userId, tripId);
@@ -120,7 +121,9 @@ public class ItineraryPreviewService {
                     nightView);
             DayRoute route = routeOptimizer.optimize(day, hotelPoint, trip.getTravelPace(), options, nightView);
             DayMeals meals = mealPlanner.plan(route, hotelPoint, window, budget, filter, history);
-            dayViews.add(routeView(route, window, meals));
+            ScheduledDay scheduled = dayScheduler.schedule(route, meals, window, hotelPoint, options,
+                    trip.getTravelPace().getStayMultiplier());
+            dayViews.add(scheduleView(scheduled, window));
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -163,47 +166,42 @@ public class ItineraryPreviewService {
 
     // ── 응답 모양 (확인용) ──
 
-    private Map<String, Object> routeView(DayRoute route, DayWindow window, DayMeals meals) {
-        List<ScoredAttraction> daytime = route.daytime();
+    private Map<String, Object> scheduleView(ScheduledDay day, DayWindow window) {
         List<Map<String, Object>> stops = new ArrayList<>();
-        for (int i = 0; i < daytime.size(); i++) {
-            Map<String, Object> stop = new LinkedHashMap<>();
-            stop.put("order", i + 1);
-            stop.put("slot", i < route.morning().size() ? "오전" : "오후");
-            stop.put("name", daytime.get(i).attraction().getName());
-            stop.put("score", round2(daytime.get(i).score()));
-            stop.put("travelIn", legView(route.legs().get(i)));
-            stops.add(stop);
+        for (ScheduledStop stop : day.stops()) {
+            Map<String, Object> view = new LinkedHashMap<>();
+            view.put("time", stop.arrival() + " ~ " + stop.departure());
+            view.put("type", stop.type());
+            view.put("name", stop.name());
+            view.put("stayMinutes", stop.stayMinutes());
+            if (stop.waitMinutes() > 0) {
+                view.put("waitMinutes", stop.waitMinutes());   // 식사 시간대를 기다린 시간 ("여유 시간")
+            }
+            view.put("travelIn", legView(stop.travelIn()));
+
+            if (stop.type() == StopType.ATTRACTION) {
+                view.put("labels", typeLabels.toVisibleLabels(stop.attraction().attraction().getTypes()));
+            } else {
+                PlannedMeal meal = stop.meal();
+                view.put("restaurant", restaurantView(meal.chosen(), meal.meal()));
+                view.put("genreRepeated", meal.genreRepeated());
+                view.put("alternatives", meal.alternatives().stream()
+                        .map(c -> c.restaurant().getName() + " (" + c.restaurant().getGenre() + ")")
+                        .toList());
+            }
+            stops.add(view);
         }
 
         Map<String, Object> view = new LinkedHashMap<>();
-        view.put("day", route.day().dayNumber());
-        view.put("date", route.day().date().toString());
-        view.put("zone", route.day().zone().getLabel());
+        view.put("day", day.dayNumber());
+        view.put("date", day.date().toString());
+        view.put("zone", day.zone().getLabel());
         view.put("window", window.isEmpty() ? "일정 없음" : window.start() + " ~ " + window.end());
         view.put("stops", stops);
-        view.put("lunch", mealView(meals.lunch()));
-        view.put("dinner", mealView(meals.dinner()));
-        view.put("night", route.night() == null ? null : route.night().attraction().getName());
-        view.put("endLeg", route.endLeg() == null ? null : legView(route.endLeg()));
-        view.put("travelMinutes", route.travelMinutes());
-        view.put("spares", route.spares().stream().map(s -> s.attraction().getName()).toList());
-        return view;
-    }
-
-    private Object mealView(PlannedMeal meal) {
-        if (meal == null) return "시간대상 없음";
-        Map<String, Object> view = new LinkedHashMap<>();
-        view.put("anchor", meal.anchor().name() + " (" + round4(meal.anchor().lat()) + ", " + round4(meal.anchor().lng()) + ")");
-        if (!meal.found()) {
-            view.put("chosen", "후보 없음");
-            return view;
-        }
-        view.put("chosen", restaurantView(meal.chosen(), meal.meal()));
-        view.put("genreRepeated", meal.genreRepeated());
-        view.put("alternatives", meal.alternatives().stream()
-                .map(c -> c.restaurant().getName() + " (" + c.restaurant().getGenre() + ")")
+        view.put("dropped", day.dropped().stream()
+                .map(d -> d.name() + " (" + d.reason().label() + ")")
                 .toList());
+        view.put("warnings", day.warnings());
         return view;
     }
 
@@ -218,9 +216,7 @@ public class ItineraryPreviewService {
         return view;
     }
 
-    private static double round4(double value) {
-        return Math.round(value * 10000) / 10000.0;
-    }
+
 
     private static String legView(TravelLeg leg) {
         return leg.mode() + " " + leg.minutes() + "분 (" + leg.distanceMeters() + "m)";
