@@ -64,6 +64,7 @@ app:
     prior-reviews: 200        # 보정 평점: 이만큼의 리뷰는 전체 평균이라고 가정
     interest-bonus: 0.3       # 관심사와 맞는 type이면 가산
     extra-candidates: 2       # 하루 방문 수보다 더 뽑아두는 예비 후보
+    same-spot-meters: 150     # 이 거리 안의 관광지는 같은 장소로 보고 점수 높은 하나만 남김
 
   meal:
     krw-per-yen: 9.0             # 환율 고정값 (100엔 = 900원). #6에서 API로 교체 예정

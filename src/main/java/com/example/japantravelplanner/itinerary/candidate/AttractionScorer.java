@@ -15,6 +15,8 @@ import java.util.*;
  * 점수 = 보정 평점 + 관심사 보너스 (관심사 하나당, 최대 2개까지)
  * 어느 지역에도 속하지 않는 관광지(중심에서 3km 초과)는 제외
  * 같은 장소가 여러 개로 수집된 경우 점수 높은 하나만 남긴다
+ *  - 이름이 겹치고 800m 이내 (東京都庁 + 東京都庁第一本庁舎 北展望室)
+ *  - 이름과 상관없이 sameSpotMeters(150m) 이내 (愛宕山 + 出世の石段 43m, スクランブル交差点 + ハチ公像 48m)
  */
 @Slf4j
 @Component
@@ -71,9 +73,11 @@ public class AttractionScorer {
     private List<ScoredAttraction> removeNearDuplicates(List<ScoredAttraction> sorted) {
         List<ScoredAttraction> kept = new ArrayList<>();
         for (ScoredAttraction candidate : sorted) {
-            boolean duplicate = kept.stream().anyMatch(k -> isNearDuplicate(
-                    k.attraction().getName(), k.lat(), k.lng(),
-                    candidate.attraction().getName(), candidate.lat(), candidate.lng()));
+            boolean duplicate = kept.stream().anyMatch(k ->
+                    isSameSpot(k.lat(), k.lng(), candidate.lat(), candidate.lng(), props.getSameSpotMeters())
+                            || isNearDuplicate(
+                            k.attraction().getName(), k.lat(), k.lng(),
+                            candidate.attraction().getName(), candidate.lat(), candidate.lng()));
             if (duplicate) {
                 log.debug("[Scorer] 중복 제외: {}", candidate.attraction().getName());
             } else {
@@ -81,6 +85,14 @@ public class AttractionScorer {
             }
         }
         return kept;
+    }
+
+    /**
+     * 이름이 달라도 아주 가까우면(기본 150m) 한 장소 안의 하위 명소로 본다.
+     * 점수 높은 순으로 보면서 이미 남긴 것과만 비교하므로, 줄줄이 이어진 곳이 통째로 합쳐지지는 않는다
+     */
+    static boolean isSameSpot(double latA, double lngA, double latB, double lngB, double meters) {
+        return GeoUtils.distanceMeters(latA, lngA, latB, lngB) <= meters;
     }
 
     /** 가깝고(300m 이내), 짧은 이름이 긴 이름 안에 들어 있으면 같은 장소로 본다 */
