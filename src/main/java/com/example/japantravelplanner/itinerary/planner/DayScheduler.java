@@ -30,6 +30,7 @@ import java.util.List;
  * 고친 뒤에도 저녁 전에 1시간 이상 비면(식사 시간대 대기) 예비 관광지를 끼워 넣는다
  *
  * 이동 시간 표는 하루에 한 번만 만든다 (Google 실시간 도보 조회가 켜져 있어도 호출은 한 번)
+ * 단, 끼워 넣어서 이동이 15분 넘게 늘어나는 예비는 쓰지 않는다 (멀리 돌아가는 일정 방지)
  */
 @Slf4j
 @Component
@@ -44,9 +45,9 @@ public class DayScheduler {
 
     /**
      * 예비 관광지를 끼워 넣어서 늘어나는 이동 시간의 상한(분). 이보다 많이 돌아가야 하면 그 예비는 쓰지 않는다.
-     * (점심 뒤에 롯폰기 쪽으로 되돌아가는 なだれ坂가 들어가서 하루 이동이 30분 넘게 늘어난 적이 있다)
+     * (점심 뒤에 롯폰기 쪽으로 되돌아가는 なだれ坂가 들어가서 하루 이동이 18분 늘어난 적이 있다)
      */
-    static final int MAX_FILL_DETOUR_MINUTES = 20;
+    static final int MAX_FILL_DETOUR_MINUTES = 15;
 
     private static final int MAX_REPAIRS = 40;
 
