@@ -17,6 +17,7 @@ import java.util.*;
  * 같은 장소가 여러 개로 수집된 경우 점수 높은 하나만 남긴다
  *  - 이름이 겹치고 800m 이내 (東京都庁 + 東京都庁第一本庁舎 北展望室)
  *  - 이름과 상관없이 sameSpotMeters(150m) 이내 (愛宕山 + 出世の石段 43m, スクランブル交差点 + ハチ公像 48m)
+ * 리뷰가 minReviews(100개) 미만인 관광지도 제외 (なだれ坂 36개처럼 일정에 넣기엔 너무 작은 곳)
  */
 @Slf4j
 @Component
@@ -39,10 +40,12 @@ public class AttractionScorer {
         for (Attraction a : attractions) {
             if (a.getLocation() == null || a.getRating() == null) continue;
 
+            int reviews = a.getReviewCnt() == null ? 0 : a.getReviewCnt();
+            if (reviews < props.getMinReviews()) continue;
+
             double lat = a.getLocation().getY();
             double lng = a.getLocation().getX();
             zoneAssigner.assign(lat, lng).ifPresent(zone -> {
-                int reviews = a.getReviewCnt() == null ? 0 : a.getReviewCnt();
                 double score = bayesian(a.getRating(), reviews, mean, props.getPriorReviews())
                         + interestBonus(a.getTypes(), interests);
                 result.add(new ScoredAttraction(a, zone, score));

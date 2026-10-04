@@ -121,4 +121,40 @@ class AttractionScorerTest {
         assertThat(AttractionScorer.isSameSpot(35.0, 139.0, 35.0, 139.0, 150)).isTrue();
         assertThat(AttractionScorer.isSameSpot(35.0, 139.0, 35.002, 139.0, 150)).isFalse();   // 약 222m
     }
+
+    // ── 리뷰가 너무 적은 곳은 후보에서 뺀다 ──
+
+    private static Attraction placeWithReviews(long id, String name, int reviews, double rating) {
+        return Attraction.builder().id(id).name(name).rating(rating).reviewCnt(reviews).types("tourist_attraction")
+                .location(GF.createPoint(new Coordinate(139.7040 + id * 0.01, 35.6890))).build();
+    }
+
+    @Test
+    void 리뷰가_100개_미만인_곳은_후보에서_빠진다() {
+        // 실제 사례: なだれ坂(리뷰 36개)가 하루 일정에 들어가 이동만 30분 늘렸다
+        List<String> kept = keptNames(List.of(
+                placeWithReviews(1, "新宿御苑", 45_733, 4.6),
+                placeWithReviews(2, "なだれ坂", 36, 4.3),
+                placeWithReviews(3, "ゴジラロード", 2, 5.0)));
+
+        assertThat(kept).containsExactly("新宿御苑");
+    }
+
+    @Test
+    void 리뷰_100개는_후보에_남는다() {
+        List<String> kept = keptNames(List.of(
+                placeWithReviews(1, "백개", 100, 4.4),
+                placeWithReviews(2, "아흔아홉개", 99, 4.4)));
+
+        assertThat(kept).containsExactly("백개");
+    }
+
+    @Test
+    void 리뷰_수를_모르는_곳도_빠진다() {
+        Attraction unknown = Attraction.builder().id(1L).name("리뷰없음").rating(4.5).types("tourist_attraction")
+                .location(GF.createPoint(new Coordinate(139.7040, 35.6890))).build();
+
+        assertThat(keptNames(List.of(unknown))).isEmpty();
+    }
+
 }

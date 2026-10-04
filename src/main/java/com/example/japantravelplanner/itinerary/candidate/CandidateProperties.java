@@ -16,4 +16,6 @@ public class CandidateProperties {
     private int extraCandidates = 2;
     // 이 거리(미터) 안의 관광지는 같은 장소(하위 명소)로 보고 점수 높은 하나만 남긴다
     private double sameSpotMeters = 150;
+    // 리뷰가 이 수보다 적은 관광지는 일정 후보에서 뺀다 (비석·작은 골목·언덕 같은 곳이라 일정에 넣을 만하지 않음)
+    private int minReviews = 100;
 }
