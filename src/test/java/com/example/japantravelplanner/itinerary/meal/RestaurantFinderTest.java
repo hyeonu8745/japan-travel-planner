@@ -43,4 +43,25 @@ class RestaurantFinderTest {
     void 주스바는_흡연_장르가_아니다() {
         assertThat(RestaurantFinder.isSmokyGenre("ジュースバー")).isFalse();
     }
+
+    @Test
+    void 대표_장르는_첫_번째_장르다() {
+        assertThat(RestaurantFinder.firstGenre("カフェ,洋食,パン")).isEqualTo("カフェ");
+        assertThat(RestaurantFinder.firstGenre(null)).isEmpty();
+    }
+
+    @Test
+    void 대표_장르가_간식이면_저녁_후보가_아니다() {
+        // 실제 응답에서 저녁으로 뽑혔던 곳들 (카페·빵집)
+        assertThat(RestaurantFinder.isSnackLed("カフェ,洋食,パン")).isTrue();
+        assertThat(RestaurantFinder.isSnackLed("カフェ,洋食,カフェ・喫茶（その他）")).isTrue();
+        assertThat(RestaurantFinder.isSnackLed("パン,サンドイッチ,ケーキ")).isTrue();
+    }
+
+    @Test
+    void 대표_장르가_식사면_간식이_섞여_있어도_후보다() {
+        assertThat(RestaurantFinder.isSnackLed("洋食,カフェ")).isFalse();
+        assertThat(RestaurantFinder.isSnackLed("ラーメン,餃子")).isFalse();
+        assertThat(RestaurantFinder.isSnackLed(null)).isFalse();
+    }
 }

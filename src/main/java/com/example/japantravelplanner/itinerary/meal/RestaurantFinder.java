@@ -65,6 +65,7 @@ public class RestaurantFinder {
 
             Set<String> genres = genresOf(r.getGenre());
             if (isSnackOnly(genres)) continue;
+            if (meal == Meal.DINNER && isSnackLed(r.getGenre())) continue;   // 저녁은 간식이 대표인 곳 제외
             if (!Collections.disjoint(genres, filter.avoidGenres())) continue;
             if (filter.avoidSmoky() && genres.stream().anyMatch(RestaurantFinder::isSmokyGenre)) continue;
 
@@ -109,6 +110,21 @@ public class RestaurantFinder {
 
     static boolean isSnackGenre(String genre) {
         return SNACK_KEYWORDS.stream().anyMatch(genre::contains);
+    }
+
+    /** 타베로그는 첫 번째 장르가 대표 장르 */
+    static String firstGenre(String genreCsv) {
+        if (genreCsv == null || genreCsv.isBlank()) return "";
+        return genreCsv.split(",")[0].trim();
+    }
+
+    /**
+     * 대표(첫 번째) 장르가 간식·디저트·카페면 저녁 후보가 아니다.
+     * 모든 장르가 간식일 때만 거르는 isSnackOnly로는 カフェ,洋食,パン 같은 곳이 통과한다
+     */
+    static boolean isSnackLed(String genreCsv) {
+        String first = firstGenre(genreCsv);
+        return !first.isEmpty() && isSnackGenre(first);
     }
 
     /** 장르가 모두 간식·디저트면 식사 후보가 아니다 (カフェ,パスタ처럼 식사가 섞이면 후보) */

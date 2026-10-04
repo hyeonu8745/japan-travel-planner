@@ -126,4 +126,43 @@ class MealPlannerTest {
         assertThat(MealPlanner.lunchAnchor(route(List.of(), List.of(), null), HOTEL)).isEqualTo(HOTEL);
         assertThat(MealPlanner.dinnerAnchor(route(List.of(), List.of(), null), HOTEL)).isEqualTo(HOTEL);
     }
+
+    // ── 같은 묶음 감점 ──
+
+    @Test
+    void 라멘이_이미_나왔으면_다른_음식이_위로_올라온다() {
+        MealHistory history = new MealHistory();
+        history.record(ramen1);   // 점수 3.9 라멘이 이미 나옴
+
+        // ramen2 3.8-0.15=3.65, yakitori 3.7, soba 3.6 → yakitori가 라멘2보다 위
+        List<RestaurantCandidate> result = MealPlanner.rerank(List.of(ramen2, yakitori, soba), history, 0.15);
+        assertThat(result).containsExactly(yakitori, ramen2, soba);
+    }
+
+    @Test
+    void 라멘이_두_번_나왔으면_감점도_두_배() {
+        MealHistory history = new MealHistory();
+        history.record(ramen1);
+        history.record(restaurant(9, "라멘집9", "つけ麺", 3.5));
+
+        // ramen2 3.8-0.30=3.50, soba 3.6 → soba가 위
+        List<RestaurantCandidate> result = MealPlanner.rerank(List.of(ramen2, soba), history, 0.15);
+        assertThat(result).containsExactly(soba, ramen2);
+    }
+
+    @Test
+    void 아직_안_나온_묶음은_순위_그대로() {
+        List<RestaurantCandidate> result = MealPlanner.rerank(List.of(ramen1, ramen2, yakitori), new MealHistory(), 0.15);
+        assertThat(result).containsExactly(ramen1, ramen2, yakitori);
+    }
+
+    @Test
+    void 묶음이_없는_음식은_여러_번_나와도_감점이_없다() {
+        MealHistory history = new MealHistory();
+        history.record(yakitori);
+        history.record(restaurant(8, "야키토리8", "焼き鳥", 3.5));
+
+        List<RestaurantCandidate> result = MealPlanner.rerank(List.of(yakitori, soba), history, 0.15);
+        assertThat(result).containsExactly(yakitori, soba);
+    }
 }

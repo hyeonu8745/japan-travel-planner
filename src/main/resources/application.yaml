@@ -75,3 +75,4 @@ app:
     distance-penalty-per-km: 0.1 # 멀수록 감점
     search-radii: 500,1000,1500  # 이 순서로 넓혀가며 검색
     budget-relax-steps: 1.2,1.4  # 그래도 없으면 예산을 이만큼 올려서
+    repeat-group-penalty: 0.15   # 같은 묶음(라멘류 등)이 이미 나왔으면 나온 횟수 × 이만큼 감점

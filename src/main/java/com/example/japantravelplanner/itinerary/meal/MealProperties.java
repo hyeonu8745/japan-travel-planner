@@ -22,4 +22,6 @@ public class MealProperties {
     private double distancePenaltyPerKm = 0.1;
     private List<Integer> searchRadii = List.of(500, 1000, 1500);
     private List<Double> budgetRelaxSteps = List.of(1.2, 1.4);
+    // 여행 중 같은 묶음(라멘류 등)이 이미 나왔을 때, 다시 나오는 횟수마다 깎는 점수
+    private double repeatGroupPenalty = 0.15;
 }

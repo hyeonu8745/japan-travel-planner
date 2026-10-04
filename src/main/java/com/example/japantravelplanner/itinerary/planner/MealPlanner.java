@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
@@ -16,6 +17,7 @@ import java.util.Set;
  * 정해진 관광지 순서 사이에 점심·저녁 식당을 넣는다.
  * - 점심: 오전 마지막 관광지와 오후 첫 관광지의 중간 지점 근처
  * - 저녁: 오후 마지막 관광지 근처. 저녁 후 야경 장소가 있으면 그곳과의 중간 지점
+ * - 같은 묶음(라멘류 등)이 이미 나왔으면 점수를 깎아서 다른 음식이 위로 (여행 전체 기준)
  * - 바로 앞 끼니와 장르가 겹치면 다음 후보 (라멘 → 라멘 방지)
  * - 여행 전체에서 같은 식당은 한 번만
  */
@@ -24,10 +26,11 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class MealPlanner {
 
-    static final int SEARCH_LIMIT = 10;     // 장르가 겹칠 때 넘겨볼 여유
+    static final int SEARCH_LIMIT = 15;     // 감점·장르 겹침으로 순위가 바뀔 때 넘겨볼 여유
     static final int ALTERNATIVES = 2;
 
     private final RestaurantFinder restaurantFinder;
+    private final MealProperties props;
 
     public DayMeals plan(DayRoute route, TravelPoint hotel, DayWindow window,
                          MealBudget budget, FoodFilter filter, MealHistory history) {
@@ -50,9 +53,22 @@ public class MealPlanner {
             return PlannedMeal.notFound(meal, anchor);
         }
 
-        PlannedMeal planned = chooseAvoidingRepeat(meal, anchor, ranked, history.lastGenres());
+        List<RestaurantCandidate> reranked = rerank(ranked, history, props.getRepeatGroupPenalty());
+        PlannedMeal planned = chooseAvoidingRepeat(meal, anchor, reranked, history.lastGenres());
         history.record(planned.chosen());
         return planned;
+    }
+
+    /**
+     * 이미 나온 묶음(라멘류 등)의 식당은 나온 횟수 × penalty 만큼 점수를 깎아서 다시 정렬한다.
+     * 점수가 같으면 원래 순서 유지
+     */
+    static List<RestaurantCandidate> rerank(List<RestaurantCandidate> ranked, MealHistory history, double penalty) {
+        List<RestaurantCandidate> sorted = new ArrayList<>(ranked);
+        sorted.sort(Comparator.comparingDouble((RestaurantCandidate c) ->
+                        c.score() - penalty * history.repeatCount(RestaurantFinder.genresOf(c.restaurant().getGenre())))
+                .reversed());
+        return sorted;
     }
 
     /**
