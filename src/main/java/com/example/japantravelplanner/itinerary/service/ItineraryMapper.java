@@ -74,6 +74,10 @@ public final class ItineraryMapper {
                 .travelEstimated(stop.travelIn().estimated())
                 .budgetRelaxed(!attraction && stop.meal().chosen().budgetRelaxed())
                 .genreRepeated(!attraction && stop.meal().genreRepeated())
+                .genreRepeated(!attraction && stop.meal().genreRepeated())
+                .alternativeRestaurantIds(attraction ? List.of() : stop.meal().alternatives().stream()
+                                                                   .map(candidate -> candidate.restaurant().getId())
+                                                                   .toList())
                 .build();
     }
 }

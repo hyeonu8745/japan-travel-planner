@@ -9,8 +9,11 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 하루 안의 항목 하나 (관광지, 점심, 저녁).
@@ -83,11 +86,20 @@ public class ItineraryStop {
     @Column(name = "genre_repeated", nullable = false)
     private boolean genreRepeated;
 
+    // 식당 전용: 고른 식당 다음 후보의 id (점수 높은 순). 폐업 교체와 "이걸로 바꾸기"의 선택지로 쓴다
+    // 식당 정보는 복사하지 않고 id만 저장한다
+    @ElementCollection
+    @CollectionTable(name = "itinerary_stop_alternatives", joinColumns = @JoinColumn(name = "stop_id"))
+    @OrderColumn(name = "alt_order")
+    @Column(name = "restaurant_id", nullable = false)
+    @BatchSize(size = 50)
+    private List<Long> alternativeRestaurantIds = new ArrayList<>();
+
     @Builder
     private ItineraryStop(int stopOrder, StopType type, Attraction attraction, Restaurant restaurant,
                           LocalTime arrivalTime, LocalTime departureTime, int stayMinutes, int waitMinutes,
                           LegMode travelMode, int travelMinutes, int travelDistanceMeters, boolean travelEstimated,
-                          boolean budgetRelaxed, boolean genreRepeated) {
+                          boolean budgetRelaxed, boolean genreRepeated, List<Long> alternativeRestaurantIds) {
         this.stopOrder = stopOrder;
         this.type = type;
         this.attraction = attraction;
@@ -102,6 +114,8 @@ public class ItineraryStop {
         this.travelEstimated = travelEstimated;
         this.budgetRelaxed = budgetRelaxed;
         this.genreRepeated = genreRepeated;
+        this.alternativeRestaurantIds = alternativeRestaurantIds == null
+                ? new ArrayList<>() : new ArrayList<>(alternativeRestaurantIds);
     }
 
     // 같은 패키지의 ItineraryDay.addStop에서만 호출

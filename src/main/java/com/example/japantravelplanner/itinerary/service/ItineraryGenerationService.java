@@ -11,6 +11,7 @@ import com.example.japantravelplanner.itinerary.meal.MealProperties;
 import com.example.japantravelplanner.itinerary.narration.ItineraryNarrator;
 import com.example.japantravelplanner.itinerary.narration.TripBrief;
 import com.example.japantravelplanner.itinerary.repository.ItineraryRepository;
+import com.example.japantravelplanner.restaurant.entity.Restaurant;
 import com.example.japantravelplanner.restaurant.repository.RestaurantRepository;
 import com.example.japantravelplanner.trip.entity.PreferenceConstraint;
 import com.example.japantravelplanner.trip.entity.Trip;
@@ -28,6 +29,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 일정을 만들어서 저장한다.
@@ -147,7 +151,7 @@ public class ItineraryGenerationService {
 
         log.info("[Itinerary] 저장 tripId={} version={} 일수={} 설명={}일", tripId, version,
                 planned.result().days().size(), descriptions.size());
-        return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels);
+        return toResponse(itinerary);
     }
 
     // ===================== 조회 =====================
@@ -160,6 +164,15 @@ public class ItineraryGenerationService {
                     .orElseThrow(() -> new NotFoundException("아직 만들어진 일정이 없습니다."));
             return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels);
         });
+    }
+
+    // 식당 대안 후보는 id만 저장되어 있어서, 일정 전체의 대안을 한 번에 조회해서 풀어준다
+    private ItineraryResponseDto toResponse(Itinerary itinerary) {
+        Set<Long> ids = ItineraryResponseDto.alternativeRestaurantIds(itinerary);
+        Map<Long, Restaurant> alternatives = ids.isEmpty() ? Map.of()
+                : restaurantRepository.findAllById(ids).stream()
+                  .collect(Collectors.toMap(Restaurant::getId, Function.identity()));
+        return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels, alternatives);
     }
 
     private Trip findTrip(Long userId, Long tripId) {
