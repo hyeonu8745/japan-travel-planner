@@ -21,4 +21,17 @@ class GenreGroupsTest {
         assertThat(GenreGroups.groupsOf(Set.of("そば", "うどん"))).isEmpty();
         assertThat(GenreGroups.groupsOf(Set.of())).isEmpty();
     }
+
+    @Test
+    void 일본식_카레와_인도_카레는_같은_묶음() {
+        // 실제 DAY2: 점심 カレーライス → 저녁 インド料理,インドカレー (이름이 달라서 반복으로 안 잡혔다)
+        assertThat(GenreGroups.groupsOf(Set.of("カレーライス"))).containsExactly("CURRY");
+        assertThat(GenreGroups.groupsOf(Set.of("インド料理", "インドカレー", "バイキング"))).containsExactly("CURRY");
+        assertThat(GenreGroups.groupsOf(Set.of("スープカレー"))).containsExactly("CURRY");
+    }
+
+    @Test
+    void 카레_장르가_없는_인도_식당은_묶음이_아니다() {
+        assertThat(GenreGroups.groupsOf(Set.of("インド料理"))).isEmpty();
+    }
 }

@@ -199,4 +199,18 @@ class MealPlannerTest {
         assertThat(history.repeatCount(Set.of("ラーメン"))).isEqualTo(1);               // 라멘 묶음은 세 번째 장르도 셈
     }
 
+    @Test
+    void 점심이_카레였으면_저녁의_인도_카레보다_다른_음식이_위로_올라온다() {
+        // 실제 DAY2: 점심 カレーライス, 저녁 インド料理,インドカレー가 나왔다
+        MealHistory history = new MealHistory();
+        history.record(restaurant(30, "ザ・カリ", "カレーライス", 3.79));
+
+        RestaurantCandidate indianCurry = restaurant(31, "ニルワナム", "インド料理,インドカレー,バイキング", 3.71);
+        RestaurantCandidate tonkatsu = restaurant(32, "とん平", "とんかつ", 3.62);
+
+        // 인도 카레 3.71 - 0.15 = 3.56 < 돈카츠 3.62
+        List<RestaurantCandidate> result = MealPlanner.rerank(List.of(indianCurry, tonkatsu), history, 0.15);
+        assertThat(result).containsExactly(tonkatsu, indianCurry);
+    }
+
 }

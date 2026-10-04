@@ -13,7 +13,9 @@ import java.util.Set;
 public final class GenreGroups {
 
     private static final Map<String, List<String>> GROUPS = Map.of(
-            "RAMEN", List.of("ラーメン", "つけ麺", "油そば", "まぜそば", "担々麺")
+            "RAMEN", List.of("ラーメン", "つけ麺", "油そば", "まぜそば", "担々麺"),
+            // カレーライス(일본식)와 インドカレー(인도식)는 타베로그 장르 이름은 다르지만 여행자에게는 같은 카레
+            "CURRY", List.of("カレー")
     );
 
     private GenreGroups() {
