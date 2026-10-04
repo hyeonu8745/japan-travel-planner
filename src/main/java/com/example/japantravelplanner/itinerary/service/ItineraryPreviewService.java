@@ -1,15 +1,14 @@
 package com.example.japantravelplanner.itinerary.service;
 
-import com.example.japantravelplanner.attraction.repository.AttractionRepository;
 import com.example.japantravelplanner.global.exception.NotFoundException;
-import com.example.japantravelplanner.itinerary.candidate.*;
+import com.example.japantravelplanner.itinerary.candidate.DayZone;
+import com.example.japantravelplanner.itinerary.candidate.ScoredAttraction;
 import com.example.japantravelplanner.itinerary.dictionary.PlaceTypeLabels;
 import com.example.japantravelplanner.itinerary.meal.*;
+import com.example.japantravelplanner.itinerary.narration.ItineraryNarrator;
+import com.example.japantravelplanner.itinerary.narration.TripBrief;
 import com.example.japantravelplanner.itinerary.planner.*;
 import com.example.japantravelplanner.itinerary.travel.TravelLeg;
-import com.example.japantravelplanner.itinerary.travel.TravelPoint;
-import com.example.japantravelplanner.itinerary.travel.TravelProperties;
-import com.example.japantravelplanner.trip.entity.Interest;
 import com.example.japantravelplanner.trip.entity.PreferenceConstraint;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.trip.entity.TripPreference;
@@ -20,28 +19,25 @@ import org.locationtech.jts.geom.Point;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 
-/** 일정 생성 단계별 확인용. 일정 생성 Service가 생기면 그쪽으로 흡수한다 */
+/**
+ * 일정 생성 단계별 확인용 (저장하지 않는다). 일정 계산은 ItineraryPlanner를 그대로 쓴다.
+ * 저장까지 하는 실제 흐름은 ItineraryGenerationService. 화면 연결이 끝나면 이 클래스와 확인용 컨트롤러는 삭제
+ */
 @Service
 @RequiredArgsConstructor
 public class ItineraryPreviewService {
 
     private final TripRepository tripRepository;
     private final TripPreferenceRepository preferenceRepository;
-    private final AttractionRepository attractionRepository;
     private final AccommodationLocator accommodationLocator;
-    private final AttractionScorer scorer;
-    private final DayZonePlanner dayZonePlanner;
+    private final ItineraryPlanner planner;
+    private final ItineraryNarrator narrator;
     private final PlaceTypeLabels typeLabels;
     private final MealBudgetCalculator mealBudgetCalculator;
     private final FoodFilterResolver foodFilterResolver;
     private final RestaurantFinder restaurantFinder;
-    private final RouteOptimizer routeOptimizer;
-    private final TravelProperties travelProperties;
-    private final MealPlanner mealPlanner;
-    private final DayScheduler dayScheduler;
 
     /** ②③ 날짜별 지역과 관광지 후보 */
     @Transactional
@@ -51,7 +47,7 @@ public class ItineraryPreviewService {
         Point hotel = accommodationLocator.locate(trip);
 
         List<Map<String, Object>> result = new ArrayList<>();
-        for (DayZone day : planZones(trip, constraints, hotel)) {
+        for (DayZone day : planner.planZones(trip, constraints, hotel)) {
             List<Map<String, Object>> candidates = day.candidates().stream()
                     .map(this::attractionView)
                     .toList();
@@ -71,9 +67,9 @@ public class ItineraryPreviewService {
         TripPreference preference = preferenceRepository.findByTripId(tripId).orElse(null);
 
         double foodRatio = preference == null ? 0.4 : preference.getFoodBudgetRatio();
-        MealBudget budget = mealBudgetCalculator.calculate(trip.getBudget(), trip.getTravelers(), daysOf(trip), foodRatio);
-        FoodFilter filter = foodFilterResolver.resolve(
-                preference == null ? List.of() : preference.getConstraints(), trip.getAllergies());
+        MealBudget budget = mealBudgetCalculator.calculate(trip.getBudget(), trip.getTravelers(),
+                ItineraryPlanner.daysOf(trip), foodRatio);
+        FoodFilter filter = foodFilterResolver.resolve(ItineraryPlanner.constraintsOf(preference), trip.getAllergies());
 
         List<Map<String, Object>> candidates = restaurantFinder
                 .find(lat, lng, meal, budget.of(meal), filter, Set.of(), 5).stream()
@@ -95,42 +91,36 @@ public class ItineraryPreviewService {
                 "candidates", candidates);
     }
 
-    /** ④⑤⑥ 날짜별 관광지 순서(TSP) + 점심·저녁 + 시각 */
+    /**
+     * 전체 일정 시각표. narrate가 true면 Terra 하루 설명까지
+     * (확인용이라 AI 호출이 트랜잭션 안에 있다. 실제 생성 Service는 트랜잭션 밖에서 호출한다)
+     */
     @Transactional
-    public Map<String, Object> previewRoutes(Long userId, Long tripId) {
+    public Map<String, Object> previewRoutes(Long userId, Long tripId, boolean narrate) {
         Trip trip = findTrip(userId, tripId);
         TripPreference preference = preferenceRepository.findByTripId(tripId).orElse(null);
-        List<PreferenceConstraint> constraints = preference == null ? List.of() : preference.getConstraints();
         Point hotel = accommodationLocator.locate(trip);
 
-        TravelOptions options = TravelOptions.of(trip, constraints, travelProperties);
-        TravelPoint hotelPoint = new TravelPoint(trip.getAccommodationName(), hotel.getY(), hotel.getX());
-        boolean nightView = interestsOf(trip).contains(Interest.NIGHT_VIEW);
+        ItineraryPlanner.Result plan = planner.plan(trip, preference, hotel);
 
-        int days = daysOf(trip);
-        double foodRatio = preference == null ? 0.4 : preference.getFoodBudgetRatio();
-        MealBudget budget = mealBudgetCalculator.calculate(trip.getBudget(), trip.getTravelers(), days, foodRatio);
-        FoodFilter filter = foodFilterResolver.resolve(constraints, trip.getAllergies());
-        MealHistory history = new MealHistory();
+        Map<Integer, String> descriptions = narrate
+                ? narrator.narrate(new TripBrief(trip.getTravelers(), trip.getTravelPace(),
+                        List.copyOf(ItineraryPlanner.interestsOf(trip)),
+                        List.copyOf(ItineraryPlanner.constraintsOf(preference))),
+                plan.days(), typeLabels::toVisibleLabels)
+                : Map.of();
 
         List<Map<String, Object>> dayViews = new ArrayList<>();
-        for (DayZone day : planZones(trip, constraints, hotel)) {
-            DayWindow window = DayWindow.of(day.dayNumber() == 1, day.dayNumber() == days,
-                    preference == null ? null : preference.getArrivalTime(),
-                    preference == null ? null : preference.getDepartureTime(),
-                    nightView);
-            DayRoute route = routeOptimizer.optimize(day, hotelPoint, trip.getTravelPace(), options, nightView);
-            DayMeals meals = mealPlanner.plan(route, hotelPoint, window, budget, filter, history);
-            ScheduledDay scheduled = dayScheduler.schedule(route, meals, window, hotelPoint, options,
-                    trip.getTravelPace().getStayMultiplier());
-            dayViews.add(scheduleView(scheduled, window));
+        for (int i = 0; i < plan.days().size(); i++) {
+            ScheduledDay scheduled = plan.days().get(i);
+            dayViews.add(scheduleView(scheduled, plan.windows().get(i), descriptions.get(scheduled.dayNumber())));
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("mode", options.mode());
-        result.put("walkThresholdMinutes", options.walkThresholdMinutes());
-        result.put("nightView", nightView);
-        result.put("mealBudget", Map.of("lunchMaxYen", budget.lunchMaxYen(), "dinnerMaxYen", budget.dinnerMaxYen()));
+        result.put("mode", plan.options().mode());
+        result.put("walkThresholdMinutes", plan.options().walkThresholdMinutes());
+        result.put("nightView", plan.nightView());
+        result.put("mealBudget", Map.of("lunchMaxYen", plan.budget().lunchMaxYen(), "dinnerMaxYen", plan.budget().dinnerMaxYen()));
         result.put("days", dayViews);
         return result;
     }
@@ -143,30 +133,12 @@ public class ItineraryPreviewService {
     }
 
     private List<PreferenceConstraint> constraintsOf(Long tripId) {
-        return preferenceRepository.findByTripId(tripId)
-                .map(TripPreference::getConstraints)
-                .orElse(List.of());
-    }
-
-    private List<DayZone> planZones(Trip trip, List<PreferenceConstraint> constraints, Point hotel) {
-        List<Interest> interests = interestsOf(trip);
-        List<ScoredAttraction> scored = scorer.score(attractionRepository.findAll(), interests);
-        return dayZonePlanner.plan(scored, trip.getStartDate(), daysOf(trip),
-                trip.getTravelPace().attractionsPerDay(), interests, constraints,
-                hotel.getY(), hotel.getX());
-    }
-
-    private static List<Interest> interestsOf(Trip trip) {
-        return trip.getInterests() == null ? List.of() : trip.getInterests();
-    }
-
-    private static int daysOf(Trip trip) {
-        return (int) ChronoUnit.DAYS.between(trip.getStartDate(), trip.getEndDate()) + 1;
+        return ItineraryPlanner.constraintsOf(preferenceRepository.findByTripId(tripId).orElse(null));
     }
 
     // ── 응답 모양 (확인용) ──
 
-    private Map<String, Object> scheduleView(ScheduledDay day, DayWindow window) {
+    private Map<String, Object> scheduleView(ScheduledDay day, DayWindow window, String description) {
         List<Map<String, Object>> stops = new ArrayList<>();
         for (ScheduledStop stop : day.stops()) {
             Map<String, Object> view = new LinkedHashMap<>();
@@ -197,6 +169,9 @@ public class ItineraryPreviewService {
         view.put("date", day.date().toString());
         view.put("zone", day.zone().getLabel());
         view.put("window", window.isEmpty() ? "일정 없음" : window.start() + " ~ " + window.end());
+        if (description != null) {
+            view.put("description", description);   // Terra가 쓴 하루 설명 (없을 수 있음)
+        }
         view.put("stops", stops);
         view.put("dropped", day.dropped().stream()
                 .map(d -> d.name() + " (" + d.reason().label() + ")")
@@ -215,8 +190,6 @@ public class ItineraryPreviewService {
         view.put("budgetRelaxed", c.budgetRelaxed());
         return view;
     }
-
-
 
     private static String legView(TravelLeg leg) {
         return leg.mode() + " " + leg.minutes() + "분 (" + leg.distanceMeters() + "m)";
