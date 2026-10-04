@@ -23,13 +23,21 @@ public class RestaurantFinder {
 
     public List<RestaurantCandidate> find(double lat, double lng, Meal meal, int maxYen,
                                           FoodFilter filter, Set<Long> excludeIds, int limit) {
-        // ① 예산 안에서 반경을 넓혀가며
+        // ① 예산 안에서 반경을 넓혀가며. 후보가 minCandidates곳 이상이 되면 멈춘다
+        //    넓은 반경의 결과에는 가까운 곳이 이미 들어 있고, 거리 감점이 있어서 가까운 곳이 계속 유리하다
+        List<RestaurantCandidate> nearest = List.of();
+        int nearestRadius = 0;
         for (int radius : props.getSearchRadii()) {
             List<RestaurantCandidate> found = search(lat, lng, radius, meal, maxYen, filter, excludeIds, false);
-            if (!found.isEmpty()) {
-                log.info("[Meal] {} 반경 {}m, 상한 {}엔 → {}곳", meal, radius, maxYen, found.size());
-                return found.stream().limit(limit).toList();
-            }
+            if (found.isEmpty()) continue;
+
+            nearest = found;
+            nearestRadius = radius;
+            if (found.size() >= props.getMinCandidates()) break;
+        }
+        if (!nearest.isEmpty()) {
+            log.info("[Meal] {} 반경 {}m, 상한 {}엔 → {}곳", meal, nearestRadius, maxYen, nearest.size());
+            return nearest.stream().limit(limit).toList();
         }
 
         // ② 그래도 없으면 가장 넓은 반경에서 예산을 올려서

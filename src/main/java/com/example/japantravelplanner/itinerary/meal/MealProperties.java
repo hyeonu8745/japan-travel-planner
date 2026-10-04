@@ -24,4 +24,6 @@ public class MealProperties {
     private List<Double> budgetRelaxSteps = List.of(1.2, 1.4);
     // 여행 중 같은 묶음(라멘류 등)이 이미 나왔을 때, 다시 나오는 횟수마다 깎는 점수
     private double repeatGroupPenalty = 0.15;
+    // 반경 안에 후보가 이만큼 안 되면 더 넓은 반경까지 찾아서 고른다 (후보가 1곳뿐이면 선택지 없이 정해져 버림)
+    private int minCandidates = 3;
 }
