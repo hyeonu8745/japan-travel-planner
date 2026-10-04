@@ -46,18 +46,24 @@ public class OpenAiClient {
 
     /** 자유 텍스트로 답변 받기 */
     public AiResult generate(AiModelTier tier, String instructions, String input) {
-        return call(tier, instructions, input, null);
+        return call(tier, instructions, input, null, properties.getMaxOutputTokens());
+    }
+
+    public AiResult generateJson(AiModelTier tier, String instructions, String input, Map<String, Object> format) {
+        return call(tier, instructions, input, format, properties.getMaxOutputTokens());
     }
 
     /**
-     * 정해진 JSON 형식(Structured Output)으로 답변 받기
-     * @param format Responses API의 text.format 값 (json_schema)
+     * 출력이 긴 작업(여러 날 설명 등)용: 최대 출력 토큰을 직접 지정한다.
+     * 추론 모델은 추론에 쓴 토큰도 이 한도에 포함되므로 넉넉하게 준다
      */
-    public AiResult generateJson(AiModelTier tier, String instructions, String input, Map<String, Object> format) {
-        return call(tier, instructions, input, format);
+    public AiResult generateJson(AiModelTier tier, String instructions, String input,
+                                 Map<String, Object> format, int maxOutputTokens) {
+        return call(tier, instructions, input, format, maxOutputTokens);
     }
 
-    private AiResult call(AiModelTier tier, String instructions, String input, Map<String, Object> format) {
+    private AiResult call(AiModelTier tier, String instructions, String input,
+                          Map<String, Object> format, int maxOutputTokens) {
         boolean advanced = tier == AiModelTier.ADVANCED;
         String model = advanced ? properties.getAdvancedModel() : properties.getBasicModel();
 
@@ -65,7 +71,7 @@ public class OpenAiClient {
         body.put("model", model);
         body.put("instructions", instructions);
         body.put("input", input);
-        body.put("max_output_tokens", properties.getMaxOutputTokens());
+        body.put("max_output_tokens", maxOutputTokens);
         if (advanced) {
             // 추론 모델에만 추론 강도를 보냄 (4o mini에 보내면 에러)
             body.put("reasoning", Map.of("effort", properties.getAdvancedReasoningEffort()));

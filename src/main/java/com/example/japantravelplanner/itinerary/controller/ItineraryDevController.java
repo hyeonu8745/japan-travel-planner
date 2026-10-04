@@ -31,8 +31,11 @@ public class ItineraryDevController {
         return previewService.previewRestaurants(userId, tripId, lat, lng, meal);
     }
 
+    /** narrate=true일 때만 Terra로 하루 설명을 쓴다 (호출할 때마다 비용이 들어서 기본은 끔) */
     @GetMapping("/{tripId}/routes")
-    public Map<String, Object> routes(@AuthenticationPrincipal Long userId, @PathVariable Long tripId) {
-        return previewService.previewRoutes(userId, tripId);
+    public Map<String, Object> routes(@AuthenticationPrincipal Long userId,
+                                      @PathVariable Long tripId,
+                                      @RequestParam(defaultValue = "false") boolean narrate) {
+        return previewService.previewRoutes(userId, tripId, narrate);
     }
 }
