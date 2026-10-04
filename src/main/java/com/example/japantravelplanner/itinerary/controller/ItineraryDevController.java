@@ -30,4 +30,9 @@ public class ItineraryDevController {
                                            @RequestParam(defaultValue = "LUNCH") Meal meal) {
         return previewService.previewRestaurants(userId, tripId, lat, lng, meal);
     }
+
+    @GetMapping("/{tripId}/routes")
+    public Map<String, Object> routes(@AuthenticationPrincipal Long userId, @PathVariable Long tripId) {
+        return previewService.previewRoutes(userId, tripId);
+    }
 }

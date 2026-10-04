@@ -85,7 +85,7 @@ public class RestaurantFinder {
         return (reviews * rating + priorReviews * mean) / (reviews + priorReviews);
     }
 
-    static Set<String> genresOf(String genreCsv) {
+    public static Set<String> genresOf(String genreCsv) {
         if (genreCsv == null || genreCsv.isBlank()) return Set.of();
         Set<String> result = new HashSet<>();
         for (String g : genreCsv.split(",")) {
