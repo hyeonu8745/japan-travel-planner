@@ -13,7 +13,7 @@ import java.util.Set;
 /**
  * 여행 전체에서 지금까지 고른 식당 기록. 일정 하나를 만드는 동안만 쓰고 버린다 (Bean 아님)
  * - 이미 고른 식당은 다시 고르지 않음
- * - 바로 앞 끼니의 장르 (전날 저녁 → 다음 날 점심도 이어짐)
+ * - 바로 앞 끼니의 대표 장르 (전날 저녁 → 다음 날 점심도 이어짐)
  * - 비슷한 음식 묶음(라멘류 등)을 지금까지 몇 번 골랐는지
  */
 public class MealHistory {
@@ -24,8 +24,9 @@ public class MealHistory {
 
     public void record(RestaurantCandidate chosen) {
         usedIds.add(chosen.restaurant().getId());
-        lastGenres = RestaurantFinder.genresOf(chosen.restaurant().getGenre());
-        for (String group : GenreGroups.groupsOf(lastGenres)) {
+        lastGenres = RestaurantFinder.mainGenres(chosen.restaurant().getGenre());
+        // 묶음(라멘류 등)은 뒤쪽 장르까지 전체로 센다
+        for (String group : GenreGroups.groupsOf(RestaurantFinder.genresOf(chosen.restaurant().getGenre()))) {
             groupCounts.merge(group, 1, Integer::sum);
         }
     }

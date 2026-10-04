@@ -95,10 +95,15 @@ public class RestaurantFinder {
         return result;
     }
 
-    /** 흡연 가능성이 있는 장르: ~バー(바), 居酒屋, 立ち飲み. ハンバーガー·ジュースバー는 해당 없음 */
+    /**
+     * 흡연 가능성이 있는 장르: ~バー(바), バル·バール(스페인식 바), 居酒屋, 立ち飲み.
+     * ハンバーガー·ジュースバー·ネパール料理는 해당 없음
+     * (バル·バール를 빼먹어서 「スペイン料理,バル・バール」가 "담배 연기 싫음" 여행의 저녁으로 뽑힌 적이 있다)
+     */
     static boolean isSmokyGenre(String genre) {
         if (genre.contains("ジュース")) return false;
-        return genre.endsWith("バー") || genre.contains("居酒屋") || genre.contains("立ち飲み");
+        return genre.endsWith("バー") || genre.contains("バル") || genre.contains("バール")
+                || genre.contains("居酒屋") || genre.contains("立ち飲み");
     }
 
     // 식사가 아니라 간식·디저트·음료가 중심인 장르 (끼니 후보에서 제외)
@@ -106,7 +111,7 @@ public class RestaurantFinder {
             "菓子", "スイーツ", "ケーキ", "パン", "カフェ", "喫茶", "かき氷", "パフェ", "甘味",
             "フルーツパーラー", "チョコレート", "アイス", "ジェラート", "どら焼き", "大福", "たい焼き",
             "クレープ", "ドーナツ", "マカロン", "プリン", "紅茶", "ジュース", "コーヒー", "団子", "せんべい",
-            "ベーグル", "ベーカリー");
+            "ベーグル", "ベーカリー", "ラウンジ");
 
     static boolean isSnackGenre(String genre) {
         return SNACK_KEYWORDS.stream().anyMatch(genre::contains);
@@ -130,5 +135,19 @@ public class RestaurantFinder {
     /** 장르가 모두 간식·디저트면 식사 후보가 아니다 (カフェ,パスタ처럼 식사가 섞이면 후보) */
     static boolean isSnackOnly(Set<String> genres) {
         return !genres.isEmpty() && genres.stream().allMatch(RestaurantFinder::isSnackGenre);
+    }
+
+    /**
+     * 대표 장르: 앞의 두 개. 타베로그는 첫 번째 장르가 대표라서, 뒤쪽 장르가 겹친다고 같은 음식으로 보지 않는다.
+     * (そば,うどん,カレーライス는 세 번째 장르 때문에 카레 점심과 같은 음식으로 잘못 걸렸다)
+     */
+    public static Set<String> mainGenres(String genreCsv) {
+        if (genreCsv == null || genreCsv.isBlank()) return Set.of();
+        Set<String> result = new LinkedHashSet<>();
+        for (String g : genreCsv.split(",")) {
+            if (!g.isBlank()) result.add(g.trim());
+            if (result.size() == 2) break;
+        }
+        return result;
     }
 }

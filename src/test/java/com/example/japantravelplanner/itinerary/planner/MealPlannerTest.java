@@ -165,4 +165,38 @@ class MealPlannerTest {
         List<RestaurantCandidate> result = MealPlanner.rerank(List.of(yakitori, soba), history, 0.15);
         assertThat(result).containsExactly(yakitori, soba);
     }
+
+    // ── 대표 장르(앞의 두 개)로 겹침 판단 ──
+
+    @Test
+    void 뒤쪽_장르만_겹치면_같은_음식이_아니다() {
+        // 실제 DAY2: 점심 カレーライス → 저녁 そば,うどん,カレーライス (세 번째 장르만 겹침)
+        RestaurantCandidate sobaCurry = restaurant(5, "そばよし", "そば,うどん,カレーライス", 3.5);
+
+        PlannedMeal m = MealPlanner.chooseAvoidingRepeat(Meal.DINNER, ANCHOR, List.of(sobaCurry), Set.of("カレーライス"));
+
+        assertThat(m.chosen()).isEqualTo(sobaCurry);
+        assertThat(m.genreRepeated()).isFalse();
+    }
+
+    @Test
+    void 앞의_두_장르가_겹치면_같은_음식이다() {
+        // 焼肉,ホルモン ↔ ホルモン,焼肉: 순서만 다르고 같은 음식
+        RestaurantCandidate yakiniku = restaurant(6, "야키니쿠", "ホルモン,焼肉", 3.5);
+
+        PlannedMeal m = MealPlanner.chooseAvoidingRepeat(Meal.DINNER, ANCHOR, List.of(yakiniku),
+                com.example.japantravelplanner.itinerary.meal.RestaurantFinder.mainGenres("焼肉,ホルモン"));
+
+        assertThat(m.genreRepeated()).isTrue();
+    }
+
+    @Test
+    void 기록은_대표_장르만_남기지만_묶음은_전체_장르로_센다() {
+        MealHistory history = new MealHistory();
+        history.record(restaurant(7, "중화집", "中華料理,餃子,ラーメン", 3.6));
+
+        assertThat(history.lastGenres()).containsExactlyInAnyOrder("中華料理", "餃子");   // 앞의 두 개
+        assertThat(history.repeatCount(Set.of("ラーメン"))).isEqualTo(1);               // 라멘 묶음은 세 번째 장르도 셈
+    }
+
 }

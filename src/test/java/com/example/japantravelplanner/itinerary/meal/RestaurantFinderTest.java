@@ -64,4 +64,26 @@ class RestaurantFinderTest {
         assertThat(RestaurantFinder.isSnackLed("ラーメン,餃子")).isFalse();
         assertThat(RestaurantFinder.isSnackLed(null)).isFalse();
     }
+
+    @Test
+    void 바르와_바알도_흡연_가능성_장르다() {
+        // 실제 응답에서 담배 연기를 싫어하는 여행의 저녁으로 뽑혔던 곳 (炭火焼スペインバルMon)
+        assertThat(RestaurantFinder.isSmokyGenre("バル・バール")).isTrue();
+        assertThat(RestaurantFinder.isSmokyGenre("スペインバル")).isTrue();
+        assertThat(RestaurantFinder.isSmokyGenre("バール")).isTrue();
+    }
+
+    @Test
+    void 이름이_비슷한_다른_음식은_흡연_장르가_아니다() {
+        assertThat(RestaurantFinder.isSmokyGenre("ネパール料理")).isFalse();
+        assertThat(RestaurantFinder.isSmokyGenre("ハンバーガー")).isFalse();
+        assertThat(RestaurantFinder.isSmokyGenre("ジュースバー")).isFalse();
+    }
+
+    @Test
+    void 대표_장르는_앞의_두_개() {
+        assertThat(RestaurantFinder.mainGenres("そば,うどん,カレーライス")).containsExactlyInAnyOrder("そば", "うどん");
+        assertThat(RestaurantFinder.mainGenres("つけ麺")).containsExactly("つけ麺");
+        assertThat(RestaurantFinder.mainGenres(null)).isEmpty();
+    }
 }

@@ -79,7 +79,7 @@ public class MealPlanner {
                                             List<RestaurantCandidate> ranked, Set<String> lastGenres) {
         int chosenIndex = -1;
         for (int i = 0; i < ranked.size(); i++) {
-            Set<String> genres = RestaurantFinder.genresOf(ranked.get(i).restaurant().getGenre());
+            Set<String> genres = RestaurantFinder.mainGenres(ranked.get(i).restaurant().getGenre());
             if (Collections.disjoint(genres, lastGenres)) {
                 chosenIndex = i;
                 break;
