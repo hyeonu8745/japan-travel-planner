@@ -6,6 +6,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -41,16 +42,28 @@ public class Itinerary {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    // 이 버전이 만들어진 방식. 컬럼을 나중에 추가해도 기존 일정이 모두 GENERATED가 되도록 기본값을 둔다
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source", nullable = false, length = 20)
+    @ColumnDefault("'GENERATED'")
+    private ItinerarySource source = ItinerarySource.GENERATED;
+
     @OneToMany(mappedBy = "itinerary", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("dayNumber ASC")
     @BatchSize(size = 20)
     private List<ItineraryDay> days = new ArrayList<>();
 
+    /** AI로 새로 생성한 일정 */
     public static Itinerary create(Trip trip, int versionNo, double krwPerYen) {
+        return create(trip, versionNo, krwPerYen, ItinerarySource.GENERATED);
+    }
+
+    public static Itinerary create(Trip trip, int versionNo, double krwPerYen, ItinerarySource source) {
         Itinerary itinerary = new Itinerary();
         itinerary.trip = trip;
         itinerary.versionNo = versionNo;
         itinerary.krwPerYen = krwPerYen;
+        itinerary.source = source;
         return itinerary;
     }
 

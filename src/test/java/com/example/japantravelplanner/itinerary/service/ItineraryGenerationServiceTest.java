@@ -8,6 +8,7 @@ import com.example.japantravelplanner.global.exception.TooManyRequestsException;
 import com.example.japantravelplanner.itinerary.dictionary.PlaceTypeLabels;
 import com.example.japantravelplanner.itinerary.dto.ItineraryResponseDto;
 import com.example.japantravelplanner.itinerary.entity.Itinerary;
+import com.example.japantravelplanner.itinerary.entity.ItinerarySource;
 import com.example.japantravelplanner.itinerary.meal.MealBudget;
 import com.example.japantravelplanner.itinerary.meal.MealProperties;
 import com.example.japantravelplanner.itinerary.narration.ItineraryNarrator;
@@ -204,7 +205,8 @@ class ItineraryGenerationServiceTest {
 
     @Test
     void 하루_다섯_번을_넘기면_거절하고_AI도_부르지_않는다() {
-        when(itineraryRepository.countByTripIdAndCreatedAtAfter(eq(TRIP_ID), any(LocalDateTime.class))).thenReturn(5L);
+        when(itineraryRepository.countByTripIdAndSourceAndCreatedAtAfter(
+                eq(TRIP_ID), eq(ItinerarySource.GENERATED), any(LocalDateTime.class))).thenReturn(5L);   // 두 번째는 4L
 
         assertThatThrownBy(this::generate).isInstanceOf(TooManyRequestsException.class);
 
@@ -215,7 +217,8 @@ class ItineraryGenerationServiceTest {
 
     @Test
     void 네_번까지는_만들_수_있다() {
-        when(itineraryRepository.countByTripIdAndCreatedAtAfter(eq(TRIP_ID), any(LocalDateTime.class))).thenReturn(4L);
+        when(itineraryRepository.countByTripIdAndSourceAndCreatedAtAfter(
+                eq(TRIP_ID), eq(ItinerarySource.GENERATED), any(LocalDateTime.class))).thenReturn(4L);   // 두 번째는 4L
 
         generate();
 

@@ -25,6 +25,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import com.example.japantravelplanner.itinerary.entity.ItinerarySource;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -48,6 +50,10 @@ import java.util.stream.Collectors;
 public class ItineraryGenerationService {
 
     static final int DAILY_GENERATION_LIMIT = 5;
+
+    // 여행 하나당 24시간 안에 AI로 만들 수 있는 횟수 (AI 비용 대책). 요금제별로 바꿀 수 있게 설정으로 뺐다
+    @Value("${app.itinerary.daily-generation-limit:5}")
+    private int dailyGenerationLimit = DAILY_GENERATION_LIMIT;
 
     private final TripRepository tripRepository;
     private final TripPreferenceRepository preferenceRepository;
@@ -115,8 +121,9 @@ public class ItineraryGenerationService {
     private Planned plan(Long userId, Long tripId) {
         Trip trip = findTrip(userId, tripId);
 
-        long recent = itineraryRepository.countByTripIdAndCreatedAtAfter(tripId, LocalDateTime.now().minusHours(24));
-        if (recent >= DAILY_GENERATION_LIMIT) {
+        long recent = itineraryRepository.countByTripIdAndSourceAndCreatedAtAfter(
+                tripId, ItinerarySource.GENERATED, LocalDateTime.now().minusHours(24));
+        if (recent >= dailyGenerationLimit) {
             throw new TooManyRequestsException("오늘은 이 여행의 일정을 더 만들 수 없어요. 내일 다시 시도해주세요.");
         }
 
