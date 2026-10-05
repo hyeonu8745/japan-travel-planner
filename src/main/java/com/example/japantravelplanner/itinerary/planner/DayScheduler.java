@@ -133,17 +133,66 @@ public class DayScheduler {
         return new ScheduledDay(day.dayNumber(), day.date(), day.zone(), stops, List.copyOf(dropped), List.copyOf(warnings));
     }
 
+    // ── 순서는 그대로 두고 시각만 다시 계산 (식당 교체용) ──
+
+    /** 다시 계산할 항목. point는 이동 시간 계산에 쓸 좌표, stayMinutes는 이미 정해진 체류 시간 */
+    public record RetimeItem(StopType type, TravelPoint point, int stayMinutes) {
+    }
+
+    /** 다시 계산된 시각 (입력 항목과 같은 순서) */
+    public record RetimedStop(LocalTime arrival, LocalTime departure, int waitMinutes, TravelLeg travelIn) {
+    }
+
+    /** @param warnings 시간이 안 맞는 경우의 안내 문장 (관광지를 빼거나 옮기지는 않는다) */
+    public record Retimed(List<RetimedStop> stops, List<String> warnings) {
+    }
+
+    /**
+     * 정해진 순서 그대로 시각만 다시 계산한다. 식당을 바꿨을 때처럼 장소 하나만 달라진 일정에 쓴다.
+     * 처음 만들 때와 같은 규칙(이동 + 10분 여유, 식사 시간대 대기)을 쓰지만, 시간이 모자라도 관광지를 빼지 않고
+     * 안내 문장으로만 알린다. 사용자가 고른 일정을 서버가 마음대로 줄이면 안 되기 때문이다.
+     */
+    public Retimed retime(List<RetimeItem> items, LocalTime windowStart, LocalTime windowEnd,
+                          TravelPoint hotel, TravelOptions options) {
+        List<TravelPoint> points = new ArrayList<>();
+        points.add(hotel);
+        List<Item> sequence = new ArrayList<>();
+        for (RetimeItem item : items) {
+            int index = points.size();
+            points.add(item.point());
+            sequence.add(new Item(item.type(), null, null, index, item.stayMinutes(), 0));
+        }
+
+        TravelMatrix matrix = travelTimeService.buildMatrix(points, options.mode(), options.walkThresholdMinutes());
+        Sim sim = simulateSequence(sequence, new Context(matrix, toMinutes(windowStart), toMinutes(windowEnd)));
+
+        List<String> warnings = new ArrayList<>();
+        if (sim.lunchLate) warnings.add("점심 시간이 13:30을 넘겼어요.");
+        if (sim.dinnerLate) warnings.add("저녁 시간이 20:00을 넘겼어요.");
+        if (sim.endExceeded) warnings.add("일정이 " + windowEnd + "을 넘겨 끝나요.");
+
+        List<RetimedStop> stops = sim.timed.stream()
+                .map(t -> new RetimedStop(toTime(t.arrival), toTime(t.departure), t.waited, t.leg))
+                .toList();
+        return new Retimed(stops, List.copyOf(warnings));
+    }
+
     // ── 시간 계산 ──
 
     /** 계획대로 하루를 보냈을 때의 시각표와 문제점 */
     static Sim simulate(Plan plan, Context ctx) {
+        return simulateSequence(plan.sequence(), ctx);
+    }
+
+    /** 정해진 순서 그대로 하루를 보냈을 때의 시각표와 문제점 */
+    static Sim simulateSequence(List<Item> sequence, Context ctx) {
         List<Timed> timed = new ArrayList<>();
         boolean lunchLate = false;
         boolean dinnerLate = false;
         int now = ctx.start;
         int prev = 0;
 
-        for (Item item : plan.sequence()) {
+        for (Item item : sequence) {
             TravelLeg leg = ctx.matrix.get(prev, item.pointIndex);
             int arrive = now + leg.minutes() + MOVE_BUFFER_MINUTES;
             int begin = arrive;

@@ -11,6 +11,7 @@ import com.example.japantravelplanner.itinerary.travel.LegMode;
 import com.example.japantravelplanner.itinerary.zone.TripZone;
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
 import com.example.japantravelplanner.trip.entity.Trip;
+import com.example.japantravelplanner.itinerary.entity.ItinerarySource;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -26,10 +27,12 @@ public record ItineraryResponseDto(
         Long id,
         Long tripId,
         int version,
+        ItinerarySource source,
         double krwPerYen,
         LocalDateTime createdAt,
         AccommodationDto accommodation,
         List<DayDto> days
+
 ) {
 
     /** 숙소 (지도의 숙소 핀, 하루의 출발점). 좌표는 일정을 만들 때 주소로 찾아 저장한 값 */
@@ -51,6 +54,7 @@ public record ItineraryResponseDto(
     }
 
     public record StopDto(
+            Long id,
             int order,
             StopType type,
             String name,
@@ -106,7 +110,7 @@ public record ItineraryResponseDto(
         Trip trip = itinerary.getTrip();
         AccommodationDto accommodation = new AccommodationDto(trip.getAccommodationName(),
                 trip.getAccommodationAddress(), lat(trip.getAccommodationLocation()), lng(trip.getAccommodationLocation()));
-        return new ItineraryResponseDto(itinerary.getId(), trip.getId(), itinerary.getVersionNo(),
+        return new ItineraryResponseDto(itinerary.getId(), trip.getId(), itinerary.getVersionNo(), itinerary.getSource(),
                 itinerary.getKrwPerYen(), itinerary.getCreatedAt(), accommodation, days);
     }
 
@@ -133,7 +137,7 @@ public record ItineraryResponseDto(
 
         if (stop.getType() == StopType.ATTRACTION) {
             Attraction a = stop.getAttraction();
-            return new StopDto(stop.getStopOrder(), stop.getType(), a.getName(),
+            return new StopDto(stop.getId(), stop.getStopOrder(), stop.getType(), a.getName(),
                     stop.getArrivalTime(), stop.getDepartureTime(), stop.getStayMinutes(), stop.getWaitMinutes(),
                     travel, lat(a.getLocation()), lng(a.getLocation()),
                     new AttractionDto(a.getId(), typeLabels.apply(a.getTypes()), a.getRating(), a.getReviewCnt(),
@@ -142,7 +146,7 @@ public record ItineraryResponseDto(
         }
 
         Restaurant r = stop.getRestaurant();
-        return new StopDto(stop.getStopOrder(), stop.getType(), r.getName(),
+        return new StopDto(stop.getId(), stop.getStopOrder(), stop.getType(), r.getName(),
                 stop.getArrivalTime(), stop.getDepartureTime(), stop.getStayMinutes(), stop.getWaitMinutes(),
                 travel, lat(r.getLocation()), lng(r.getLocation()),
                 null,

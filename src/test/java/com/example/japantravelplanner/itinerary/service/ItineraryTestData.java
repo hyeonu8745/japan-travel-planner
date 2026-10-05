@@ -75,4 +75,15 @@ final class ItineraryTestData {
     }
 
     static final DayWindow NO_WINDOW = new DayWindow(null, null, false, false);
+
+    /** 고른 식당 다음 후보(alternatives)가 있는 식사 항목 */
+    static ScheduledStop mealStopWithAlternatives(StopType type, Restaurant chosen, List<Restaurant> alternatives,
+                                                  String arrival, String departure) {
+        PlannedMeal planned = new PlannedMeal(type == StopType.LUNCH ? Meal.LUNCH : Meal.DINNER,
+                new TravelPoint("기준", 35.70, 139.71),
+                new RestaurantCandidate(chosen, 100, 4.0, false),
+                alternatives.stream().map(r -> new RestaurantCandidate(r, 200, 3.9, false)).toList(), false);
+        return new ScheduledStop(type, null, planned, LocalTime.parse(arrival), LocalTime.parse(departure),
+                type == StopType.LUNCH ? 60 : 90, 0, new TravelLeg(10, 763, LegMode.WALK, false));
+    }
 }
