@@ -22,6 +22,8 @@ public record StopCandidatesResponseDto(
      * @param travel                   앞 장소(첫 항목이면 숙소)에서 이 식당까지 오는 이동
      * @param genreRepeated            바로 앞 끼니와 같은 음식인지
      * @param budgetRelaxed            예산 안에서 못 찾아 상한을 올려서 찾은 식당인지
+     * @param holiday                  정기 휴일 (타베로그 원문. 임시 휴무는 반영되지 않음)
+     * @param closedOnVisitDay         방문하는 날이 정기 휴일 요일인지. 후보에서 빼지는 않고 표시만 한다
      */
     public record CandidateDto(
             Long id,
@@ -37,7 +39,9 @@ public record StopCandidatesResponseDto(
             int distanceFromAnchorMeters,
             ItineraryResponseDto.TravelDto travel,
             boolean genreRepeated,
-            boolean budgetRelaxed
+            boolean budgetRelaxed,
+            String holiday,
+            boolean closedOnVisitDay
     ) {
     }
 }

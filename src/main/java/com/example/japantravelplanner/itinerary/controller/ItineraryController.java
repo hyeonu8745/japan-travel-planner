@@ -11,6 +11,8 @@ import com.example.japantravelplanner.itinerary.dto.ReplaceStopRequestDto;
 import com.example.japantravelplanner.itinerary.dto.StopCandidatesResponseDto;
 import com.example.japantravelplanner.itinerary.service.ItineraryEditService;
 import jakarta.validation.Valid;
+import com.example.japantravelplanner.itinerary.dto.ItineraryVersionDto;
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -50,4 +52,27 @@ public class ItineraryController {
                                         @Valid @RequestBody ReplaceStopRequestDto request) {
         return editService.replace(userId, tripId, stopId, request.restaurantId());
     }
+
+    /** 변경 이력: 이 여행의 모든 버전 (최신이 먼저) */
+    @GetMapping("/versions")
+    public List<ItineraryVersionDto> versions(@AuthenticationPrincipal Long userId, @PathVariable Long tripId) {
+        return editService.versions(userId, tripId);
+    }
+
+    /** 특정 버전의 일정 (보기 전용) */
+    @GetMapping("/versions/{versionNo}")
+    public ItineraryResponseDto version(@AuthenticationPrincipal Long userId,
+                                        @PathVariable Long tripId,
+                                        @PathVariable int versionNo) {
+        return editService.version(userId, tripId, versionNo);
+    }
+
+    /** 이 버전으로 되돌리기. 새 버전(RESTORED)으로 저장하고 전체 일정을 돌려준다 */
+    @PostMapping("/versions/{versionNo}/restore")
+    public ItineraryResponseDto restore(@AuthenticationPrincipal Long userId,
+                                        @PathVariable Long tripId,
+                                        @PathVariable int versionNo) {
+        return editService.restore(userId, tripId, versionNo);
+    }
+
 }

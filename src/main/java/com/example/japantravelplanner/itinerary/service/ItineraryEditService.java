@@ -43,6 +43,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import com.example.japantravelplanner.itinerary.meal.RegularHoliday;
+import com.example.japantravelplanner.itinerary.dto.ItineraryVersionDto;
+import java.time.LocalDate;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -75,6 +78,9 @@ public class ItineraryEditService {
     static final int MAX_ALTERNATIVES = 5;
 
     private static final double DEFAULT_FOOD_RATIO = 0.4;
+
+    /** Itinerary의 (여행, 버전 번호) 유일 제약 이름 */
+    private static final String VERSION_UNIQUE_CONSTRAINT = "uk_itineraries_trip_version";
 
     private final TripRepository tripRepository;
     private final TripPreferenceRepository preferenceRepository;
@@ -127,6 +133,93 @@ public class ItineraryEditService {
         this.writeTransaction = new TransactionTemplate(transactionManager);
     }
 
+    // ===================== 변경 이력 =====================
+
+    /** 이 여행의 모든 버전 (최신이 먼저). 일정을 아직 안 만들었으면 빈 목록 */
+    public List<ItineraryVersionDto> versions(Long userId, Long tripId) {
+        return readTransaction.execute(status -> {
+            findTrip(userId, tripId);
+            List<Itinerary> all = itineraryRepository.findByTripIdOrderByVersionNoDesc(tripId);
+            int latestNo = all.isEmpty() ? 0 : all.get(0).getVersionNo();
+            return all.stream()
+                    .map(i -> new ItineraryVersionDto(i.getVersionNo(), i.getSource(), i.getCreatedAt(),
+                            i.getChangeNote(), i.getVersionNo() == latestNo))
+                    .toList();
+        });
+    }
+
+    /** 특정 버전의 일정 (보기만 가능. 옛 버전의 항목은 고칠 수 없다) */
+    public ItineraryResponseDto version(Long userId, Long tripId, int versionNo) {
+        return readTransaction.execute(status -> {
+            findTrip(userId, tripId);
+            Itinerary itinerary = itineraryRepository.findByTripIdAndVersionNo(tripId, versionNo)
+                    .orElseThrow(() -> new NotFoundException("해당 버전의 일정을 찾을 수 없습니다."));
+            return toResponse(itinerary);
+        });
+    }
+
+    /**
+     * 옛 버전을 그대로 복사해서 새 버전(RESTORED)으로 만든다. 옛 버전과 중간 버전은 그대로 남는다.
+     * 옛 버전에 저장된 AI 설명이 그 버전의 식당과 맞으므로 설명도 그대로 돌아온다.
+     */
+    public ItineraryResponseDto restore(Long userId, Long tripId, int versionNo) {
+        if (!lock.tryAcquire(tripId)) {
+            throw new ConflictException("이미 일정을 만들거나 고치고 있어요. 잠시만 기다려주세요.");
+        }
+        try {
+            return writeTransaction.execute(status -> doRestore(userId, tripId, versionNo));
+        } finally {
+            lock.release(tripId);
+        }
+    }
+
+    private ItineraryResponseDto doRestore(Long userId, Long tripId, int versionNo) {
+        Trip trip = findTrip(userId, tripId);
+        Itinerary latest = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
+                .orElseThrow(() -> new NotFoundException("아직 만들어진 일정이 없습니다."));
+        Itinerary old = itineraryRepository.findByTripIdAndVersionNo(tripId, versionNo)
+                .orElseThrow(() -> new NotFoundException("해당 버전의 일정을 찾을 수 없습니다."));
+        if (old.getVersionNo() == latest.getVersionNo()) {
+            throw new IllegalArgumentException("이미 현재 버전이에요.");
+        }
+
+        Itinerary next = Itinerary.create(trip, latest.getVersionNo() + 1, old.getKrwPerYen(),
+                ItinerarySource.RESTORED, "버전 " + old.getVersionNo() + "(으)로 되돌렸어요");
+        for (ItineraryDay day : old.getDays()) {
+            next.addDay(copyDay(day, Map.of()));   // 같은 음식 표시도 그 버전의 값 그대로
+        }
+
+        saveNewVersion(next);
+        trip.setStatus(TripStatus.EDITING);
+
+        log.info("[Itinerary] 버전 복원 tripId={} 버전 {} → 새 버전 {}", tripId, old.getVersionNo(), next.getVersionNo());
+        return toResponse(next);
+    }
+
+    /**
+     * 새 버전을 저장한다. 같은 버전 번호로 동시에 저장하려 한 경우(유일 제약)만 409로 안내한다
+     * (잠금은 서버 한 대 안에서만 막아준다). 그 밖의 DB 거절(허용 값 제약 등)은 동시성 문제가 아니므로
+     * 원인을 로그에 남기고 그대로 던진다. 전부 409로 바꾸면 진짜 원인이 가려진다.
+     */
+    private void saveNewVersion(Itinerary next) {
+        try {
+            itineraryRepository.saveAndFlush(next);
+        } catch (DataIntegrityViolationException e) {
+            Throwable cause = e.getMostSpecificCause();
+            String message = cause.getMessage() == null ? "" : cause.getMessage();
+            if (message.contains(VERSION_UNIQUE_CONSTRAINT)) {
+                throw new ConflictException("일정이 동시에 바뀌었어요. 화면을 새로고침해주세요.");
+            }
+            log.error("[Itinerary] 새 버전 저장이 DB에서 거절됨 (동시성 문제가 아님): {}", message);
+            throw e;
+        }
+    }
+
+    private Trip findTrip(Long userId, Long tripId) {
+        return tripRepository.findByIdAndUserId(tripId, userId)
+                .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
+    }
+
     // ===================== 후보 조회 =====================
 
     public StopCandidatesResponseDto candidates(Long userId, Long tripId, Long stopId) {
@@ -139,6 +232,7 @@ public class ItineraryEditService {
 
     private StopCandidatesResponseDto toCandidatesResponse(Target target, Search search) {
         Set<String> previousMeal = previousMealGenres(target.latest(), target.stop());
+        LocalDate visitDate = target.day().getDate();
 
         // 앞 장소에서 각 후보까지의 이동 (이동 시간 표는 한 번만 만든다)
         List<TravelPoint> points = new ArrayList<>();
@@ -156,7 +250,8 @@ public class ItineraryEditService {
                     budgetOf(r, search.meal()), r.getAddress(), r.getNearestStation(),
                     lat(r.getLocation()), lng(r.getLocation()), c.distanceMeters(),
                     new ItineraryResponseDto.TravelDto(leg.mode(), leg.minutes(), leg.distanceMeters(), leg.estimated()),
-                    overlaps(previousMeal, r.getGenre()), c.budgetRelaxed()));
+                    overlaps(previousMeal, r.getGenre()), c.budgetRelaxed(),
+                    r.getHoliday(), RegularHoliday.isClosedOn(r.getHoliday(), visitDate)));
         }
         return new StopCandidatesResponseDto(target.stop().getId(), target.stop().getType(),
                 search.maxYen(), candidates);
@@ -190,7 +285,7 @@ public class ItineraryEditService {
 
         Itinerary latest = target.latest();
         Itinerary next = Itinerary.create(target.trip(), latest.getVersionNo() + 1, latest.getKrwPerYen(),
-                ItinerarySource.EDITED);
+                ItinerarySource.EDITED, replaceNote(target.day(), stop, replacement));
         TravelPoint hotel = hotelPoint(target.trip());
         for (ItineraryDay day : latest.getDays()) {
             boolean edited = day.getDayNumber() == target.day().getDayNumber();
@@ -199,12 +294,7 @@ public class ItineraryEditService {
                     : copyDay(day, repeated));
         }
 
-        try {
-            itineraryRepository.saveAndFlush(next);
-        } catch (DataIntegrityViolationException e) {
-            // 같은 버전 번호로 동시에 저장하려 한 경우 (잠금은 서버 한 대 안에서만 막아준다)
-            throw new ConflictException("일정이 동시에 바뀌었어요. 화면을 새로고침해주세요.");
-        }
+        saveNewVersion(next);
         target.trip().setStatus(TripStatus.EDITING);
 
         log.info("[Itinerary] 식당 교체 tripId={} version={} DAY{} {} → {}", tripId, next.getVersionNo(),
@@ -230,6 +320,13 @@ public class ItineraryEditService {
         throw new IllegalArgumentException("이 자리에 넣을 수 없는 식당이에요. 후보 목록에서 골라주세요.");
     }
 
+    /** 변경 이력에 보여줄 한 줄: "DAY2 점심: ザ・カリ → つじ田" */
+    private static String replaceNote(ItineraryDay day, ItineraryStop stop, Restaurant replacement) {
+        String meal = stop.getType() == StopType.LUNCH ? "점심" : "저녁";
+        return "DAY" + day.getDayNumber() + " " + meal + ": " + stop.getRestaurant().getName()
+                + " → " + replacement.getName();
+    }
+
     // ===================== 새 버전 만들기 =====================
 
     /** 식당이 바뀐 날: 순서는 그대로, 시각만 다시 계산하고 설명은 비운다 */
@@ -244,10 +341,15 @@ public class ItineraryEditService {
         }
         Retimed retimed = dayScheduler.retime(items, day.getWindowStart(), day.getWindowEnd(), hotel, options);
 
-        // 시간 관련 안내는 새로 계산한 것으로 바꾸고, 나머지 안내는 그대로 둔다
+        // 시간·휴일 안내는 새로 계산한 것으로 바꾸고, 나머지 안내는 그대로 둔다
         List<String> warnings = day.getWarnings().stream()
-                .filter(w -> !isTimeWarning(w)).collect(Collectors.toCollection(ArrayList::new));
+                .filter(w -> !isTimeWarning(w) && !isHolidayWarning(w))
+                .collect(Collectors.toCollection(ArrayList::new));
         warnings.addAll(retimed.warnings());
+        // 사용자가 정기 휴일인 식당을 골랐으면 막지는 않고 알려준다 (임시 휴무와 공휴일은 알 수 없다)
+        if (RegularHoliday.isClosedOn(replacement.getHoliday(), day.getDate())) {
+            warnings.add(replacement.getName() + "은(는) 이 날이 정기 휴일이에요. 영업하는지 확인해주세요.");
+        }
 
         ItineraryDay copy = ItineraryDay.create(day.getDayNumber(), day.getDate(), day.getZone(),
                 day.getWindowStart(), day.getWindowEnd(), null,
@@ -337,6 +439,10 @@ public class ItineraryEditService {
         return flags;
     }
 
+    private static boolean isHolidayWarning(String warning) {
+        return warning.contains("정기 휴일");
+    }
+
     private static boolean isTimeWarning(String warning) {
         return warning.startsWith("점심 시간이") || warning.startsWith("저녁 시간이") || warning.startsWith("일정이 ");
     }
@@ -400,8 +506,7 @@ public class ItineraryEditService {
     // ===================== 불러오기·검사 =====================
 
     private Target load(Long userId, Long tripId, Long stopId) {
-        Trip trip = tripRepository.findByIdAndUserId(tripId, userId)
-                .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
+        Trip trip = findTrip(userId, tripId);
         ItineraryStop stop = stopRepository.findById(stopId)
                 .orElseThrow(() -> new NotFoundException("일정 항목을 찾을 수 없습니다."));
         ItineraryDay day = stop.getDay();

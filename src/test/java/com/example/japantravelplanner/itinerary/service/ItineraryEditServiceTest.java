@@ -389,4 +389,62 @@ class ItineraryEditServiceTest {
 
         assertThat(lock.tryAcquire(TRIP_ID)).isTrue();
     }
+
+    // ── 정기 휴일 (DAY1은 2026-10-20 화요일) ──
+
+    private static Restaurant withHoliday(long id, String name, String holiday) {
+        return Restaurant.builder().id(id).name(name).genre("洋食").ratingVal(3.8)
+                .budgetLunch("～￥999").budgetDinner("￥3,000～￥3,999").address("도쿄 식당 주소").holiday(holiday)
+                .location(GF.createPoint(new Coordinate(139.71, 35.70))).build();
+    }
+
+    @Test
+    void 후보에는_정기_휴일_식당도_나오되_휴일_표시가_붙는다() {
+        Restaurant closed = withHoliday(41, "화요일 휴무", "火曜日");
+        Restaurant open = withHoliday(42, "일요일 휴무", "日曜日");
+        Restaurant unsure = withHoliday(43, "비정기 휴무", "不定休");
+        finderReturns(candidate(closed, false), candidate(open, false), candidate(unsure, false));
+
+        StopCandidatesResponseDto response = service.candidates(USER_ID, TRIP_ID, 1L);
+
+        // 후보에서 빼지 않고 표시만 한다 (사용자가 알고 고를 수 있게)
+        assertThat(response.candidates()).hasSize(3);
+        assertThat(response.candidates().get(0).closedOnVisitDay()).isTrue();
+        assertThat(response.candidates().get(0).holiday()).isEqualTo("火曜日");
+        assertThat(response.candidates().get(1).closedOnVisitDay()).isFalse();
+        assertThat(response.candidates().get(2).closedOnVisitDay()).isFalse();   // 애매한 문구는 휴일로 보지 않는다
+    }
+
+    @Test
+    void 정기_휴일인_식당으로_바꾸면_막지_않고_안내_문장을_남긴다() {
+        finderReturns(candidate(withHoliday(41, "화요일 휴무 식당", "火曜日"), false));
+
+        ItineraryResponseDto response = service.replace(USER_ID, TRIP_ID, 1L, 41L);
+
+        List<String> warnings = savedItinerary().getDays().get(0).getWarnings();
+        assertThat(warnings).anyMatch(w -> w.contains("화요일 휴무 식당") && w.contains("정기 휴일"));
+        assertThat(warnings).contains("안내 문장");   // 원래 있던 다른 안내는 그대로
+        assertThat(response.days().get(0).stops().get(1).restaurant().closedOnVisitDay()).isTrue();
+    }
+
+    @Test
+    void 휴일이_아닌_식당으로_바꾸면_휴일_안내가_없다() {
+        finderReturns(candidate(withHoliday(41, "일요일 휴무 식당", "日曜日"), false));
+
+        service.replace(USER_ID, TRIP_ID, 1L, 41L);
+
+        assertThat(savedItinerary().getDays().get(0).getWarnings()).noneMatch(w -> w.contains("정기 휴일"));
+    }
+
+    @Test
+    void 이전의_휴일_안내는_새로_계산한다() {
+        // 이전 식당 때문에 남은 휴일 안내가 있었다면, 휴일이 아닌 식당으로 바꾼 뒤에는 사라져야 한다
+        latest.getDays().get(0).getWarnings().add("옛 식당은 이 날이 정기 휴일이에요. 영업하는지 확인해주세요.");
+        finderReturns(candidate(withHoliday(41, "일요일 휴무 식당", "日曜日"), false));
+
+        service.replace(USER_ID, TRIP_ID, 1L, 41L);
+
+        assertThat(savedItinerary().getDays().get(0).getWarnings()).noneMatch(w -> w.contains("정기 휴일"));
+    }
+
 }

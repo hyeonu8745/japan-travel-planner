@@ -12,6 +12,7 @@ import com.example.japantravelplanner.itinerary.zone.TripZone;
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.itinerary.entity.ItinerarySource;
+import com.example.japantravelplanner.itinerary.meal.RegularHoliday;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -28,6 +29,7 @@ public record ItineraryResponseDto(
         Long tripId,
         int version,
         ItinerarySource source,
+        String changeNote,
         double krwPerYen,
         LocalDateTime createdAt,
         AccommodationDto accommodation,
@@ -79,17 +81,18 @@ public record ItineraryResponseDto(
     }
 
     /**
-     * @param nearestDistance 가장 가까운 역까지의 거리 (미터)
      * @param holiday         정기 휴일 (타베로그 원본 문구 그대로. 임시 휴무는 반영되지 않음)
+     * @param closedOnVisitDay 방문하는 날이 정기 휴일 요일인지 (문구가 애매하면 false. 공휴일은 판단하지 않음)
      */
     public record RestaurantDto(Long id, String genre, Double rating, String budget, String address,
                                 boolean budgetRelaxed, boolean genreRepeated,
-                                Integer reviewCount, String nearestStation, Integer nearestDistance, String holiday) {
+                                Integer reviewCount, String nearestStation, Integer nearestDistance, String holiday,
+                                boolean closedOnVisitDay) {
     }
 
     /** 고른 식당 대신 선택할 수 있는 다음 후보 (식당 항목에만 있고, 관광지 항목은 빈 목록) */
     public record AlternativeDto(Long id, String name, String genre, Double rating, String budget, String address,
-                                 Double lat, Double lng) {
+                                 Double lat, Double lng, String holiday, boolean closedOnVisitDay) {
     }
 
     public record DroppedDto(String name, DropReason reason, String reasonLabel) {
@@ -111,7 +114,7 @@ public record ItineraryResponseDto(
         AccommodationDto accommodation = new AccommodationDto(trip.getAccommodationName(),
                 trip.getAccommodationAddress(), lat(trip.getAccommodationLocation()), lng(trip.getAccommodationLocation()));
         return new ItineraryResponseDto(itinerary.getId(), trip.getId(), itinerary.getVersionNo(), itinerary.getSource(),
-                itinerary.getKrwPerYen(), itinerary.getCreatedAt(), accommodation, days);
+                itinerary.getChangeNote(), itinerary.getKrwPerYen(), itinerary.getCreatedAt(), accommodation, days);
     }
 
     /** 일정 전체에서 대안 후보로 쓰인 식당 id (한 번에 조회하려고 모은다) */
@@ -125,12 +128,12 @@ public record ItineraryResponseDto(
                                 Map<Long, Restaurant> alternatives) {
         return new DayDto(day.getDayNumber(), day.getDate(), day.getZone(), day.getZone().getLabel(),
                 day.getWindowStart(), day.getWindowEnd(), day.getDescription(),
-                day.getStops().stream().map(stop -> toStop(stop, typeLabels, alternatives)).toList(),
+                day.getStops().stream().map(stop -> toStop(stop, day.getDate(), typeLabels, alternatives)).toList(),
                 day.getDropped().stream().map(ItineraryResponseDto::toDropped).toList(),
                 List.copyOf(day.getWarnings()));
     }
 
-    private static StopDto toStop(ItineraryStop stop, Function<String, List<String>> typeLabels,
+    private static StopDto toStop(ItineraryStop stop, LocalDate date, Function<String, List<String>> typeLabels,
                                   Map<Long, Restaurant> alternatives) {
         TravelDto travel = new TravelDto(stop.getTravelMode(), stop.getTravelMinutes(),
                 stop.getTravelDistanceMeters(), stop.isTravelEstimated());
@@ -152,17 +155,19 @@ public record ItineraryResponseDto(
                 null,
                 new RestaurantDto(r.getId(), r.getGenre(), r.getRatingVal(), budgetOf(r, stop.getType()), r.getAddress(),
                         stop.isBudgetRelaxed(), stop.isGenreRepeated(),
-                        r.getReviewCnt(), r.getNearestStation(), r.getNearestDistance(), r.getHoliday()),
-                toAlternatives(stop, alternatives));
+                        r.getReviewCnt(), r.getNearestStation(), r.getNearestDistance(), r.getHoliday(),
+                        RegularHoliday.isClosedOn(r.getHoliday(), date)),
+                toAlternatives(stop, date, alternatives));
     }
 
     // 저장된 순서(점수 높은 순)를 지키고, 그 사이에 사라진 식당은 건너뛴다
-    private static List<AlternativeDto> toAlternatives(ItineraryStop stop, Map<Long, Restaurant> alternatives) {
+    private static List<AlternativeDto> toAlternatives(ItineraryStop stop, LocalDate date, Map<Long, Restaurant> alternatives) {
         return stop.getAlternativeRestaurantIds().stream()
                 .map(alternatives::get)
                 .filter(java.util.Objects::nonNull)
                 .map(r -> new AlternativeDto(r.getId(), r.getName(), r.getGenre(), r.getRatingVal(),
-                        budgetOf(r, stop.getType()), r.getAddress(), lat(r.getLocation()), lng(r.getLocation())))
+                        budgetOf(r, stop.getType()), r.getAddress(), lat(r.getLocation()), lng(r.getLocation()),
+                        r.getHoliday(), RegularHoliday.isClosedOn(r.getHoliday(), date)))
                 .toList();
     }
 

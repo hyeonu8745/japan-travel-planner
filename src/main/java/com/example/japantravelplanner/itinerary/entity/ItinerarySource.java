@@ -8,5 +8,7 @@ public enum ItinerarySource {
     /** AI(Terra)로 새로 생성 */
     GENERATED,
     /** 사용자가 고침 (식당 교체 등). AI 비용 없음 */
-    EDITED
+    EDITED,
+    /** 이전 버전을 그대로 되돌려서 새 버전으로 만듦. AI 비용 없음 */
+    RESTORED
 }

@@ -48,6 +48,10 @@ public class Itinerary {
     @ColumnDefault("'GENERATED'")
     private ItinerarySource source = ItinerarySource.GENERATED;
 
+    // 변경 이력에 보여줄 한 줄 설명 ("DAY2 점심: ザ・カリ → つじ田"). 옛 일정은 비어 있다
+    @Column(name = "change_note", length = 300)
+    private String changeNote;
+
     @OneToMany(mappedBy = "itinerary", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("dayNumber ASC")
     @BatchSize(size = 20)
@@ -59,11 +63,18 @@ public class Itinerary {
     }
 
     public static Itinerary create(Trip trip, int versionNo, double krwPerYen, ItinerarySource source) {
+        return create(trip, versionNo, krwPerYen, source, null);
+    }
+
+    public static Itinerary create(Trip trip, int versionNo, double krwPerYen, ItinerarySource source,
+                                   String changeNote) {
         Itinerary itinerary = new Itinerary();
         itinerary.trip = trip;
         itinerary.versionNo = versionNo;
         itinerary.krwPerYen = krwPerYen;
         itinerary.source = source;
+        itinerary.changeNote = changeNote == null || changeNote.length() <= 300
+                ? changeNote : changeNote.substring(0, 300);
         return itinerary;
     }
 

@@ -152,4 +152,57 @@ class ItineraryResponseDtoExtendedTest {
         assertThat(ItineraryResponseDto.alternativeRestaurantIds(itinerary(tripWithHotel(), List.of(second, third))))
                 .containsExactly(2L, 3L);
     }
+
+    // ── 정기 휴일 (일정 날짜는 2026-10-20 화요일) ──
+
+    private static Restaurant withHoliday(long id, String name, String holiday) {
+        return Restaurant.builder().id(id).name(name).genre("洋食").ratingVal(3.8)
+                .budgetLunch("～￥999").budgetDinner("￥1,000～￥1,999").address("도쿄").holiday(holiday)
+                .location(GF.createPoint(new Coordinate(139.71, 35.70))).build();
+    }
+
+    private ItineraryResponseDto dtoWithDinner(Restaurant chosen, List<Restaurant> alternatives) {
+        ScheduledDay day = new ScheduledDay(1, LocalDate.of(2026, 10, 20), TripZone.SHINJUKU,
+                List.of(attractionStop(garden), dinnerStop(chosen, alternatives)), List.of(), List.of());
+        Itinerary itinerary = ItineraryMapper.toEntity(tripWithHotel(), 1, 9.0, List.of(day),
+                List.of(new DayWindow(LocalTime.of(16, 0), LocalTime.of(22, 0), false, true)), Map.of(),
+                id -> garden, id -> chosen);
+        Map<Long, Restaurant> byId = new java.util.HashMap<>();
+        alternatives.forEach(r -> byId.put(r.getId(), r));
+        return ItineraryResponseDto.from(itinerary, t -> List.of(), byId);
+    }
+
+    @Test
+    void 방문하는_날이_정기_휴일이면_식당에_표시한다() {
+        ItineraryResponseDto dto = dtoWithDinner(withHoliday(1, "화요일 휴무", "火曜日"), List.of());
+
+        ItineraryResponseDto.RestaurantDto restaurant = dto.days().get(0).stops().get(1).restaurant();
+        assertThat(restaurant.closedOnVisitDay()).isTrue();
+        assertThat(restaurant.holiday()).isEqualTo("火曜日");
+    }
+
+    @Test
+    void 다른_요일이_휴일이거나_문구가_애매하면_표시하지_않는다() {
+        assertThat(dtoWithDinner(withHoliday(1, "일요일 휴무", "日曜日"), List.of())
+                .days().get(0).stops().get(1).restaurant().closedOnVisitDay()).isFalse();
+        assertThat(dtoWithDinner(withHoliday(1, "비정기", "不定休"), List.of())
+                .days().get(0).stops().get(1).restaurant().closedOnVisitDay()).isFalse();
+        assertThat(dtoWithDinner(withHoliday(1, "정보 없음", null), List.of())
+                .days().get(0).stops().get(1).restaurant().closedOnVisitDay()).isFalse();
+    }
+
+    @Test
+    void 대안에도_휴일_정보와_표시가_붙는다() {
+        Restaurant closedAlternative = withHoliday(2, "화요일 휴무 대안", "月曜日、火曜日");
+        Restaurant openAlternative = withHoliday(3, "무휴 대안", "無休");
+
+        ItineraryResponseDto dto = dtoWithDinner(withHoliday(1, "선택", "日曜日"),
+                List.of(closedAlternative, openAlternative));
+
+        List<ItineraryResponseDto.AlternativeDto> alternatives = dto.days().get(0).stops().get(1).alternatives();
+        assertThat(alternatives.get(0).closedOnVisitDay()).isTrue();
+        assertThat(alternatives.get(0).holiday()).isEqualTo("月曜日、火曜日");
+        assertThat(alternatives.get(1).closedOnVisitDay()).isFalse();
+    }
+
 }
