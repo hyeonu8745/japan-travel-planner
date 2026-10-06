@@ -13,6 +13,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
+import java.time.LocalDate;
+
 /**
  * 정해진 관광지 순서 사이에 점심·저녁 식당을 넣는다.
  * - 점심: 오전 마지막 관광지와 오후 첫 관광지의 중간 지점 근처
@@ -34,11 +36,12 @@ public class MealPlanner {
 
     public DayMeals plan(DayRoute route, TravelPoint hotel, DayWindow window,
                          MealBudget budget, FoodFilter filter, MealHistory history) {
+        LocalDate date = route.day().date();   // 그날이 정기 휴일인 식당은 고르지 않는다
         PlannedMeal lunch = window.lunch()
-                ? pick(Meal.LUNCH, lunchAnchor(route, hotel), budget, filter, history)
+                ? pick(Meal.LUNCH, lunchAnchor(route, hotel), budget, filter, history, date)
                 : null;
         PlannedMeal dinner = window.dinner()
-                ? pick(Meal.DINNER, dinnerAnchor(route, hotel), budget, filter, history)
+                ? pick(Meal.DINNER, dinnerAnchor(route, hotel), budget, filter, history, date)
                 : null;
 
         log.info("[Meal] DAY{} 점심 {} / 저녁 {}", route.day().dayNumber(), label(lunch), label(dinner));
@@ -46,9 +49,9 @@ public class MealPlanner {
     }
 
     private PlannedMeal pick(Meal meal, TravelPoint anchor, MealBudget budget,
-                             FoodFilter filter, MealHistory history) {
+                             FoodFilter filter, MealHistory history, LocalDate date) {
         List<RestaurantCandidate> ranked = restaurantFinder.find(anchor.lat(), anchor.lng(), meal,
-                budget.of(meal), filter, history.usedIds(), SEARCH_LIMIT);
+                budget.of(meal), filter, history.usedIds(), SEARCH_LIMIT, date);
         if (ranked.isEmpty()) {
             return PlannedMeal.notFound(meal, anchor);
         }

@@ -6,6 +6,7 @@ import com.example.japantravelplanner.restaurant.repository.RestaurantRepository
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import java.time.LocalDate;
 
 import java.util.*;
 
@@ -21,14 +22,23 @@ public class RestaurantFinder {
     private final RestaurantRepository restaurantRepository;
     private final MealProperties props;
 
+    /** 방문 날짜를 따지지 않고 찾는다 (정기 휴일 식당도 포함) */
     public List<RestaurantCandidate> find(double lat, double lng, Meal meal, int maxYen,
                                           FoodFilter filter, Set<Long> excludeIds, int limit) {
+        return find(lat, lng, meal, maxYen, filter, excludeIds, limit, null);
+    }
+
+    /**
+     * @param visitDate 방문 날짜. 있으면 그 날이 정기 휴일인 식당은 후보에서 뺀다 (문구가 애매하면 빼지 않는다)
+     */
+    public List<RestaurantCandidate> find(double lat, double lng, Meal meal, int maxYen,
+                                          FoodFilter filter, Set<Long> excludeIds, int limit, LocalDate visitDate) {
         // ① 예산 안에서 반경을 넓혀가며. 후보가 minCandidates곳 이상이 되면 멈춘다
         //    넓은 반경의 결과에는 가까운 곳이 이미 들어 있고, 거리 감점이 있어서 가까운 곳이 계속 유리하다
         List<RestaurantCandidate> nearest = List.of();
         int nearestRadius = 0;
         for (int radius : props.getSearchRadii()) {
-            List<RestaurantCandidate> found = search(lat, lng, radius, meal, maxYen, filter, excludeIds, false);
+            List<RestaurantCandidate> found = search(lat, lng, radius, meal, maxYen, filter, excludeIds, visitDate, false);
             if (found.isEmpty()) continue;
 
             nearest = found;
@@ -44,7 +54,7 @@ public class RestaurantFinder {
         int widest = props.getSearchRadii().get(props.getSearchRadii().size() - 1);
         for (double step : props.getBudgetRelaxSteps()) {
             int relaxed = (int) (maxYen * step);
-            List<RestaurantCandidate> found = search(lat, lng, widest, meal, relaxed, filter, excludeIds, true);
+            List<RestaurantCandidate> found = search(lat, lng, widest, meal, relaxed, filter, excludeIds, visitDate, true);
             if (!found.isEmpty()) {
                 log.info("[Meal] {} 예산 상향 {}엔 → {}곳", meal, relaxed, found.size());
                 return found.stream().limit(limit).toList();
@@ -56,7 +66,8 @@ public class RestaurantFinder {
     }
 
     private List<RestaurantCandidate> search(double lat, double lng, int radius, Meal meal, int maxYen,
-                                             FoodFilter filter, Set<Long> excludeIds, boolean relaxed) {
+                                             FoodFilter filter, Set<Long> excludeIds, LocalDate visitDate,
+                                             boolean relaxed) {
         List<Restaurant> nearby = restaurantRepository.findWithinRadius(lat, lng, radius);
         double mean = nearby.stream()
                 .filter(r -> r.getRatingVal() != null)
@@ -67,6 +78,7 @@ public class RestaurantFinder {
         List<RestaurantCandidate> result = new ArrayList<>();
         for (Restaurant r : nearby) {
             if (excludeIds.contains(r.getId()) || r.getRatingVal() == null || r.getLocation() == null) continue;
+            if (RegularHoliday.isClosedOn(r.getHoliday(), visitDate)) continue;   // 방문하는 날이 정기 휴일
 
             Integer budgetMax = meal == Meal.LUNCH ? r.getBudgetLunchMax() : r.getBudgetDinnerMax();
             if (budgetMax == null || budgetMax > maxYen) continue;   // 예산 정보 없음(점심 "-" 등)도 제외
