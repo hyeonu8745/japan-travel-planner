@@ -1,17 +1,21 @@
 package com.example.japantravelplanner.itinerary.controller;
 
+import com.example.japantravelplanner.itinerary.dto.AttractionCandidatesResponseDto;
 import com.example.japantravelplanner.itinerary.dto.ItineraryResponseDto;
+import com.example.japantravelplanner.itinerary.dto.ItineraryVersionDto;
+import com.example.japantravelplanner.itinerary.dto.ReplaceAttractionRequestDto;
+import com.example.japantravelplanner.itinerary.dto.ReplaceStopRequestDto;
+import com.example.japantravelplanner.itinerary.dto.StopCandidatesResponseDto;
+import com.example.japantravelplanner.itinerary.service.ItineraryAttractionEditService;
+import com.example.japantravelplanner.itinerary.service.ItineraryEditService;
 import com.example.japantravelplanner.itinerary.service.ItineraryGenerationService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import com.example.japantravelplanner.itinerary.dto.ReplaceStopRequestDto;
-import com.example.japantravelplanner.itinerary.dto.StopCandidatesResponseDto;
-import com.example.japantravelplanner.itinerary.service.ItineraryEditService;
-import jakarta.validation.Valid;
-import com.example.japantravelplanner.itinerary.dto.ItineraryVersionDto;
+
 import java.util.List;
 
 @RestController
@@ -21,6 +25,7 @@ public class ItineraryController {
 
     private final ItineraryGenerationService generationService;
     private final ItineraryEditService editService;
+    private final ItineraryAttractionEditService attractionEditService;
 
     /** 일정 만들기 (다시 호출하면 새 버전). Terra 호출이 있어 수 초~수십 초 걸릴 수 있다 */
     @PostMapping
@@ -53,6 +58,23 @@ public class ItineraryController {
         return editService.replace(userId, tripId, stopId, request.restaurantId());
     }
 
+    /** 관광지 항목(낮 관광지 또는 저녁 뒤 야경 장소) 하나를 바꿀 때 고를 수 있는 후보 */
+    @GetMapping("/stops/{stopId}/attraction-candidates")
+    public AttractionCandidatesResponseDto attractionCandidates(@AuthenticationPrincipal Long userId,
+                                                                @PathVariable Long tripId,
+                                                                @PathVariable Long stopId) {
+        return attractionEditService.candidates(userId, tripId, stopId);
+    }
+
+    /** 관광지 교체. 새 버전(EDITED)으로 저장하고 전체 일정을 돌려준다 */
+    @PostMapping("/stops/{stopId}/replace-attraction")
+    public ItineraryResponseDto replaceAttraction(@AuthenticationPrincipal Long userId,
+                                                  @PathVariable Long tripId,
+                                                  @PathVariable Long stopId,
+                                                  @Valid @RequestBody ReplaceAttractionRequestDto request) {
+        return attractionEditService.replace(userId, tripId, stopId, request.attractionId());
+    }
+
     /** 변경 이력: 이 여행의 모든 버전 (최신이 먼저) */
     @GetMapping("/versions")
     public List<ItineraryVersionDto> versions(@AuthenticationPrincipal Long userId, @PathVariable Long tripId) {
@@ -74,5 +96,4 @@ public class ItineraryController {
                                         @PathVariable int versionNo) {
         return editService.restore(userId, tripId, versionNo);
     }
-
 }
