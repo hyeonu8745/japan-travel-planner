@@ -50,7 +50,7 @@ public class TripService {
     }
 
     /** 날짜로 기본 제목 생성: "도쿄 3박 4일", 같은 날이면 "도쿄 당일치기" */
-    private String defaultTitle(LocalDate startDate, LocalDate endDate) {
+    static String defaultTitle(LocalDate startDate, LocalDate endDate) {
         if (startDate == null || endDate == null) {
             return "도쿄 여행";
         }

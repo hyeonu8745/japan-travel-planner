@@ -53,6 +53,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -327,12 +328,62 @@ public class ItineraryEditService {
                 + " → " + replacement.getName();
     }
 
+    // ===================== 여행 조건 변경 =====================
+
+    /**
+     * 숙소·이동수단·이동 제약처럼 장소는 그대로 두고 이동 시간만 달라지는 조건이 바뀌었을 때,
+     * 최신 일정의 모든 날 시각을 다시 계산해서 새 버전(EDITED)으로 저장한다.
+     * AI를 부르지 않으므로 하루 생성 횟수에 들어가지 않고, 사용자가 바꾼 식당·관광지도 그대로 남는다.
+     * 숙소 좌표는 호출하는 쪽이 비워두면 여기서 다시 찾는다.
+     *
+     * @return 새 버전 일정. 아직 만든 일정이 없으면 빈 값
+     */
+    public Optional<ItineraryResponseDto> retimeForConditions(Long userId, Long tripId, String changeNote) {
+        if (!lock.tryAcquire(tripId)) {
+            throw new ConflictException("이미 일정을 만들거나 고치고 있어요. 잠시만 기다려주세요.");
+        }
+        try {
+            return writeTransaction.execute(status -> doRetimeForConditions(userId, tripId, changeNote));
+        } finally {
+            lock.release(tripId);
+        }
+    }
+
+    private Optional<ItineraryResponseDto> doRetimeForConditions(Long userId, Long tripId, String changeNote) {
+        Trip trip = findTrip(userId, tripId);
+        Itinerary latest = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId).orElse(null);
+        if (latest == null) {
+            return Optional.empty();
+        }
+
+        TripPreference preference = preferenceRepository.findByTripId(tripId).orElse(null);
+        TravelOptions options = TravelOptions.of(trip, ItineraryPlanner.constraintsOf(preference), travelProperties);
+        TravelPoint hotel = hotelPoint(trip);
+
+        Itinerary next = Itinerary.create(trip, latest.getVersionNo() + 1, latest.getKrwPerYen(),
+                ItinerarySource.EDITED, changeNote);
+        for (ItineraryDay day : latest.getDays()) {
+            next.addDay(retimedDay(day, null, null, Map.of(), hotel, options));
+        }
+
+        saveNewVersion(next);
+        trip.setStatus(TripStatus.EDITING);
+
+        log.info("[Itinerary] 여행 조건 변경으로 시각 재계산 tripId={} 새 버전 {} ({})",
+                tripId, next.getVersionNo(), changeNote);
+        return Optional.of(toResponse(next));
+    }
+
     // ===================== 새 버전 만들기 =====================
 
-    /** 식당이 바뀐 날: 순서는 그대로, 시각만 다시 계산하고 설명은 비운다 */
+    /**
+     * 순서는 그대로 두고 시각만 다시 계산한 하루.
+     * - 식당 교체: target 자리에 chosen 식당을 넣고, 설명은 식당 이름이 달라져서 비운다
+     * - 여행 조건 변경(target·chosen이 null): 장소는 그대로라 설명도 그대로 둔다 (설명에는 숫자 시각이 없다)
+     */
     private ItineraryDay retimedDay(ItineraryDay day, ItineraryStop target, RestaurantCandidate chosen,
                                     Map<ItineraryStop, Boolean> repeated, TravelPoint hotel, TravelOptions options) {
-        Restaurant replacement = chosen.restaurant();
+        Restaurant replacement = chosen == null ? null : chosen.restaurant();
         List<ItineraryStop> stops = day.getStops();
 
         List<RetimeItem> items = new ArrayList<>();
@@ -341,18 +392,18 @@ public class ItineraryEditService {
         }
         Retimed retimed = dayScheduler.retime(items, day.getWindowStart(), day.getWindowEnd(), hotel, options);
 
-        // 시간·휴일 안내는 새로 계산한 것으로 바꾸고, 나머지 안내는 그대로 둔다
+        // 시간 안내는 새로 계산한 것으로 바꾼다. 휴일 안내는 식당이 바뀔 때만 다시 판단한다 (날짜는 그대로)
         List<String> warnings = day.getWarnings().stream()
-                .filter(w -> !isTimeWarning(w) && !isHolidayWarning(w))
+                .filter(w -> !isTimeWarning(w) && (replacement == null || !isHolidayWarning(w)))
                 .collect(Collectors.toCollection(ArrayList::new));
         warnings.addAll(retimed.warnings());
         // 사용자가 정기 휴일인 식당을 골랐으면 막지는 않고 알려준다 (임시 휴무와 공휴일은 알 수 없다)
-        if (RegularHoliday.isClosedOn(replacement.getHoliday(), day.getDate())) {
+        if (replacement != null && RegularHoliday.isClosedOn(replacement.getHoliday(), day.getDate())) {
             warnings.add(replacement.getName() + "은(는) 이 날이 정기 휴일이에요. 영업하는지 확인해주세요.");
         }
 
         ItineraryDay copy = ItineraryDay.create(day.getDayNumber(), day.getDate(), day.getZone(),
-                day.getWindowStart(), day.getWindowEnd(), null,
+                day.getWindowStart(), day.getWindowEnd(), replacement == null ? day.getDescription() : null,
                 new ArrayList<>(day.getDropped()), warnings);
 
         for (int i = 0; i < stops.size(); i++) {
@@ -373,7 +424,7 @@ public class ItineraryEditService {
                     .travelDistanceMeters(timed.travelIn().distanceMeters())
                     .travelEstimated(timed.travelIn().estimated())
                     .budgetRelaxed(isTarget ? chosen.budgetRelaxed() : s.isBudgetRelaxed())
-                    .genreRepeated(repeated.getOrDefault(s, false))
+                    .genreRepeated(repeated.getOrDefault(s, s.isGenreRepeated()))
                     .alternativeRestaurantIds(isTarget ? alternativesAfterReplace(s, replacement) : s.getAlternativeRestaurantIds())
                     .build());
         }
