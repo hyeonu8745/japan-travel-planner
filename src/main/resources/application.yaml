@@ -79,3 +79,6 @@ app:
     budget-relax-steps: 1.2,1.4  # 그래도 없으면 예산을 이만큼 올려서
     repeat-group-penalty: 0.15   # 같은 묶음(라멘류 등)이 이미 나왔으면 나온 횟수 × 이만큼 감점
     min-candidates: 3            # 반경 안에 후보가 이만큼 안 되면 더 넓게 (1곳뿐이면 선택지가 없음)
+
+  itinerary:
+    daily-generation-limit: 5    # 여행당 24시간 동안 AI 일정 생성 횟수 (수정·되돌리기는 세지 않음)
