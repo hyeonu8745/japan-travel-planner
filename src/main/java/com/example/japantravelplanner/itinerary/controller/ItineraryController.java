@@ -1,14 +1,18 @@
 package com.example.japantravelplanner.itinerary.controller;
 
+import com.example.japantravelplanner.itinerary.dto.AddAttractionCandidatesResponseDto;
+import com.example.japantravelplanner.itinerary.dto.AddAttractionRequestDto;
 import com.example.japantravelplanner.itinerary.dto.AttractionCandidatesResponseDto;
 import com.example.japantravelplanner.itinerary.dto.ItineraryResponseDto;
 import com.example.japantravelplanner.itinerary.dto.ItineraryVersionDto;
 import com.example.japantravelplanner.itinerary.dto.ReplaceAttractionRequestDto;
+import com.example.japantravelplanner.itinerary.dto.ReorderStopsRequestDto;
 import com.example.japantravelplanner.itinerary.dto.ReplaceStopRequestDto;
 import com.example.japantravelplanner.itinerary.dto.StopCandidatesResponseDto;
 import com.example.japantravelplanner.itinerary.service.ItineraryAttractionEditService;
 import com.example.japantravelplanner.itinerary.service.ItineraryEditService;
 import com.example.japantravelplanner.itinerary.service.ItineraryGenerationService;
+import com.example.japantravelplanner.itinerary.service.ItineraryStopEditService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -26,6 +30,7 @@ public class ItineraryController {
     private final ItineraryGenerationService generationService;
     private final ItineraryEditService editService;
     private final ItineraryAttractionEditService attractionEditService;
+    private final ItineraryStopEditService stopEditService;
 
     /** 일정 만들기 (다시 호출하면 새 버전). Terra 호출이 있어 수 초~수십 초 걸릴 수 있다 */
     @PostMapping
@@ -73,6 +78,42 @@ public class ItineraryController {
                                                   @PathVariable Long stopId,
                                                   @Valid @RequestBody ReplaceAttractionRequestDto request) {
         return attractionEditService.replace(userId, tripId, stopId, request.attractionId());
+    }
+
+    /** 항목 하나(관광지·점심·저녁) 삭제. 새 버전(EDITED)으로 저장하고 전체 일정을 돌려준다 */
+    @DeleteMapping("/stops/{stopId}")
+    public ItineraryResponseDto deleteStop(@AuthenticationPrincipal Long userId,
+                                           @PathVariable Long tripId,
+                                           @PathVariable Long stopId) {
+        return stopEditService.deleteStop(userId, tripId, stopId);
+    }
+
+    /** 같은 날 안에서 항목 순서 바꾸기 (그날의 모든 항목 id를 원하는 순서대로). 새 버전(EDITED)으로 저장 */
+    @PutMapping("/days/{dayNumber}/order")
+    public ItineraryResponseDto reorder(@AuthenticationPrincipal Long userId,
+                                        @PathVariable Long tripId,
+                                        @PathVariable int dayNumber,
+                                        @Valid @RequestBody ReorderStopsRequestDto request) {
+        return stopEditService.reorder(userId, tripId, dayNumber, request.stopIds(), request.version());
+    }
+
+    /** 그날 position 자리(0이면 맨 앞)에 넣을 수 있는 관광지 후보 */
+    @GetMapping("/days/{dayNumber}/attraction-candidates")
+    public AddAttractionCandidatesResponseDto addCandidates(@AuthenticationPrincipal Long userId,
+                                                            @PathVariable Long tripId,
+                                                            @PathVariable int dayNumber,
+                                                            @RequestParam int position) {
+        return stopEditService.addCandidates(userId, tripId, dayNumber, position);
+    }
+
+    /** 그날 position 자리에 관광지 넣기. 새 버전(EDITED)으로 저장하고 전체 일정을 돌려준다 */
+    @PostMapping("/days/{dayNumber}/attractions")
+    public ItineraryResponseDto addAttraction(@AuthenticationPrincipal Long userId,
+                                              @PathVariable Long tripId,
+                                              @PathVariable int dayNumber,
+                                              @Valid @RequestBody AddAttractionRequestDto request) {
+        return stopEditService.addAttraction(userId, tripId, dayNumber, request.attractionId(),
+                request.position(), request.version());
     }
 
     /** 변경 이력: 이 여행의 모든 버전 (최신이 먼저) */
