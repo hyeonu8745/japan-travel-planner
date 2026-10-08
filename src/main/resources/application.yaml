@@ -47,6 +47,8 @@ app:
   google:
     api-key: ${GOOGLE_MAPS_API_KEY}
     timeout-seconds: 10
+    places-language: ko          # 장소 상세(소개·리뷰·영업시간) 언어. 리뷰는 번역되어 오고 원문도 함께 온다
+    photo-max-width-px: 800      # 장소 사진 기본 가로 크기
 
   travel:
     use-google-routes: false     # true면 도보 시간을 Google Routes(WALK)에서 실시간 조회 (저장 안 함)
