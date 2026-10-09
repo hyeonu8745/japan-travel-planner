@@ -16,9 +16,8 @@ import java.util.Map;
  * 장소 목록의 이동 시간 표를 만든다.
  *
  * 기본은 자체 계산 (Google Routes는 일본 대중교통을 제공하지 않고, 이동 시간 캐시는 약관상 허용되지 않음)
- *  - 도보 시간이 기준 이내면 도보
- *  - 넘으면 대중교통 모델과 비교해 빠른 쪽
- *  - 렌트카는 운전 모델
+ *  - 도보 시간이 기준 이내면 도보 (렌트카 여행도 같다. 가까운 곳까지 차를 빼고 주차하지는 않는다)
+ *  - 넘으면 기본 이동수단(대중교통 또는 운전) 모델과 비교해 빠른 쪽
  * use-google-routes를 켜면 도보 시간만 Google에서 실시간으로 받는다 (저장하지 않음)
  */
 @Slf4j
@@ -37,7 +36,7 @@ public class TravelTimeService {
         int n = points.size();
         TravelLeg[][] legs = new TravelLeg[n][n];
 
-        Map<String, RouteElement> googleWalk = (props.isUseGoogleRoutes() && baseMode == LegMode.TRANSIT)
+        Map<String, RouteElement> googleWalk = props.isUseGoogleRoutes()
                 ? fetchGoogleWalk(points)
                 : Map.of();
 
@@ -46,17 +45,13 @@ public class TravelTimeService {
                 if (i == j) continue;
                 double straight = straightDistance(points.get(i), points.get(j));
 
-                if (baseMode == LegMode.DRIVE) {
-                    legs[i][j] = driveLeg(straight);
-                    continue;
-                }
-
                 TravelLeg walk = walkLeg(straight, googleWalk.get(i + ">" + j));
                 if (walk.minutes() <= walkThresholdMinutes) {
                     legs[i][j] = walk;
                 } else {
-                    TravelLeg transit = transitLeg(straight);
-                    legs[i][j] = transit.minutes() < walk.minutes() ? transit : walk;
+                    // 예전에는 렌트카면 모든 구간을 운전으로 잡아서, 숙소에서 22m 떨어진 곳도 "차로 6분"(주차 5분 포함)이 됐다
+                    TravelLeg ride = baseMode == LegMode.DRIVE ? driveLeg(straight) : transitLeg(straight);
+                    legs[i][j] = ride.minutes() < walk.minutes() ? ride : walk;
                 }
             }
         }

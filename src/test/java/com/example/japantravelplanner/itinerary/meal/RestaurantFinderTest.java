@@ -65,6 +65,32 @@ class RestaurantFinderTest {
         assertThat(RestaurantFinder.isSnackLed(null)).isFalse();
     }
 
+    // ── 술이 중심인 바 (10-09: 바가 대표 장르인 곳이 여행 저녁으로 뽑혔다) ──
+
+    @Test
+    void 대표_장르가_바이고_식사가_없으면_끼니_후보가_아니다() {
+        assertThat(RestaurantFinder.isDrinkLed("バー")).isTrue();                       // 石の華
+        assertThat(RestaurantFinder.isDrinkLed("バー,ラウンジ,ワインバー")).isTrue();    // ステラガーデン (호텔 라운지 바)
+        assertThat(RestaurantFinder.isDrinkLed("ワインバー,バー")).isTrue();
+        assertThat(RestaurantFinder.isDrinkLed("バー・お酒（その他）")).isTrue();
+        assertThat(RestaurantFinder.isDrinkLed("バー,カフェ")).isTrue();
+    }
+
+    @Test
+    void 바라도_두_번째_장르가_식사면_후보로_남긴다() {
+        assertThat(RestaurantFinder.isDrinkLed("バー,ビストロ,バル・バール")).isFalse();          // イーグル
+        assertThat(RestaurantFinder.isDrinkLed("ダイニングバー,イタリアン,ハンバーガー")).isFalse();
+    }
+
+    @Test
+    void 이름이_비슷한_식사_장르는_바로_보지_않는다() {
+        assertThat(RestaurantFinder.isDrinkLed("ハンバーガー,ステーキ")).isFalse();
+        assertThat(RestaurantFinder.isDrinkLed("バーベキュー,焼肉")).isFalse();
+        assertThat(RestaurantFinder.isDrinkLed("ジュースバー")).isFalse();
+        assertThat(RestaurantFinder.isDrinkLed("ラーメン,ビアバー")).isFalse();   // 대표가 식사
+        assertThat(RestaurantFinder.isDrinkLed(null)).isFalse();
+    }
+
     @Test
     void 바르와_바알도_흡연_가능성_장르다() {
         // 실제 응답에서 담배 연기를 싫어하는 여행의 저녁으로 뽑혔던 곳 (炭火焼スペインバルMon)

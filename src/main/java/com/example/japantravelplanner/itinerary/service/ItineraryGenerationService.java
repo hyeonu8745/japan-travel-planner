@@ -51,6 +51,9 @@ public class ItineraryGenerationService {
 
     static final int DAILY_GENERATION_LIMIT = 5;
 
+    /** Itinerary의 (여행, 버전 번호) 유일 제약 이름 */
+    private static final String VERSION_UNIQUE_CONSTRAINT = "uk_itineraries_trip_version";
+
     // 여행 하나당 24시간 안에 AI로 만들 수 있는 횟수 (AI 비용 대책). 요금제별로 바꿀 수 있게 설정으로 뺐다
     @Value("${app.itinerary.daily-generation-limit:5}")
     private int dailyGenerationLimit = DAILY_GENERATION_LIMIT;
@@ -151,8 +154,16 @@ public class ItineraryGenerationService {
         try {
             itineraryRepository.saveAndFlush(itinerary);
         } catch (DataIntegrityViolationException e) {
-            // 같은 버전 번호로 동시에 저장하려 한 경우 (잠금은 서버 한 대 안에서만 막아준다)
-            throw new ConflictException("일정이 동시에 만들어졌어요. 잠시 후 다시 확인해주세요.");
+            // 같은 버전 번호로 동시에 저장하려 한 경우만 409로 안내한다 (잠금은 서버 한 대 안에서만 막아준다).
+            // 그 밖의 DB 거절(허용 값 제약 등)은 동시성 문제가 아니므로 원인을 로그에 남기고 그대로 던진다.
+            // 교체·되돌리기와 같은 기준이다 (예전에 전부 409로 바꿔서 CHECK 제약 문제의 원인이 가려졌다)
+            Throwable cause = e.getMostSpecificCause();
+            String message = cause.getMessage() == null ? "" : cause.getMessage();
+            if (message.contains(VERSION_UNIQUE_CONSTRAINT)) {
+                throw new ConflictException("일정이 동시에 만들어졌어요. 잠시 후 다시 확인해주세요.");
+            }
+            log.error("[Itinerary] 일정 저장이 DB에서 거절됨 (동시성 문제가 아님): {}", message);
+            throw e;
         }
         trip.setStatus(TripStatus.GENERATED);
 

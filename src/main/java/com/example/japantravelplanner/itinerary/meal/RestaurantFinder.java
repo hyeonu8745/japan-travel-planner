@@ -86,6 +86,7 @@ public class RestaurantFinder {
             Set<String> genres = genresOf(r.getGenre());
             if (isSnackOnly(genres)) continue;
             if (meal == Meal.DINNER && isSnackLed(r.getGenre())) continue;   // 저녁은 간식이 대표인 곳 제외
+            if (isDrinkLed(r.getGenre())) continue;   // 술이 중심인 바는 끼니 후보가 아니다
             if (!Collections.disjoint(genres, filter.avoidGenres())) continue;
             if (filter.avoidSmoky() && genres.stream().anyMatch(RestaurantFinder::isSmokyGenre)) continue;
 
@@ -150,6 +151,26 @@ public class RestaurantFinder {
     static boolean isSnackLed(String genreCsv) {
         String first = firstGenre(genreCsv);
         return !first.isEmpty() && isSnackGenre(first);
+    }
+
+    /**
+     * 술이 중심인 곳: 대표(첫 번째) 장르가 바이고, 두 번째 장르도 식사가 아닌 곳 (없거나, 바·간식·라운지).
+     * 「バー,ラウンジ,ワインバー」(호텔 라운지 바), 「バー」만 있는 곳이 여행 저녁으로 뽑힌 적이 있다.
+     * 「バー,ビストロ」「ダイニングバー,イタリアン」처럼 두 번째가 식사면 식사하는 곳으로 보고 남긴다.
+     */
+    static boolean isDrinkLed(String genreCsv) {
+        List<String> main = List.copyOf(mainGenres(genreCsv));
+        if (main.isEmpty() || !isBarGenre(main.get(0))) return false;
+        if (main.size() == 1) return true;
+        String second = main.get(1);
+        return isBarGenre(second) || isSnackGenre(second);
+    }
+
+    /** 바 종류 장르 (バー, ワインバー, ダイニングバー, バー・お酒（その他）, パブ, ビアホール 등). ハンバーガー·バーベキュー·ジュースバー는 아니다 */
+    static boolean isBarGenre(String genre) {
+        if (genre.contains("ジュース")) return false;
+        return genre.endsWith("バー") || genre.startsWith("バー・") || genre.contains("パブ")
+                || genre.contains("ビアホール") || genre.contains("ビアガーデン");
     }
 
     /** 장르가 모두 간식·디저트면 식사 후보가 아니다 (カフェ,パスタ처럼 식사가 섞이면 후보) */

@@ -255,11 +255,25 @@ class ItineraryGenerationServiceTest {
 
     @Test
     void 같은_버전으로_동시에_저장하면_충돌로_안내한다() {
-        when(itineraryRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("duplicate"));
+        when(itineraryRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException(
+                "duplicate key value violates unique constraint \"uk_itineraries_trip_version\""));
 
         assertThatThrownBy(this::generate).isInstanceOf(ConflictException.class);
         assertThat(trip.getStatus()).isNotEqualTo(TripStatus.GENERATED);
         assertThat(lock.tryAcquire(TRIP_ID)).isTrue();
+    }
+
+    @Test
+    void 버전_번호_충돌이_아닌_DB_거절은_409로_바꾸지_않고_그대로_던진다() {
+        // 교체·되돌리기와 같은 기준. 예: enum 허용 값 제약에 걸린 경우를 동시성 문제로 오해하게 만들면 안 된다
+        when(itineraryRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException(
+                "violates check constraint \"itineraries_source_check\""));
+
+        assertThatThrownBy(this::generate)
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .isNotInstanceOf(ConflictException.class);
+        assertThat(trip.getStatus()).isNotEqualTo(TripStatus.GENERATED);
+        assertThat(lock.tryAcquire(TRIP_ID)).isTrue();   // 이 경우에도 잠금은 풀린다
     }
 
     // ── 조회 ──

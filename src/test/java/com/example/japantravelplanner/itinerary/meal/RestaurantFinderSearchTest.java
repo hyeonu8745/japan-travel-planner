@@ -40,6 +40,24 @@ class RestaurantFinderSearchTest {
     }
 
     @Test
+    void 술이_중심인_바는_점심_저녁_모두_후보에서_빠진다() {
+        Restaurant bar = Restaurant.builder().id(9L).name("라운지 바").genre("バー,ラウンジ,ワインバー").ratingVal(3.9)
+                .reviewCnt(300).budgetLunchMax(3000).budgetDinnerMax(3000)
+                .location(GF.createPoint(new Coordinate(139.70, 35.69))).build();
+        Restaurant bistroBar = Restaurant.builder().id(10L).name("비스트로 바").genre("バー,ビストロ").ratingVal(3.7)
+                .reviewCnt(300).budgetLunchMax(3000).budgetDinnerMax(3000)
+                .location(GF.createPoint(new Coordinate(139.70, 35.69))).build();
+        when(repository.findWithinRadius(anyDouble(), anyDouble(), anyDouble())).thenReturn(List.of(bar, bistroBar, b, c));
+
+        for (Meal meal : Meal.values()) {
+            List<RestaurantCandidate> result = finder.find(35.69, 139.70, meal, 5700, NO_FILTER, Set.of(), 10);
+            assertThat(result).extracting(r -> r.restaurant().getName())
+                    .doesNotContain("라운지 바")
+                    .contains("비스트로 바");   // 두 번째 장르가 식사(ビストロ)라 남는다
+        }
+    }
+
+    @Test
     void 가까운_후보가_한_곳뿐이면_더_넓은_반경까지_찾는다() {
         when(repository.findWithinRadius(
                 anyDouble(), anyDouble(), eq(500.0)
