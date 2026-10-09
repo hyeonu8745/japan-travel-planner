@@ -28,8 +28,15 @@ class RestaurantPlaceMatcherTest {
         return place(id, name, meters, "OPERATIONAL");
     }
 
+    private static final RestaurantPlaceMatcher.Criteria CRITERIA = new RestaurantMatchProperties().criteria();
+
     private static Decision decide(String name, SearchPlace... places) {
-        return RestaurantPlaceMatcher.decide(name, LAT, LNG, List.of(places), 300, 0.7);
+        return RestaurantPlaceMatcher.decide(name, LAT, LNG, List.of(places), CRITERIA);
+    }
+
+    @Test
+    void 기본_기준은_표본_측정으로_정한_값이다() {
+        assertThat(CRITERIA).isEqualTo(new RestaurantPlaceMatcher.Criteria(300, 0.7, 100, 0.6));
     }
 
     @Test
@@ -132,11 +139,45 @@ class RestaurantPlaceMatcherTest {
         assertThat(decide("鮨いしかわ", noLocation, noName).status()).isEqualTo(GoogleMatchStatus.NOT_FOUND);
     }
 
+    // ── 가타카나 이름 ↔ 영어 이름 ──
+
     @Test
-    void 영어_이름_가게는_놓친다_알려진_한계() {
-        // 가까운 다른 이름 가게(폐업한 자리)를 받지 않기 위한 대가. 화면에는 "찾지 못했어요"로 보인다
+    void 가타카나_이름과_영어_이름이_같은_가게면_찾는다() {
+        assertThat(decide("ボンダイ コーヒー サンドウィッチーズ", place("p", "Bondi Coffee Sandwiches", 4)).status())
+                .isEqualTo(GoogleMatchStatus.MATCHED);
         assertThat(decide("ザ グレートバーガー", place("p", "THE GREAT BURGER", 4)).status())
+                .isEqualTo(GoogleMatchStatus.MATCHED);
+        assertThat(decide("フグレン", place("p", "Fuglen Coffee Roasters", 10)).status())
+                .isEqualTo(GoogleMatchStatus.MATCHED);
+    }
+
+    @Test
+    void 영어_이름이_비슷하기만_한_다른_가게는_받지_않는다() {
+        assertThat(decide("ビババンコ", place("p", "Bistro Banco", 5)).status()).isEqualTo(GoogleMatchStatus.NOT_FOUND);
+        assertThat(decide("リュミエール", place("p", "Maison de Ville", 0)).status()).isEqualTo(GoogleMatchStatus.NOT_FOUND);
+        assertThat(decide("ブルーボトルコーヒー", place("p", "Blue Note Tokyo", 5)).status())
                 .isEqualTo(GoogleMatchStatus.NOT_FOUND);
+    }
+
+    @Test
+    void 가타카나_영어_비교는_100m_안에서만_받는다() {
+        assertThat(decide("ボンダイ コーヒー サンドウィッチーズ", place("p", "Bondi Coffee Sandwiches", 150)).status())
+                .isEqualTo(GoogleMatchStatus.NOT_FOUND);
+    }
+
+    @Test
+    void 일본어끼리는_가타카나_영어_비교를_쓰지_않는다() {
+        assertThat(RestaurantPlaceMatcher.loanwordSimilarity("レストラン鳴海", "ベンガル家庭料理 トルカリ")).isZero();
+        assertThat(RestaurantPlaceMatcher.loanwordSimilarity("懐石 辻留", "Kaiseki Tsujitome")).isZero();   // 우리 이름이 가타카나가 아님
+    }
+
+    @Test
+    void 가타카나를_로마자로_바꾸고_자음_뼈대를_만든다() {
+        assertThat(RestaurantPlaceMatcher.romanize("サンドウィッチーズ")).isEqualTo("sandowichizu");
+        assertThat(RestaurantPlaceMatcher.skeleton("Coffee")).isEqualTo("kf");
+        assertThat(RestaurantPlaceMatcher.skeleton(RestaurantPlaceMatcher.romanize("コーヒー"))).isEqualTo("kh");
+        assertThat(RestaurantPlaceMatcher.skeleton("Viva Banco"))
+                .isEqualTo(RestaurantPlaceMatcher.skeleton(RestaurantPlaceMatcher.romanize("ビババンコ")));
     }
 
     @Test

@@ -27,9 +27,20 @@ public class RestaurantMatchProperties {
     /** 이름 비슷한 정도(0~1)가 이 값 이상이어야 같은 가게로 본다 */
     private double minNameSimilarity = 0.7;
 
+    /** 가타카나 이름 ↔ 영어 이름(「ボンダイ…」↔「Bondi…」)을 자음 뼈대로 맞출 때의 허용 거리. 글자 비교보다 느슨해서 더 가까워야 한다 */
+    private double loanwordMaxDistanceMeters = 100;
+
+    /** 가타카나 ↔ 영어 자음 뼈대 비슷한 정도 기준 (「ビババンコ」↔「Bistro Banco」 0.5는 거절, 「スターバックス コーヒー」↔「Starbucks Coffee」 0.62는 통과) */
+    private double loanwordMinSimilarity = 0.6;
+
     /** 검색 결과를 몇 개까지 받아서 비교할지 (1순위가 아닌 결과가 맞는 경우가 있었다) */
     private int pageSize = 3;
 
     /** 일정 생성 때 "확인 → 빠진 식당이 있으면 다시 계산"을 몇 번까지 할지 */
     private int verifyRounds = 2;
+
+    public RestaurantPlaceMatcher.Criteria criteria() {
+        return new RestaurantPlaceMatcher.Criteria(maxDistanceMeters, minNameSimilarity,
+                loanwordMaxDistanceMeters, loanwordMinSimilarity);
+    }
 }

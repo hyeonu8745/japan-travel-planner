@@ -97,7 +97,7 @@ public class RestaurantMatchService {
                         List<SearchPlace> places = placesClient.searchText(target.query(), target.lat(), target.lng(),
                                 props.getSearchRadiusMeters(), props.getPageSize());
                         Decision decision = RestaurantPlaceMatcher.decide(target.name(), target.lat(), target.lng(),
-                                places, props.getMaxDistanceMeters(), props.getMinNameSimilarity());
+                                places, props.criteria());
                         result.put(target.id(), decision);
                         log.info("[Match] 식당 id={} {} → {}", target.id(), target.name(), decision.status());
                     } catch (RuntimeException e) {

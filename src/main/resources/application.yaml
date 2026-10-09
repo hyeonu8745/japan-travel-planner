@@ -55,6 +55,8 @@ app:
     search-radius-meters: 300    # 이 원 안을 우선해서 검색
     max-distance-meters: 300     # 우리 좌표와 이 거리 안이어야 같은 가게
     min-name-similarity: 0.7     # 이름 비슷한 정도 (0~1)
+    loanword-max-distance-meters: 100   # 가타카나 ↔ 영어 이름으로 맞출 때 허용 거리
+    loanword-min-similarity: 0.6        # 가타카나 ↔ 영어 자음 뼈대 비슷한 정도
     page-size: 3                 # 검색 결과 몇 개를 비교할지
     verify-rounds: 2             # 폐업 의심 식당을 빼고 다시 계산하는 최대 횟수
 
