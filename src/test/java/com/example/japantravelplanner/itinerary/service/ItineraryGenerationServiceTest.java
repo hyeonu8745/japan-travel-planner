@@ -19,6 +19,7 @@ import com.example.japantravelplanner.itinerary.planner.TravelOptions;
 import com.example.japantravelplanner.itinerary.repository.ItineraryRepository;
 import com.example.japantravelplanner.itinerary.travel.LegMode;
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
+import com.example.japantravelplanner.restaurant.match.RestaurantMatchService;
 import com.example.japantravelplanner.restaurant.repository.RestaurantRepository;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.trip.entity.TripStatus;
@@ -36,6 +37,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static com.example.japantravelplanner.itinerary.service.ItineraryTestData.*;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -61,6 +63,8 @@ class ItineraryGenerationServiceTest {
     private final PlaceTypeLabels typeLabels = mock(PlaceTypeLabels.class);
     private final PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
     private final GenerationLock lock = new GenerationLock();
+    // 기본값(verifyRounds 0)이면 식당 확인을 하지 않는다 → 기존 테스트는 확인 없이 흐른다
+    private final RestaurantMatchService matchService = mock(RestaurantMatchService.class);
 
     // 트랜잭션이 열려 있는 동안 true (AI 호출이 트랜잭션 밖인지 확인하는 용도)
     private final boolean[] transactionActive = {false};
@@ -97,7 +101,7 @@ class ItineraryGenerationServiceTest {
 
         service = new ItineraryGenerationService(tripRepository, preferenceRepository, itineraryRepository,
                 attractionRepository, restaurantRepository, locator, planner, narrator, typeLabels,
-                new MealProperties(), lock, transactionManager);
+                new MealProperties(), lock, matchService, transactionManager);
     }
 
     private ItineraryPlanner.Result plannedResult() {
@@ -111,6 +115,63 @@ class ItineraryGenerationServiceTest {
 
     private void generate() {
         service.generate(USER_ID, TRIP_ID);
+    }
+
+    // ── 고른 식당 확인 (Google 매칭, 폐업 의심 식당 빼기) ──
+
+    @Test
+    void 고른_식당을_확인해서_빠진_곳이_있으면_다시_계산한다() {
+        when(matchService.verifyRounds()).thenReturn(2);
+        when(matchService.verify(any())).thenReturn(1, 0);
+
+        generate();
+
+        verify(planner, times(2)).plan(any(), any(), any());
+        verify(matchService, times(2)).verify(Set.of(21L));   // 실제로 고른 식당만 확인한다
+        verify(itineraryRepository, times(1)).saveAndFlush(any());
+    }
+
+    @Test
+    void 빠진_식당이_없으면_다시_계산하지_않는다() {
+        when(matchService.verifyRounds()).thenReturn(2);
+        when(matchService.verify(any())).thenReturn(0);
+
+        generate();
+
+        verify(planner, times(1)).plan(any(), any(), any());
+        verify(matchService, times(1)).verify(Set.of(21L));
+    }
+
+    @Test
+    void 다시_계산은_정해진_횟수까지만_하고_마지막_결과로_저장한다() {
+        when(matchService.verifyRounds()).thenReturn(2);
+        when(matchService.verify(any())).thenReturn(1);   // 계속 빠지는 곳이 나와도
+
+        generate();
+
+        verify(matchService, times(2)).verify(any());
+        verify(planner, times(3)).plan(any(), any(), any());
+        verify(itineraryRepository, times(1)).saveAndFlush(any());
+    }
+
+    @Test
+    void 식당_확인은_트랜잭션_밖에서_한다() {
+        boolean[] calledInTransaction = {false};
+        when(matchService.verifyRounds()).thenReturn(1);
+        when(matchService.verify(any())).thenAnswer(inv -> {
+            calledInTransaction[0] |= transactionActive[0];
+            return 0;
+        });
+
+        generate();
+
+        assertThat(calledInTransaction[0]).isFalse();
+        verify(matchService).verify(any());
+    }
+
+    @Test
+    void 일정에_들어간_식당_id만_모은다() {
+        assertThat(ItineraryGenerationService.chosenRestaurantIds(plannedResult())).containsExactly(21L);
     }
 
     // ── 정상 흐름 ──

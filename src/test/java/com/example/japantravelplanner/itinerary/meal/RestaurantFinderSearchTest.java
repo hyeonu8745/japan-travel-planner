@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.itinerary.meal;
 
+import com.example.japantravelplanner.restaurant.entity.GoogleMatchStatus;
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
 import com.example.japantravelplanner.restaurant.repository.RestaurantRepository;
 import org.junit.jupiter.api.Test;
@@ -7,6 +8,7 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.PrecisionModel;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -37,6 +39,23 @@ class RestaurantFinderSearchTest {
 
     private List<RestaurantCandidate> find() {
         return finder.find(35.69, 139.70, Meal.DINNER, 5700, NO_FILTER, Set.of(), 10);
+    }
+
+    @Test
+    void Google에서_찾지_못했거나_폐업인_식당은_빼고_확인_전인_식당은_남긴다() {
+        Restaurant notFound = restaurant(5, "찾지 못함", 3.9);
+        notFound.recordGoogleMatch(GoogleMatchStatus.NOT_FOUND, null, LocalDateTime.now());
+        Restaurant closed = restaurant(6, "폐업", 3.9);
+        closed.recordGoogleMatch(GoogleMatchStatus.CLOSED, "p-closed", LocalDateTime.now());
+        Restaurant matched = restaurant(7, "확인됨", 3.9);
+        matched.recordGoogleMatch(GoogleMatchStatus.MATCHED, "p-ok", LocalDateTime.now());
+        when(repository.findWithinRadius(anyDouble(), anyDouble(), anyDouble()))
+                .thenReturn(List.of(notFound, closed, matched, b));
+
+        List<RestaurantCandidate> result = find();
+
+        assertThat(result).extracting(r -> r.restaurant().getName())
+                .containsExactlyInAnyOrder("확인됨", "둘");   // "둘"은 아직 확인 전 → 통과
     }
 
     @Test

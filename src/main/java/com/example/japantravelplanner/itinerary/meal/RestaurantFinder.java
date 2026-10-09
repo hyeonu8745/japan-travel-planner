@@ -78,6 +78,7 @@ public class RestaurantFinder {
         List<RestaurantCandidate> result = new ArrayList<>();
         for (Restaurant r : nearby) {
             if (excludeIds.contains(r.getId()) || r.getRatingVal() == null || r.getLocation() == null) continue;
+            if (r.isExcludedByGoogleMatch()) continue;   // Google에서 찾지 못함·폐업 (폐업했을 가능성이 큼)
             if (RegularHoliday.isClosedOn(r.getHoliday(), visitDate)) continue;   // 방문하는 날이 정기 휴일
 
             Integer budgetMax = meal == Meal.LUNCH ? r.getBudgetLunchMax() : r.getBudgetDinnerMax();

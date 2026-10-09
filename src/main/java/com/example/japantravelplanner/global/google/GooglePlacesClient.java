@@ -4,6 +4,7 @@ import com.example.japantravelplanner.global.exception.ExternalApiException;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -12,10 +13,11 @@ import org.springframework.web.client.RestClientResponseException;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
- * Google Places API (New): 장소 상세(Place Details)와 사진(Place Photos).
+ * Google Places API (New): 장소 상세(Place Details), 사진(Place Photos), 식당 매칭용 검색(Text Search).
  *
  * 약관상 place ID 말고는 Places 내용(사진·리뷰·영업시간·소개)을 저장하거나 캐시할 수 없다.
  * 그래서 화면에서 상세를 열 때마다 여기서 받아서 그대로 돌려주고, DB에도 메모리에도 남기지 않는다.
@@ -23,6 +25,7 @@ import java.util.Optional;
  *
  * 요금: 소개·리뷰를 받으므로 Place Details Enterprise + Atmosphere 등급(월 1,000건 무료),
  * 사진 주소는 Place Details Photos 등급(월 1,000건 무료)이 따로 든다.
+ * 식당 매칭 검색은 이름·좌표·영업 상태를 받으므로 Text Search Pro 등급(월 5,000건 무료)이다.
  */
 @Slf4j
 @Component
@@ -32,6 +35,13 @@ public class GooglePlacesClient {
     static final String DETAILS_FIELD_MASK = String.join(",",
             "id", "displayName", "googleMapsUri", "editorialSummary", "regularOpeningHours",
             "rating", "userRatingCount", "websiteUri", "photos", "reviews");
+
+    /** 식당 매칭 검색에서 받을 필드. 이름·좌표·영업 상태 → Text Search Pro 등급 (place ID만 받는 무료 등급으로는 같은 가게인지 확인할 수 없다) */
+    static final String SEARCH_FIELD_MASK = String.join(",",
+            "places.id", "places.displayName", "places.location", "places.businessStatus");
+
+    /** 매칭은 타베로그 일본어 이름과 비교하므로 일본어 이름으로 받는다 (상세 화면용 places-language와 별개) */
+    static final String SEARCH_LANGUAGE = "ja";
 
     private final GoogleProperties properties;
     private final RestClient restClient;
@@ -108,6 +118,40 @@ public class GooglePlacesClient {
         }
     }
 
+    /**
+     * 글자로 장소 검색 (식당 매칭용). 받은 이름·좌표는 같은 가게인지 비교하는 데만 쓰고 저장하지 않는다.
+     *
+     * @param query        "식당 이름 + 주소"
+     * @param radiusMeters 이 원 안을 우선해달라는 뜻 (밖의 결과도 올 수 있다)
+     */
+    public List<SearchPlace> searchText(String query, double lat, double lng, double radiusMeters, int pageSize) {
+        Map<String, Object> body = Map.of(
+                "textQuery", query,
+                "languageCode", SEARCH_LANGUAGE,
+                "regionCode", "JP",
+                "pageSize", pageSize,
+                "locationBias", Map.of("circle", Map.of(
+                        "center", Map.of("latitude", lat, "longitude", lng),
+                        "radius", radiusMeters)));
+        try {
+            SearchResponse response = restClient.post()
+                    .uri("/places:searchText")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .header("X-Goog-Api-Key", properties.getApiKey())
+                    .header("X-Goog-FieldMask", SEARCH_FIELD_MASK)
+                    .body(body)
+                    .retrieve()
+                    .body(SearchResponse.class);
+            return response == null || response.places() == null ? List.of() : response.places();
+        } catch (RestClientResponseException e) {
+            log.error("[Places] 검색 실패 status={} body={}", e.getStatusCode().value(), e.getResponseBodyAsString());
+            throw new ExternalApiException("장소를 검색하지 못했어요. 잠시 후 다시 시도해주세요.", e);
+        } catch (RestClientException e) {
+            log.error("[Places] 검색 연결 실패: {}", e.getClass().getSimpleName());
+            throw new ExternalApiException("장소를 검색하지 못했어요. 잠시 후 다시 시도해주세요.", e);
+        }
+    }
+
     // ===== 응답 중 필요한 부분 =====
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -137,6 +181,23 @@ public class GooglePlacesClient {
     public record Review(String relativePublishTimeDescription, Integer rating, LocalizedText text,
                          LocalizedText originalText, AuthorAttribution authorAttribution, String publishTime,
                          String googleMapsUri) {
+    }
+
+    /** 검색 결과 한 곳. businessStatus: OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record SearchPlace(String id, LocalizedText displayName, LatLng location, String businessStatus) {
+
+        public String nameText() {
+            return displayName == null ? null : displayName.text();
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record LatLng(Double latitude, Double longitude) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record SearchResponse(List<SearchPlace> places) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

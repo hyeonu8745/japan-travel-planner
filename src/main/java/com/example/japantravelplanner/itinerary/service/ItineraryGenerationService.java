@@ -10,8 +10,11 @@ import com.example.japantravelplanner.itinerary.entity.Itinerary;
 import com.example.japantravelplanner.itinerary.meal.MealProperties;
 import com.example.japantravelplanner.itinerary.narration.ItineraryNarrator;
 import com.example.japantravelplanner.itinerary.narration.TripBrief;
+import com.example.japantravelplanner.itinerary.planner.ScheduledDay;
+import com.example.japantravelplanner.itinerary.planner.ScheduledStop;
 import com.example.japantravelplanner.itinerary.repository.ItineraryRepository;
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
+import com.example.japantravelplanner.restaurant.match.RestaurantMatchService;
 import com.example.japantravelplanner.restaurant.repository.RestaurantRepository;
 import com.example.japantravelplanner.trip.entity.PreferenceConstraint;
 import com.example.japantravelplanner.trip.entity.Trip;
@@ -29,6 +32,7 @@ import com.example.japantravelplanner.itinerary.entity.ItinerarySource;
 import org.springframework.beans.factory.annotation.Value;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,6 +44,7 @@ import java.util.stream.Collectors;
  *
  * 흐름은 ChatService와 같은 원칙으로 세 단계로 나눈다. (AI 호출은 수십 초가 걸릴 수 있어서 DB 연결을 붙잡지 않는다)
  *  ① 계산 (트랜잭션): 여행 확인, 횟수 제한, 숙소 좌표, 일정 계산. 외부 AI 호출 없음
+ *  ①-1 식당 확인 (트랜잭션 밖): 고른 식당이 Google에 있는지 확인. 폐업 등으로 빠진 곳이 있으면 ①을 다시
  *  ② 설명 (트랜잭션 밖): Terra가 하루 설명을 쓴다. 실패해도 일정은 정상
  *  ③ 저장 (트랜잭션): 새 버전으로 저장하고 여행 상태를 GENERATED로
  *
@@ -69,6 +74,7 @@ public class ItineraryGenerationService {
     private final PlaceTypeLabels typeLabels;
     private final MealProperties mealProperties;
     private final GenerationLock lock;
+    private final RestaurantMatchService restaurantMatchService;
     private final TransactionTemplate readTransaction;
     private final TransactionTemplate writeTransaction;
 
@@ -83,6 +89,7 @@ public class ItineraryGenerationService {
                                       PlaceTypeLabels typeLabels,
                                       MealProperties mealProperties,
                                       GenerationLock lock,
+                                      RestaurantMatchService restaurantMatchService,
                                       PlatformTransactionManager transactionManager) {
         this.tripRepository = tripRepository;
         this.preferenceRepository = preferenceRepository;
@@ -95,6 +102,7 @@ public class ItineraryGenerationService {
         this.typeLabels = typeLabels;
         this.mealProperties = mealProperties;
         this.lock = lock;
+        this.restaurantMatchService = restaurantMatchService;
         this.readTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction.setReadOnly(true);
         this.writeTransaction = new TransactionTemplate(transactionManager);
@@ -110,12 +118,22 @@ public class ItineraryGenerationService {
             // ① 계산 (숙소 좌표를 처음 찾으면 여행에 저장하므로 쓰기 트랜잭션)
             Planned planned = writeTransaction.execute(status -> plan(userId, tripId));
 
+            // ①-1 고른 식당을 Google에서 확인 (트랜잭션 밖). 찾지 못함·폐업이 나오면 그 식당은 후보에서 빠지므로 다시 계산한다.
+            // 마지막으로 다시 계산해서 새로 고른 식당은 확인 전이라도 통과 (다음 생성 때 확인)
+            for (int round = 0; round < restaurantMatchService.verifyRounds(); round++) {
+                int excluded = restaurantMatchService.verify(chosenRestaurantIds(planned.result()));
+                if (excluded == 0) break;
+                log.info("[Itinerary] 폐업 의심 식당 {}곳을 빼고 다시 계산 tripId={}", excluded, tripId);
+                planned = writeTransaction.execute(status -> plan(userId, tripId));
+            }
+
             // ② 설명: 트랜잭션 밖에서
+            Planned finalPlan = planned;
             Map<Integer, String> descriptions = narrator.narrate(
-                    planned.brief(), planned.result().days(), typeLabels::toVisibleLabels);
+                    finalPlan.brief(), finalPlan.result().days(), typeLabels::toVisibleLabels);
 
             // ③ 저장
-            return writeTransaction.execute(status -> save(userId, tripId, planned, descriptions));
+            return writeTransaction.execute(status -> save(userId, tripId, finalPlan, descriptions));
         } finally {
             lock.release(tripId);
         }
@@ -196,6 +214,19 @@ public class ItineraryGenerationService {
     private Trip findTrip(Long userId, Long tripId) {
         return tripRepository.findByIdAndUserId(tripId, userId)
                 .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
+    }
+
+    /** 일정에 들어간 식당 (다음 후보는 빼고 실제로 고른 곳만) */
+    static Set<Long> chosenRestaurantIds(ItineraryPlanner.Result result) {
+        Set<Long> ids = new LinkedHashSet<>();
+        for (ScheduledDay day : result.days()) {
+            for (ScheduledStop stop : day.stops()) {
+                if (stop.meal() != null && stop.meal().found()) {
+                    ids.add(stop.meal().chosen().restaurant().getId());
+                }
+            }
+        }
+        return ids;
     }
 
     /** ① 단계 결과: 계산된 일정과 설명을 쓸 때 필요한 여행 정보 */

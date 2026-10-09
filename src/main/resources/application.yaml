@@ -50,6 +50,14 @@ app:
     places-language: ko          # 장소 상세(소개·리뷰·영업시간) 언어. 리뷰는 번역되어 오고 원문도 함께 온다
     photo-max-width-px: 800      # 장소 사진 기본 가로 크기
 
+  restaurant-match:              # 타베로그 식당 ↔ Google 장소 매칭 (일정 생성 때 고른 식당만, Text Search Pro 월 5,000건 무료)
+    enabled: true
+    search-radius-meters: 300    # 이 원 안을 우선해서 검색
+    max-distance-meters: 300     # 우리 좌표와 이 거리 안이어야 같은 가게
+    min-name-similarity: 0.7     # 이름 비슷한 정도 (0~1)
+    page-size: 3                 # 검색 결과 몇 개를 비교할지
+    verify-rounds: 2             # 폐업 의심 식당을 빼고 다시 계산하는 최대 횟수
+
   travel:
     use-google-routes: false     # true면 도보 시간을 Google Routes(WALK)에서 실시간 조회 (저장 안 함)
     walk-threshold-minutes: 20   # 이 시간 이내는 도보

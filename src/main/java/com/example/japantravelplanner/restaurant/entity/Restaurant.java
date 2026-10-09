@@ -86,6 +86,18 @@ public class Restaurant {
     @Column(columnDefinition = "geometry(Point,4326)")
     private Point location;
 
+    // Google 장소 매칭 결과 (일정을 만들 때 고른 식당만 확인한다. null = 아직 확인 안 함).
+    // 약관상 Google 내용은 place ID만 저장할 수 있어서, 이름·주소·평점은 저장하지 않는다
+    @Column(name = "google_place_id")
+    private String googlePlaceId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "google_match_status", length = 20)
+    private GoogleMatchStatus googleMatchStatus;
+
+    @Column(name = "google_matched_at")
+    private LocalDateTime googleMatchedAt;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -100,6 +112,18 @@ public class Restaurant {
         this.budgetDinnerMax = dinner.max();
         this.budgetLunchMin = lunch.min();
         this.budgetLunchMax = lunch.max();
+    }
+
+    /** Google에서 찾지 못했거나 폐업이라 끼니 후보에서 빼야 하는 식당 (아직 확인 안 한 식당은 통과) */
+    public boolean isExcludedByGoogleMatch() {
+        return googleMatchStatus != null && googleMatchStatus.excludesFromMeals();
+    }
+
+    /** 매칭 결과 기록. NOT_FOUND면 placeId는 null */
+    public void recordGoogleMatch(GoogleMatchStatus status, String placeId, LocalDateTime matchedAt) {
+        this.googleMatchStatus = status;
+        this.googlePlaceId = placeId;
+        this.googleMatchedAt = matchedAt;
     }
 
     @PrePersist
