@@ -47,8 +47,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 로그인 없이 접근 가능한 경로
                         .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login").permitAll()
-                        // 관광지 상세·사진은 부를 때마다 Google 요금이 들어서 로그인한 사용자만 (아래 공개 규칙보다 먼저 와야 한다)
-                        .requestMatchers(HttpMethod.GET, "/api/attractions/*/details", "/api/attractions/*/photo").authenticated()
+                        // 관광지·식당 상세와 사진은 부를 때마다 Google 요금이 들어서 로그인한 사용자만 (아래 공개 규칙보다 먼저 와야 한다)
+                        .requestMatchers(HttpMethod.GET, "/api/attractions/*/details", "/api/attractions/*/photo",
+                                "/api/restaurants/*/details", "/api/restaurants/*/photo").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/restaurants/**", "/api/attractions/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         // 그 외 모든 요청은 인증 필요
