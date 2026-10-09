@@ -36,6 +36,16 @@ public class GooglePlacesClient {
             "id", "displayName", "googleMapsUri", "editorialSummary", "regularOpeningHours",
             "rating", "userRatingCount", "websiteUri", "photos", "reviews");
 
+    /**
+     * 식당 상세에서 추가로 받는 특성 (아침·점심·저녁, 채식, 주류, 예약, 포장, 결제 수단 등).
+     * 모두 Enterprise + Atmosphere 등급 안이라 상세 요금이 늘지 않는다 (10-09 문서 확인)
+     */
+    static final String RESTAURANT_FIELD_MASK = String.join(",", DETAILS_FIELD_MASK,
+            "servesBreakfast", "servesBrunch", "servesLunch", "servesDinner", "servesVegetarianFood",
+            "servesBeer", "servesWine", "servesCocktails", "servesCoffee", "servesDessert",
+            "menuForChildren", "goodForChildren", "goodForGroups", "reservable",
+            "dineIn", "takeout", "delivery", "outdoorSeating", "priceRange", "paymentOptions");
+
     /** 식당 매칭 검색에서 받을 필드. 이름·좌표·영업 상태 → Text Search Pro 등급 (place ID만 받는 무료 등급으로는 같은 가게인지 확인할 수 없다) */
     static final String SEARCH_FIELD_MASK = String.join(",",
             "places.id", "places.displayName", "places.location", "places.businessStatus");
@@ -61,18 +71,30 @@ public class GooglePlacesClient {
 
     /** 장소 상세. Google에 없는 장소(폐업·삭제)면 빈 값 */
     public Optional<PlaceDetails> details(String placeId) {
+        Optional<PlaceDetails> details = fetchDetails(placeId, DETAILS_FIELD_MASK, PlaceDetails.class);
+        details.ifPresent(d -> log.info("[Places] 상세 placeId={} 사진 {}장 리뷰 {}개", placeId,
+                d.photos() == null ? 0 : d.photos().size(), d.reviews() == null ? 0 : d.reviews().size()));
+        return details;
+    }
+
+    /** 식당 상세 (관광지와 같은 내용 + 식당 특성). Google에 없는 장소면 빈 값 */
+    public Optional<RestaurantPlace> restaurantDetails(String placeId) {
+        Optional<RestaurantPlace> details = fetchDetails(placeId, RESTAURANT_FIELD_MASK, RestaurantPlace.class);
+        details.ifPresent(d -> log.info("[Places] 식당 상세 placeId={} 사진 {}장 리뷰 {}개", placeId,
+                d.photos() == null ? 0 : d.photos().size(), d.reviews() == null ? 0 : d.reviews().size()));
+        return details;
+    }
+
+    private <T> Optional<T> fetchDetails(String placeId, String fieldMask, Class<T> type) {
         try {
-            PlaceDetails details = restClient.get()
+            T details = restClient.get()
                     .uri(builder -> builder.path("/places/{placeId}")
                             .queryParam("languageCode", properties.getPlacesLanguage())
                             .build(placeId))
                     .header("X-Goog-Api-Key", properties.getApiKey())
-                    .header("X-Goog-FieldMask", DETAILS_FIELD_MASK)
+                    .header("X-Goog-FieldMask", fieldMask)
                     .retrieve()
-                    .body(PlaceDetails.class);
-            log.info("[Places] 상세 placeId={} 사진 {}장 리뷰 {}개", placeId,
-                    details == null || details.photos() == null ? 0 : details.photos().size(),
-                    details == null || details.reviews() == null ? 0 : details.reviews().size());
+                    .body(type);
             return Optional.ofNullable(details);
         } catch (RestClientResponseException e) {
             if (e.getStatusCode().value() == 404) {
@@ -181,6 +203,42 @@ public class GooglePlacesClient {
     public record Review(String relativePublishTimeDescription, Integer rating, LocalizedText text,
                          LocalizedText originalText, AuthorAttribution authorAttribution, String publishTime,
                          String googleMapsUri) {
+    }
+
+    /** 식당 상세: PlaceDetails와 같은 내용 + 식당 특성 (값이 없으면 null = 정보 없음) */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record RestaurantPlace(String id, LocalizedText displayName, String googleMapsUri,
+                                  LocalizedText editorialSummary, OpeningHours regularOpeningHours,
+                                  Double rating, Integer userRatingCount, String websiteUri,
+                                  List<Photo> photos, List<Review> reviews,
+                                  Boolean servesBreakfast, Boolean servesBrunch, Boolean servesLunch,
+                                  Boolean servesDinner, Boolean servesVegetarianFood,
+                                  Boolean servesBeer, Boolean servesWine, Boolean servesCocktails,
+                                  Boolean servesCoffee, Boolean servesDessert,
+                                  Boolean menuForChildren, Boolean goodForChildren, Boolean goodForGroups,
+                                  Boolean reservable, Boolean dineIn, Boolean takeout, Boolean delivery,
+                                  Boolean outdoorSeating, PriceRange priceRange, PaymentOptions paymentOptions) {
+
+        /** 관광지와 같은 공통 내용 (사진·리뷰·영업시간 변환을 같이 쓰기 위해) */
+        public PlaceDetails details() {
+            return new PlaceDetails(id, displayName, googleMapsUri, editorialSummary, regularOpeningHours,
+                    rating, userRatingCount, websiteUri, photos, reviews);
+        }
+    }
+
+    /** 1인 가격대. endPrice가 없으면 "startPrice 이상" */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record PriceRange(Money startPrice, Money endPrice) {
+    }
+
+    /** units는 JSON에서 문자열(int64)로 온다 */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Money(String currencyCode, String units, Integer nanos) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record PaymentOptions(Boolean acceptsCreditCards, Boolean acceptsDebitCards,
+                                 Boolean acceptsCashOnly, Boolean acceptsNfc) {
     }
 
     /** 검색 결과 한 곳. businessStatus: OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY */

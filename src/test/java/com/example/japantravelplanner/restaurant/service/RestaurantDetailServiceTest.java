@@ -7,7 +7,10 @@ import com.example.japantravelplanner.global.google.GooglePlacesClient.AuthorAtt
 import com.example.japantravelplanner.global.google.GooglePlacesClient.LocalizedText;
 import com.example.japantravelplanner.global.google.GooglePlacesClient.OpeningHours;
 import com.example.japantravelplanner.global.google.GooglePlacesClient.Photo;
-import com.example.japantravelplanner.global.google.GooglePlacesClient.PlaceDetails;
+import com.example.japantravelplanner.global.google.GooglePlacesClient.Money;
+import com.example.japantravelplanner.global.google.GooglePlacesClient.PaymentOptions;
+import com.example.japantravelplanner.global.google.GooglePlacesClient.PriceRange;
+import com.example.japantravelplanner.global.google.GooglePlacesClient.RestaurantPlace;
 import com.example.japantravelplanner.global.google.GooglePlacesClient.Review;
 import com.example.japantravelplanner.global.google.GoogleProperties;
 import com.example.japantravelplanner.restaurant.dto.RestaurantDetailResponseDto;
@@ -59,16 +62,21 @@ class RestaurantDetailServiceTest {
         sushi.recordGoogleMatch(GoogleMatchStatus.MATCHED, PLACE_ID, LocalDateTime.now());
     }
 
-    private static PlaceDetails place() {
+    private static RestaurantPlace place() {
         Photo photo = new Photo(PHOTO, 4000, 3000,
                 List.of(new AuthorAttribution("사진가", "https://maps.google.com/contrib/1", "https://lh3/a")));
         Review review = new Review("2주 전", 5, new LocalizedText("초밥이 훌륭해요", "ko"),
                 new LocalizedText("寿司が素晴らしい", "ja"),
                 new AuthorAttribution("작성자", "https://maps.google.com/contrib/x", "https://lh3/x"),
                 "2026-09-20T10:00:00Z", "https://maps.google.com/review/x");
-        return new PlaceDetails(PLACE_ID, new LocalizedText("스시 이시카와", "ko"), "https://maps.google.com/?cid=9",
+        return new RestaurantPlace(PLACE_ID, new LocalizedText("스시 이시카와", "ko"), "https://maps.google.com/?cid=9",
                 null, new OpeningHours(List.of("월요일: 오후 6:00~오후 10:00")), 4.4, 812,
-                "https://sushi-ishikawa.jp", List.of(photo), List.of(review));
+                "https://sushi-ishikawa.jp", List.of(photo), List.of(review),
+                false, null, true, true, false,           // 아침·브런치·점심·저녁·채식
+                null, true, null, null, null,             // 맥주·와인·칵테일·커피·디저트
+                null, null, null, true, true, false, false, null,   // 어린이 메뉴·아이·단체·예약·매장·포장·배달·야외석
+                new PriceRange(new Money("JPY", "10000", 0), new Money("JPY", "20000", 0)),
+                new PaymentOptions(true, true, false, null));
     }
 
     // ── 상세 ──
@@ -76,7 +84,7 @@ class RestaurantDetailServiceTest {
     @Test
     void 같은_가게를_찾은_식당은_타베로그와_구글_정보를_나란히_준다() {
         matched();
-        when(placesClient.details(PLACE_ID)).thenReturn(Optional.of(place()));
+        when(placesClient.restaurantDetails(PLACE_ID)).thenReturn(Optional.of(place()));
 
         RestaurantDetailResponseDto detail = service.details(1L);
 
@@ -98,12 +106,28 @@ class RestaurantDetailServiceTest {
     }
 
     @Test
+    void 식당_특성은_값과_true인_것의_한국어_이름을_준다() {
+        matched();
+        when(placesClient.restaurantDetails(PLACE_ID)).thenReturn(Optional.of(place()));
+
+        RestaurantDetailResponseDto.FeaturesDto features = service.details(1L).google().features();
+
+        assertThat(features.labels()).containsExactly("점심", "저녁", "와인", "예약 가능", "카드 결제");
+        assertThat(features.servesBreakfast()).isFalse();      // 없음
+        assertThat(features.servesBrunch()).isNull();          // 정보 없음
+        assertThat(features.reservable()).isTrue();
+        assertThat(features.acceptsCashOnly()).isFalse();
+        assertThat(features.priceMinYen()).isEqualTo(10000);
+        assertThat(features.priceMaxYen()).isEqualTo(20000);
+    }
+
+    @Test
     void 아직_맞춰보지_않은_식당은_먼저_맞춰본_뒤_보여준다() {
         doAnswer(inv -> {
             matched();
             return 0;
         }).when(matchService).verify(Set.of(1L));
-        when(placesClient.details(PLACE_ID)).thenReturn(Optional.of(place()));
+        when(placesClient.restaurantDetails(PLACE_ID)).thenReturn(Optional.of(place()));
 
         RestaurantDetailResponseDto detail = service.details(1L);
 
@@ -123,7 +147,7 @@ class RestaurantDetailServiceTest {
         assertThat(detail.google()).isNull();
         assertThat(detail.attribution()).isNull();
         assertThat(detail.tabelog().rating()).isEqualTo(3.85);
-        verify(placesClient, never()).details(anyString());
+        verify(placesClient, never()).restaurantDetails(anyString());
     }
 
     @Test
@@ -134,7 +158,7 @@ class RestaurantDetailServiceTest {
 
         assertThat(detail.googleStatus()).isEqualTo(GoogleStatus.CLOSED);
         assertThat(detail.googleMessage()).contains("폐업");
-        verify(placesClient, never()).details(anyString());
+        verify(placesClient, never()).restaurantDetails(anyString());
     }
 
     @Test
@@ -151,7 +175,7 @@ class RestaurantDetailServiceTest {
     @Test
     void 저장한_place_ID가_구글에서_사라졌으면_찾지_못함으로_안내한다() {
         matched();
-        when(placesClient.details(PLACE_ID)).thenReturn(Optional.empty());
+        when(placesClient.restaurantDetails(PLACE_ID)).thenReturn(Optional.empty());
 
         RestaurantDetailResponseDto detail = service.details(1L);
 
@@ -162,7 +186,7 @@ class RestaurantDetailServiceTest {
     @Test
     void 구글_상세_호출이_실패하면_503_예외를_그대로_던진다() {
         matched();
-        when(placesClient.details(PLACE_ID)).thenThrow(new ExternalApiException("장소 정보를 불러오지 못했어요.", null));
+        when(placesClient.restaurantDetails(PLACE_ID)).thenThrow(new ExternalApiException("장소 정보를 불러오지 못했어요.", null));
 
         assertThatThrownBy(() -> service.details(1L)).isInstanceOf(ExternalApiException.class);
     }

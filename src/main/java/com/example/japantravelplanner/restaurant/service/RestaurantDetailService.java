@@ -5,6 +5,7 @@ import com.example.japantravelplanner.attraction.service.PlaceContentMapper;
 import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.global.google.GooglePlacesClient;
 import com.example.japantravelplanner.global.google.GooglePlacesClient.PlaceDetails;
+import com.example.japantravelplanner.global.google.GooglePlacesClient.RestaurantPlace;
 import com.example.japantravelplanner.global.google.GoogleProperties;
 import com.example.japantravelplanner.restaurant.dto.RestaurantDetailResponseDto;
 import com.example.japantravelplanner.restaurant.dto.RestaurantDetailResponseDto.GoogleDto;
@@ -54,16 +55,18 @@ public class RestaurantDetailService {
         if (status == GoogleMatchStatus.NOT_FOUND) return withoutGoogle(restaurant, GoogleStatus.NOT_FOUND, NOT_FOUND_MESSAGE);
         if (status == GoogleMatchStatus.CLOSED) return withoutGoogle(restaurant, GoogleStatus.CLOSED, CLOSED_MESSAGE);
 
-        PlaceDetails place = placesClient.details(restaurant.getGooglePlaceId()).orElse(null);
-        if (place == null) {
+        RestaurantPlace restaurantPlace = placesClient.restaurantDetails(restaurant.getGooglePlaceId()).orElse(null);
+        if (restaurantPlace == null) {
             // 저장해 둔 place ID가 Google에서 사라졌다 (폐업·통합 등). 지금은 안내만 하고 기록은 바꾸지 않는다
             return withoutGoogle(restaurant, GoogleStatus.NOT_FOUND, NOT_FOUND_MESSAGE);
         }
 
+        PlaceDetails place = restaurantPlace.details();
         GoogleDto google = new GoogleDto(restaurant.getGooglePlaceId(), text(place.displayName()),
                 text(place.editorialSummary()), place.rating(), place.userRatingCount(),
                 PlaceContentMapper.openingHours(place), place.websiteUri(), place.googleMapsUri(),
-                PlaceContentMapper.photos(place), PlaceContentMapper.reviews(place));
+                PlaceContentMapper.photos(place), PlaceContentMapper.reviews(place),
+                RestaurantFeatures.from(restaurantPlace));
         return new RestaurantDetailResponseDto(restaurant.getId(), restaurant.getName(), restaurant.getGenre(),
                 restaurant.getAddress(), tabelog(restaurant), GoogleStatus.MATCHED, null, google,
                 PlaceContentMapper.ATTRIBUTION, PlaceContentMapper.REVIEW_NOTICE);

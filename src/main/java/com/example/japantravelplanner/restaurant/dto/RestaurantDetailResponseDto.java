@@ -51,9 +51,28 @@ public record RestaurantDetailResponseDto(
      * @param localizedName 한국어 이름 (없으면 null)
      * @param summary       한 줄 소개 (식당은 없는 곳이 많다)
      * @param photos        최대 5장. GET /api/restaurants/{id}/photo?name= 로 주소를 받는다
+     * @param features      식당 특성 (10-09 추가)
      */
     public record GoogleDto(String placeId, String localizedName, String summary, Double rating,
                             Integer userRatingCount, List<String> openingHours, String websiteUri,
-                            String googleMapsUri, List<PhotoDto> photos, List<ReviewDto> reviews) {
+                            String googleMapsUri, List<PhotoDto> photos, List<ReviewDto> reviews,
+                            FeaturesDto features) {
+    }
+
+    /**
+     * Google이 알려준 식당 특성. 각 값은 true(있음) / false(없음) / null(정보 없음).
+     * 화면에서는 labels를 그대로 아이콘·칩으로 쓰면 된다 (true인 것만, 정해진 순서).
+     *
+     * @param priceMinYen 1인 가격대 하한 (엔, Google 기준. 엔화가 아니거나 정보가 없으면 null)
+     * @param priceMaxYen 1인 가격대 상한 (없으면 "하한 이상")
+     * @param labels      true인 특성의 한국어 이름 (예: "점심", "채식 메뉴", "예약 가능", "카드 결제")
+     */
+    public record FeaturesDto(Boolean servesBreakfast, Boolean servesBrunch, Boolean servesLunch, Boolean servesDinner,
+                              Boolean servesVegetarianFood, Boolean servesBeer, Boolean servesWine,
+                              Boolean servesCocktails, Boolean servesCoffee, Boolean servesDessert,
+                              Boolean menuForChildren, Boolean goodForChildren, Boolean goodForGroups,
+                              Boolean reservable, Boolean dineIn, Boolean takeout, Boolean delivery,
+                              Boolean outdoorSeating, Boolean acceptsCreditCards, Boolean acceptsCashOnly,
+                              Boolean acceptsNfc, Integer priceMinYen, Integer priceMaxYen, List<String> labels) {
     }
 }
