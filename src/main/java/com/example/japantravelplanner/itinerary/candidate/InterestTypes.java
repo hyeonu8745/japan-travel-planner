@@ -20,8 +20,9 @@ public final class InterestTypes {
     }
 
     private static final Map<Interest, Set<String>> TYPES = Map.of(
+            // 박물관·미술관은 뺐다: 데이터를 넓히니 팀랩·건담 베이스·세이코 뮤지엄까지 "관심사: 전통 명소"가 됐다 (10-10 v10)
             Interest.TRADITIONAL, Set.of("buddhist_temple", "shinto_shrine", "place_of_worship",
-                    "historical_landmark", "historical_place", "museum", "art_museum"),
+                    "historical_landmark", "historical_place"),
             // store, clothing_store 같은 범용 태그는 모스크·박물관 기념품점에도 붙어서 제외
             Interest.SHOPPING, Set.of("shopping_mall", "market", "department_store"),
             // food_store는 식료품점 태그라 관광지 성격과 무관해서 제외

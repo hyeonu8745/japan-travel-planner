@@ -167,6 +167,22 @@ class DaySchedulerTest {
     }
 
     @Test
+    void 긴_곳을_빼다가_짧은_곳까지_빠지면_혼자_들어가는_곳은_되돌린다() {
+        // 10-10 여행 8 v10 마지막 날(09:30~12:00, 숙소에서 30분 넘게 이동): 박물관 2곳과 40분짜리 平将門塚가 모두 빠져 하루가 비었다
+        ScoredAttraction m1 = spot(21, "絶滅メディア博物館", "museum", 35.6984, 139.7731, 4.8);
+        ScoredAttraction m2 = spot(22, "秋葉原の博物館", "museum", 35.7020, 139.7740, 4.6);
+        ScoredAttraction shortStop = spot(23, "平将門塚", "tourist_attraction", 35.6868, 139.7627, 4.4);
+
+        ScheduledDay day = scheduler.schedule(route(List.of(m1, m2, shortStop), List.of(), null),
+                new DayMeals(null, null), window("09:30", "12:00", false, false),
+                HOTEL, transit, 1.3);
+
+        assertThat(names(day)).containsExactly("平将門塚");
+        assertThat(day.dropped()).extracting(DroppedStop::name).containsExactlyInAnyOrder("絶滅メディア博物館", "秋葉原の博物館");
+        assertThat(day.stops().get(0).departure()).isBeforeOrEqualTo(LocalTime.of(12, 0));
+    }
+
+    @Test
     void 첫날_16시_시작이면_저녁과_야경이_들어가도록_관광지를_뺀다() {
         ScheduledDay day = scheduler.schedule(route(List.of(a1, a2), List.of(a3, a4), deck),
                 new DayMeals(null, dinner), window("16:00", "22:00", false, true),

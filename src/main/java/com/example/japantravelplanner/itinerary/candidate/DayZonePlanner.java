@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.itinerary.candidate;
 
+import com.example.japantravelplanner.global.util.GeoUtils;
 import com.example.japantravelplanner.itinerary.zone.TripZone;
 import com.example.japantravelplanner.trip.entity.ConstraintCategory;
 import com.example.japantravelplanner.trip.entity.Interest;
@@ -18,6 +19,9 @@ import java.util.stream.Collectors;
  * - 대화에서 말한 지역(SCHEDULE·ETC 조건에 지역 이름)은 꼭 포함
  * - 오다이바는 야경·쇼핑 관심사가 없으면 점수 절반 (관광지가 적어서)
  * - 첫날·마지막 날은 숙소에서 가까운 지역
+ * - 날짜마다 후보: 기본은 지역 안에서 종류·위치를 섞어서 고른다 (같은 종류·500m 안이면 감점).
+ *   가까운 곳 위주 여행(TravelOptions.compact)은 예전처럼 점수순
+ *   (10-10 사용자 결정: 점수순으로만 고르면 浜離宮恩賜庭園 + 그 안의 三百年の松처럼 주변만 돌았다)
  */
 @Slf4j
 @Component
@@ -37,9 +41,12 @@ public class DayZonePlanner {
 
     private final CandidateProperties props;
 
+    /**
+     * @param compact true면 가까운 곳 위주 (후보를 점수순으로만), false면 지역 안에서 종류·위치를 섞는다
+     */
     public List<DayZone> plan(List<ScoredAttraction> scored, LocalDate startDate, int days, int perDay,
                               Collection<Interest> interests, List<PreferenceConstraint> constraints,
-                              double hotelLat, double hotelLng) {
+                              double hotelLat, double hotelLng, boolean compact) {
 
         Map<TripZone, List<ScoredAttraction>> byZone = scored.stream()
                 .collect(Collectors.groupingBy(ScoredAttraction::zone, () -> new EnumMap<>(TripZone.class),
@@ -79,20 +86,65 @@ public class DayZonePlanner {
 
         // ④ 날짜마다 후보 (이미 고른 관광지는 제외)
         Set<Long> used = new HashSet<>();
+        Set<String> usedBrands = new HashSet<>();   // 같은 가게의 다른 지점은 여행 전체에서 한 번 (BrandKey)
         List<DayZone> result = new ArrayList<>();
         for (int i = 0; i < days; i++) {
             TripZone zone = dayOrder.get(i);
-            List<ScoredAttraction> candidates = byZone.getOrDefault(zone, List.of()).stream()
+            Map<String, ScoredAttraction> byBrand = new LinkedHashMap<>();   // 점수 높은 지점 하나만
+            byZone.getOrDefault(zone, List.of()).stream()
                     .filter(c -> !used.contains(c.attraction().getId()))
-                    .limit(perDay + props.getExtraCandidates())
-                    .toList();
-            candidates.stream().limit(perDay).forEach(c -> used.add(c.attraction().getId()));
+                    .filter(c -> !usedBrands.contains(BrandKey.of(c.attraction().getName())))
+                    .forEach(c -> byBrand.putIfAbsent(BrandKey.of(c.attraction().getName()), c));
+            List<ScoredAttraction> pool = List.copyOf(byBrand.values());
+            int count = perDay + props.getExtraCandidates();
+            List<ScoredAttraction> candidates = compact
+                    ? pool.stream().limit(count).toList()
+                    : diverse(pool, count);
+            candidates.stream().limit(perDay).forEach(c -> {
+                used.add(c.attraction().getId());
+                usedBrands.add(BrandKey.of(c.attraction().getName()));
+            });
             result.add(new DayZone(i + 1, startDate.plusDays(i), zone, candidates));
         }
 
         log.info("[DayZone] 요청 지역 {}, 배정 {}", requested,
                 result.stream().map(d -> d.zone().getLabel()).toList());
         return result;
+    }
+
+    /**
+     * 점수가 높으면서 이미 고른 곳과 종류·위치가 겹치지 않는 곳부터 하나씩 고른다.
+     * 조정 점수 = 점수 - 같은 종류 수 × sameKindPenalty - (nearMeters 안에 고른 곳이 있으면 nearPenalty)
+     * 조정 점수가 같으면 원래 점수가 높은 곳(앞에 있는 곳)
+     *
+     * @param pool 점수 높은 순
+     */
+    List<ScoredAttraction> diverse(List<ScoredAttraction> pool, int count) {
+        List<ScoredAttraction> picked = new ArrayList<>();
+        List<ScoredAttraction> rest = new ArrayList<>(pool);
+        while (picked.size() < count && !rest.isEmpty()) {
+            ScoredAttraction best = null;
+            double bestValue = Double.NEGATIVE_INFINITY;
+            for (ScoredAttraction c : rest) {
+                double value = adjustedScore(c, picked);
+                if (value > bestValue) {
+                    best = c;
+                    bestValue = value;
+                }
+            }
+            picked.add(best);
+            rest.remove(best);
+        }
+        return List.copyOf(picked);
+    }
+
+    double adjustedScore(ScoredAttraction candidate, List<ScoredAttraction> picked) {
+        PlaceKind kind = PlaceKind.of(candidate.attraction());
+        long sameKind = kind == PlaceKind.OTHER ? 0
+                : picked.stream().filter(p -> PlaceKind.of(p.attraction()) == kind).count();
+        boolean near = picked.stream().anyMatch(p ->
+                GeoUtils.distanceMeters(p.lat(), p.lng(), candidate.lat(), candidate.lng()) <= props.getNearMeters());
+        return candidate.score() - sameKind * props.getSameKindPenalty() - (near ? props.getNearPenalty() : 0);
     }
 
     /** 가까운 순 목록에서 1번째는 첫날, 2번째는 마지막 날, 나머지는 가운데 */

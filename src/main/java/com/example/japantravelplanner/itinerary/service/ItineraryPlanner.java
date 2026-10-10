@@ -72,7 +72,7 @@ public class ItineraryPlanner {
         MealHistory history = new MealHistory();
 
         List<ScoredAttraction> scored = scoredAttractions(trip);
-        List<DayZone> zones = planZones(trip, constraints, hotel, scored);
+        List<DayZone> zones = planZones(trip, constraints, hotel, scored, options.compact());
         List<DayWindow> windows = new ArrayList<>();
         for (DayZone day : zones) {
             windows.add(DayWindow.of(day.dayNumber() == 1, day.dayNumber() == days,
@@ -101,7 +101,8 @@ public class ItineraryPlanner {
 
     /** 날짜별 지역과 관광지 후보 (②③ 단계) */
     public List<DayZone> planZones(Trip trip, List<PreferenceConstraint> constraints, Point hotel) {
-        return planZones(trip, constraints, hotel, scoredAttractions(trip));
+        boolean compact = TravelOptions.of(trip, constraints, travelProperties).compact();
+        return planZones(trip, constraints, hotel, scoredAttractions(trip), compact);
     }
 
     private List<ScoredAttraction> scoredAttractions(Trip trip) {
@@ -109,10 +110,10 @@ public class ItineraryPlanner {
     }
 
     private List<DayZone> planZones(Trip trip, List<PreferenceConstraint> constraints, Point hotel,
-                                    List<ScoredAttraction> scored) {
+                                    List<ScoredAttraction> scored, boolean compact) {
         return dayZonePlanner.plan(scored, trip.getStartDate(), daysOf(trip),
                 trip.getTravelPace().attractionsPerDay(), interestsOf(trip), constraints,
-                hotel.getY(), hotel.getX());
+                hotel.getY(), hotel.getX(), compact);
     }
 
     public static List<PreferenceConstraint> constraintsOf(TripPreference preference) {

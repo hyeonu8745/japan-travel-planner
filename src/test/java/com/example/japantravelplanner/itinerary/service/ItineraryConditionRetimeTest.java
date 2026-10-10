@@ -80,11 +80,14 @@ class ItineraryConditionRetimeTest {
 
         PlaceTypeLabels labels = mock(PlaceTypeLabels.class);
         when(labels.toVisibleLabels(any())).thenReturn(List.of("관광명소"));
-        TravelTimeService travel = new TravelTimeService(new TravelProperties(), null);
+        // 이 테스트들은 도보 기준 20분일 때 만든 거리라 20분으로 고정한다 (기본값은 10-10부터 30분)
+        TravelProperties travelProps = new TravelProperties();
+        travelProps.setWalkThresholdMinutes(20);
+        TravelTimeService travel = new TravelTimeService(travelProps, null);
         service = new ItineraryEditService(tripRepository, mock(TripPreferenceRepository.class), itineraryRepository,
                 mock(ItineraryStopRepository.class), mock(RestaurantRepository.class), locator,
                 mock(RestaurantFinder.class), mock(MealBudgetCalculator.class), mock(FoodFilterResolver.class),
-                travel, new TravelProperties(), new DayScheduler(travel), labels, lock, mock(RestaurantMatchService.class),
+                travel, travelProps, new DayScheduler(travel), labels, lock, mock(RestaurantMatchService.class),
                 mock(ReasonContextLoader.class), transactionManager);
     }
 

@@ -79,14 +79,22 @@ public class AttractionScorer {
         List<ScoredAttraction> kept = new ArrayList<>();
         for (ScoredAttraction candidate : sorted) {
             if (keepNightSpots && NightSpots.isRepresentative(candidate.attraction())) {
-                kept.add(candidate);   // 밤에 따로 가는 장소라 낮 명소와 가까워도 남긴다
+                // 밤에 따로 가는 장소라 낮 명소와 가까워도 남긴다. 먼저 남은 같은 이름의 하위 장소는 이쪽으로 합친다
+                kept.removeIf(k -> !NightSpots.isRepresentative(k.attraction()) && isNearDuplicate(
+                        k.attraction().getName(), k.lat(), k.lng(),
+                        candidate.attraction().getName(), candidate.lat(), candidate.lng()));
+                kept.add(candidate);
                 continue;
             }
-            boolean duplicate = kept.stream().anyMatch(k ->
-                    isSameSpot(k.lat(), k.lng(), candidate.lat(), candidate.lng(), props.getSameSpotMeters())
-                            || isNearDuplicate(
-                            k.attraction().getName(), k.lat(), k.lng(),
-                            candidate.attraction().getName(), candidate.lat(), candidate.lng()));
+            // 남겨둔 대표 야경 명소는 밤에 따로 가는 곳이라, 거리만 가까운 낮 명소(歌舞伎町 아치 옆 新宿東口の猫)는 지우지 않는다.
+            // 이름이 겹치는 같은 장소(お台場海浜公園 + お台場海浜公園の展望デッキ)는 지운다 (10-10 v11: 낮·밤에 같은 공원)
+            boolean duplicate = kept.stream().anyMatch(k -> {
+                boolean nameDuplicate = isNearDuplicate(k.attraction().getName(), k.lat(), k.lng(),
+                        candidate.attraction().getName(), candidate.lat(), candidate.lng());
+                if (keepNightSpots && NightSpots.isRepresentative(k.attraction())) return nameDuplicate;
+                return nameDuplicate
+                        || isSameSpot(k.lat(), k.lng(), candidate.lat(), candidate.lng(), props.getSameSpotMeters());
+            });
             if (duplicate) {
                 log.debug("[Scorer] 중복 제외: {}", candidate.attraction().getName());
             } else {

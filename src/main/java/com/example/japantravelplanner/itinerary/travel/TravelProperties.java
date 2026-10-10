@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 public class TravelProperties {
 
     private boolean useGoogleRoutes = false;
-    private int walkThresholdMinutes = 20;
+    private int walkThresholdMinutes = 30;
     private int relaxedWalkThresholdMinutes = 10;
     private double walkMetersPerMinute = 80;
     private double walkDetour = 1.25;

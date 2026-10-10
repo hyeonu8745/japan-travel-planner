@@ -130,6 +130,17 @@ class AttractionScorerTest {
     }
 
     @Test
+    void 대표_야경_명소와_이름이_겹치는_같은_장소는_합친다() {
+        // 10-10 v11: 낮에 お台場海浜公園の展望デッキ, 밤에 お台場海浜公園 (같은 공원)
+        List<Attraction> places = List.of(
+                place(1, "お台場海浜公園", 35.6300488, 139.7756912, 4.4),
+                place(2, "お台場海浜公園の展望デッキ", 35.6275906, 139.7714420, 4.7));
+
+        assertThat(scorer.score(places, List.of(Interest.NIGHT_VIEW)).stream().map(s -> s.attraction().getName()))
+                .containsExactly("お台場海浜公園");
+    }
+
+    @Test
     void 가까운_거리_판정은_경계를_포함한다() {
         assertThat(AttractionScorer.isSameSpot(35.0, 139.0, 35.0, 139.0, 150)).isTrue();
         assertThat(AttractionScorer.isSameSpot(35.0, 139.0, 35.002, 139.0, 150)).isFalse();   // 약 222m

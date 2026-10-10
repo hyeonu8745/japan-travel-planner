@@ -27,6 +27,8 @@ import java.util.List;
  *  - 저녁이 20:00을 넘기거나 하루가 끝나는 시각을 넘기면: 점수 낮은 관광지부터 제외
  *    (점심이 있으면 오후 → 오전 순서, 없으면 전체에서 점수 낮은 순). 제외해도 나아지지 않으면 야경 장소를 제외
  *
+ * 뺀 관광지 중 지금 일정에 혼자 다시 들어갈 수 있는 곳은 되돌려 넣는다 (점수 높은 순)
+ *  - 10-10 여행 8 v10 마지막 날(09:30~12:00): 박물관 2곳(115분)을 빼다가 40분짜리 平将門塚까지 빠져 하루가 비었다
  * 고친 뒤에도 저녁 전에 1시간 이상 비면(식사 시간대 대기) 예비 관광지를 끼워 넣는다
  *
  * 이동 시간 표는 하루에 한 번만 만든다 (Google 실시간 도보 조회가 켜져 있어도 호출은 한 번)
@@ -94,6 +96,7 @@ public class DayScheduler {
         Context ctx = new Context(matrix, toMinutes(window.start()), toMinutes(window.end()));
 
         // ② 시간이 안 맞으면 고치기
+        List<Item> droppedItems = new ArrayList<>();
         for (int i = 0; i < MAX_REPAIRS; i++) {
             Sim sim = simulate(plan, ctx);
 
@@ -102,7 +105,7 @@ public class DayScheduler {
                 continue;
             }
             if (sim.dinnerLate || sim.endExceeded) {
-                Plan next = dropOne(plan, sim, ctx, dropped);
+                Plan next = dropOne(plan, sim, ctx, dropped, droppedItems);
                 if (next != null) {
                     plan = next;
                     continue;
@@ -110,6 +113,9 @@ public class DayScheduler {
             }
             break;   // 문제가 없거나, 더 고칠 수 없음
         }
+
+        // ②-1 뺀 곳 중 혼자 다시 들어가는 곳은 되돌리기
+        plan = restoreDropped(plan, droppedItems, ctx, dropped);
 
         // ③ 저녁 전에 시간이 많이 비면 예비 관광지로 채우기 (시간이 모자라 뺀 날은 건너뜀)
         if (dropped.stream().noneMatch(d -> d.reason() == DropReason.TIME_SHORTAGE)) {
@@ -239,7 +245,7 @@ public class DayScheduler {
      * 어떤 관광지를 빼도 나아지지 않으면(식사 시간 대기 때문 등) 야경 장소를 뺀다.
      * 더 뺄 것이 없으면 null
      */
-    private Plan dropOne(Plan plan, Sim current, Context ctx, List<DroppedStop> dropped) {
+    private Plan dropOne(Plan plan, Sim current, Context ctx, List<DroppedStop> dropped, List<Item> droppedItems) {
         List<Item> candidates = new ArrayList<>();
         if (plan.lunch != null) {
             candidates.addAll(ascendingByScore(plan.afternoon));   // 점심 뒤(오후)부터
@@ -255,10 +261,61 @@ public class DayScheduler {
             Plan trial = plan.without(candidate);
             if (isBetter(simulate(trial, ctx), current)) {
                 dropped.add(new DroppedStop(candidate.attraction.attraction().getName(), DropReason.TIME_SHORTAGE));
+                if (candidate != plan.night) droppedItems.add(candidate);
                 return trial;
             }
         }
         return null;
+    }
+
+    /**
+     * 시간이 모자라 뺀 관광지를 점수 높은 순으로 하나씩 다시 넣어본다. 문제(저녁 지연·하루 초과·점심 지연)가 생기지 않는
+     * 자리가 있으면 하루가 가장 일찍 끝나는 자리에 넣고 '빠진 곳'에서 지운다. 야경 장소는 되돌리지 않는다.
+     * 긴 곳부터 빼다 보면 짧은 곳까지 빠져 하루가 비는 경우를 막는다.
+     */
+    private Plan restoreDropped(Plan plan, List<Item> droppedItems, Context ctx, List<DroppedStop> dropped) {
+        List<Item> remaining = new ArrayList<>(droppedItems);
+        remaining.sort(Comparator.comparingDouble((Item item) -> item.score).reversed());
+        boolean restored = true;
+        while (restored) {
+            restored = false;
+            for (Item item : List.copyOf(remaining)) {
+                Plan best = null;
+                int bestEnd = Integer.MAX_VALUE;
+                for (Plan trial : insertions(plan, item)) {
+                    Sim sim = simulate(trial, ctx);
+                    if (sim.problems() == 0 && !sim.lunchLate && sim.end < bestEnd) {
+                        bestEnd = sim.end;
+                        best = trial;
+                    }
+                }
+                if (best != null) {
+                    plan = best;
+                    remaining.remove(item);
+                    String name = item.attraction.attraction().getName();
+                    dropped.removeIf(d -> d.name().equals(name) && d.reason() == DropReason.TIME_SHORTAGE);
+                    log.debug("[Schedule] 뺀 관광지를 다시 넣음: {}", name);
+                    restored = true;
+                }
+            }
+        }
+        return plan;
+    }
+
+    /** 관광지 하나를 넣을 수 있는 모든 자리 (점심이 있으면 점심 앞·뒤 모두) */
+    private static List<Plan> insertions(Plan plan, Item item) {
+        List<Plan> result = new ArrayList<>();
+        for (int position = 0; position <= plan.morning.size(); position++) {
+            Plan p = plan.copy();
+            p.morning.add(position, item);
+            result.add(p);
+        }
+        if (plan.lunch != null) {
+            for (int position = 0; position <= plan.afternoon.size(); position++) {
+                result.add(plan.withAfternoonInserted(item, position));
+            }
+        }
+        return result;
     }
 
     /**
