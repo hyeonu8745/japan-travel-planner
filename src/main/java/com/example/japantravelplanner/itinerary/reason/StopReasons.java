@@ -10,12 +10,10 @@ import com.example.japantravelplanner.restaurant.entity.Restaurant;
 import com.example.japantravelplanner.trip.entity.Interest;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * 일정 항목마다 "왜 이곳인지" 짧은 이유 (화면의 칩). AI가 아니라 서버가 고를 때 쓴 기준에서만 만든다.
@@ -55,13 +53,11 @@ public final class StopReasons {
         return reasons.stream().limit(MAX_REASONS).toList();
     }
 
-    /** 관광지 종류와 맞는 관심사 (여행 조건에 고른 순서대로) */
+    /** 관광지와 맞는 관심사 (여행 조건에 고른 순서대로, 점수 가산과 같은 기준: InterestTypes.matches) */
     public static List<Interest> matchedInterests(Attraction attraction, ReasonContext context) {
-        if (attraction == null || attraction.getTypes() == null) return List.of();
-        Set<String> types = Arrays.stream(attraction.getTypes().split(","))
-                .map(String::trim).collect(Collectors.toSet());
+        if (attraction == null) return List.of();
         return ReasonContext.orNone(context).interests().stream()
-                .filter(interest -> InterestTypes.of(interest).stream().anyMatch(types::contains))
+                .filter(interest -> InterestTypes.matches(interest, attraction))
                 .toList();
     }
 

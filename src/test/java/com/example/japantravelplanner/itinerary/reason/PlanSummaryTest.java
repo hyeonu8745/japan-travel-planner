@@ -33,8 +33,8 @@ class PlanSummaryTest {
 
     private static List<ItineraryStop> stops() {
         return List.of(
-                attractionStop(1, attraction("東京都庁", "observation_deck", 4.4, 30_000), LegMode.WALK, 8),
-                attractionStop(2, attraction("渋谷スカイ", "observation_deck", 4.7, 20_000), LegMode.TRANSIT, 15),
+                attractionStop(1, attraction("東京都庁第一本庁舎 北展望室", "observation_deck", 4.4, 30_000), LegMode.WALK, 8),
+                attractionStop(2, attraction("SHIBUYA SKY", "observation_deck", 4.7, 20_000), LegMode.TRANSIT, 15),
                 mealStop(3, StopType.LUNCH, restaurant("麺屋", "ラーメン", 3.7), false, false),
                 attractionStop(4, attraction("東京タワー", "observation_deck,landmark", 4.6, 80_000), LegMode.TRANSIT, 20),
                 mealStop(5, StopType.DINNER, restaurant("焼肉屋", "焼肉", 3.6), true, true));
@@ -47,7 +47,7 @@ class PlanSummaryTest {
         String summary = PlanSummary.write(itinerary(stops(), List.of()), ctx);
 
         assertThat(summary).startsWith("일정을 이렇게 짰어요.\n")
-                .contains("- 관심사 '야경'에 맞는 곳: 東京都庁, 渋谷スカイ 외 1곳\n")
+                .contains("- 관심사 '야경'에 맞는 곳: 東京都庁第一本庁舎 北展望室, SHIBUYA SKY 외 1곳\n")
                 .contains("- 식당은 동선 가까이에서 평점이 높은 곳으로 골랐어요.\n")
                 .contains("- 좋아하는 음식은 1끼에 넣었어요.\n")
                 .contains("- 피하고 싶은 음식이 들어간 식당은 뺐어요.\n")

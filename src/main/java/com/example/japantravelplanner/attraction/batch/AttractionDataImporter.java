@@ -16,7 +16,16 @@ import org.springframework.stereotype.Component;
 
 import java.io.FileReader;
 import java.nio.file.Paths;
+import java.util.HashSet;
+import java.util.Set;
 
+/**
+ * 관광지 CSV를 DB에 넣는다 (서버 시작 때마다).
+ * DB에 없는 place_id만 추가하고, 이미 있는 관광지는 건드리지 않는다.
+ *  - 일정 항목(itinerary_stops)이 관광지 id를 참조해서, 지우고 다시 넣으면 저장된 일정·이력이 깨진다
+ *  - 10-10 수집 범위를 넓힌 CSV(검색어·구 추가)를 그대로 덮어써도 새 관광지만 들어간다
+ * 예전에는 한 건이라도 있으면 통째로 건너뛰어서, CSV를 바꿔도 반영되지 않았다.
+ */
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -32,20 +41,16 @@ public class AttractionDataImporter implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        long existingCount = attractionRepository.count();
-        if (existingCount > 0) {
-            log.info("이미 {}건의 관광지 데이터가 존재합니다. 임포트를 건너뜁니다.", existingCount);
-            return;
-        }
-
         if (!Paths.get(CSV_PATH).toFile().exists()) {
             log.warn("CSV 파일을 찾을 수 없습니다: {}. 임포트를 건너뜁니다.", CSV_PATH);
             return;
         }
 
-        log.info("관광지 데이터 임포트를 시작합니다: {}", CSV_PATH);
+        Set<String> existing = new HashSet<>();
+        attractionRepository.findAll().forEach(a -> existing.add(a.getPlaceId()));
 
         int successCount = 0;
+        int skippedCount = 0;
         int errorCount = 0;
 
         try (CSVReader reader = new CSVReaderBuilder(new FileReader(CSV_PATH))
@@ -57,7 +62,8 @@ public class AttractionDataImporter implements CommandLineRunner {
                 try {
                     Attraction attraction = mapRowToAttraction(row);
 
-                    if (attractionRepository.existsByPlaceId(attraction.getPlaceId())) {
+                    if (attraction.getPlaceId() == null || !existing.add(attraction.getPlaceId())) {
+                        skippedCount++;   // 이미 있거나 CSV 안에서 중복
                         continue;
                     }
 
@@ -71,8 +77,11 @@ public class AttractionDataImporter implements CommandLineRunner {
             }
         }
 
-        log.info("=== 관광지 임포트 완료 ===");
-        log.info("성공: {}건 / 오류: {}건", successCount, errorCount);
+        if (successCount > 0 || errorCount > 0) {
+            log.info("[관광지 임포트] 새로 추가 {}건 / 이미 있음 {}건 / 오류 {}건", successCount, skippedCount, errorCount);
+        } else {
+            log.info("[관광지 임포트] 새 관광지 없음 (DB {}건)", existing.size());
+        }
     }
 
     private Attraction mapRowToAttraction(String[] row) {

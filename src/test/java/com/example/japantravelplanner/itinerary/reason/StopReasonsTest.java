@@ -31,13 +31,26 @@ class StopReasonsTest {
 
     @Test
     void 이유는_최대_세_개이고_중요한_것부터_남긴다() {
-        // 관심사 둘 + 평점 + 리뷰 + 가까움 = 다섯 개
-        var temple = attraction("増上寺", "buddhist_temple,observation_deck", 4.6, 20_000);
+        // 관심사 둘(야경 = 대표 야경 명소, 전통 = 절) + 평점 + 리뷰 + 가까움 = 다섯 개
+        var temple = attraction("浅草寺", "buddhist_temple", 4.6, 20_000);
 
         List<StopReason> reasons = StopReasons.of(attractionStop(2, temple, LegMode.WALK, 5), NIGHT_AND_RAMEN);
 
         assertThat(reasons).extracting(StopReason::label)
                 .containsExactly("관심사: 야경", "관심사: 전통 명소", "Google 평점 4.6");
+    }
+
+    @Test
+    void 야경_관심사는_대표_야경_명소에만_붙는다() {
+        // 10-10 여행 8 v9: 무료 전망 공간 SKY VIEW와 낮의 레인보우브리지에 "관심사: 야경"이 붙었다
+        var skyView = attraction("SKY VIEW", "observation_deck", 4.4, 513);
+        var bridge = attraction("レインボーブリッジ", "bridge", 4.5, 4_059);
+        var seaside = attraction("お台場海浜公園", "park", 4.4, 15_977);
+
+        assertThat(StopReasons.of(attractionStop(2, skyView, LegMode.TRANSIT, 20), NIGHT_AND_RAMEN)).isEmpty();
+        assertThat(StopReasons.of(attractionStop(2, bridge, LegMode.TRANSIT, 20), NIGHT_AND_RAMEN)).isEmpty();
+        assertThat(StopReasons.of(attractionStop(5, seaside, LegMode.TRANSIT, 20), NIGHT_AND_RAMEN))
+                .extracting(StopReason::label).containsExactly("관심사: 야경", "리뷰 1.5만개");
     }
 
     @Test
