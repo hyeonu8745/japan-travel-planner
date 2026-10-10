@@ -10,8 +10,10 @@ import java.util.List;
  * @param findings 리뷰별로 찾은 경험 (reviewIndex는 google.reviews 배열의 위치, 0부터)
  * @param counts   종류별 리뷰 수 (정해진 순서, 0인 종류는 빠짐)
  * @param notice   화면에 함께 보여줄 안내 문장
+ * @param analyzedReviewCount 분석한 리뷰 수 = 한국어로 쓴 리뷰만 (번역된 리뷰는 빼고 읽는다). 0이면 한국인이 쓴 리뷰가 없어 분석하지 않은 것
  */
-public record ReviewInsightsDto(List<Finding> findings, List<TagCount> counts, String notice) {
+public record ReviewInsightsDto(List<Finding> findings, List<TagCount> counts, String notice,
+                                int analyzedReviewCount) {
 
     /**
      * @param tag      DISCRIMINATION / UNFRIENDLY / HYGIENE / KOREAN_FRIENDLY

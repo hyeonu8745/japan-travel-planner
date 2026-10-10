@@ -46,11 +46,11 @@ public class OpenAiClient {
 
     /** 자유 텍스트로 답변 받기 */
     public AiResult generate(AiModelTier tier, String instructions, String input) {
-        return call(tier, instructions, input, null, properties.getMaxOutputTokens());
+        return call(tier, instructions, input, null, properties.getMaxOutputTokens(), null);
     }
 
     public AiResult generateJson(AiModelTier tier, String instructions, String input, Map<String, Object> format) {
-        return call(tier, instructions, input, format, properties.getMaxOutputTokens());
+        return call(tier, instructions, input, format, properties.getMaxOutputTokens(), null);
     }
 
     /**
@@ -59,11 +59,20 @@ public class OpenAiClient {
      */
     public AiResult generateJson(AiModelTier tier, String instructions, String input,
                                  Map<String, Object> format, int maxOutputTokens) {
-        return call(tier, instructions, input, format, maxOutputTokens);
+        return call(tier, instructions, input, format, maxOutputTokens, null);
+    }
+
+    /**
+     * 같은 입력이면 같은 결과가 나와야 하는 작업(리뷰 분류 등)용: temperature를 지정한다.
+     * 추론 모델(ADVANCED)은 temperature를 받지 않아서 BASIC일 때만 보낸다
+     */
+    public AiResult generateJson(AiModelTier tier, String instructions, String input,
+                                 Map<String, Object> format, int maxOutputTokens, double temperature) {
+        return call(tier, instructions, input, format, maxOutputTokens, temperature);
     }
 
     private AiResult call(AiModelTier tier, String instructions, String input,
-                          Map<String, Object> format, int maxOutputTokens) {
+                          Map<String, Object> format, int maxOutputTokens, Double temperature) {
         boolean advanced = tier == AiModelTier.ADVANCED;
         String model = advanced ? properties.getAdvancedModel() : properties.getBasicModel();
 
@@ -78,6 +87,9 @@ public class OpenAiClient {
         }
         if (format != null) {
             body.put("text", Map.of("format", format));
+        }
+        if (temperature != null && !advanced) {
+            body.put("temperature", temperature);
         }
 
         long start = System.currentTimeMillis();

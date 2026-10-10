@@ -49,11 +49,14 @@ public enum ReviewTag {
         return this != KOREAN_FRIENDLY;
     }
 
-    /** 근거 구절에 이 종류의 핵심 말이 들어 있는지 (없으면 AI가 잘못 붙인 것으로 보고 버린다) */
-    public boolean supportedBy(String evidence) {
-        if (evidence == null) return false;
-        String lower = evidence.toLowerCase(Locale.ROOT);
-        return keywords.stream().anyMatch(lower::contains);
+    /**
+     * 글에 이 종류의 핵심 말이 들어 있는지 (없으면 AI가 잘못 붙인 것으로 보고 버린다).
+     * 띄어쓰기는 무시한다 (분석기는 띄어쓰기를 뺀 리뷰에서 근거 주변을 잘라 넘긴다)
+     */
+    public boolean supportedBy(String text) {
+        if (text == null) return false;
+        String target = text.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
+        return keywords.stream().anyMatch(k -> target.contains(k.replaceAll("\\s+", "").toLowerCase(Locale.ROOT)));
     }
 
     /** AI가 준 문자열 → 태그. 모르는 값이면 null */

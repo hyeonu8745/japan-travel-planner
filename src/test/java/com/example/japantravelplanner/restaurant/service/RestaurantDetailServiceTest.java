@@ -128,7 +128,7 @@ class RestaurantDetailServiceTest {
     void 리뷰_분석_결과를_구글_정보에_담고_실패하면_null이다() {
         matched();
         when(placesClient.restaurantDetails(PLACE_ID)).thenReturn(Optional.of(place()));
-        ReviewInsightsDto insights = new ReviewInsightsDto(List.of(), List.of(), "안내");
+        ReviewInsightsDto insights = new ReviewInsightsDto(List.of(), List.of(), "안내", 1);
         when(analyzer.analyze(any())).thenReturn(insights).thenReturn(null);
 
         assertThat(service.details(1L).google().reviewInsights()).isSameAs(insights);

@@ -20,8 +20,9 @@ class ReviewInsightAnalyzerTest {
 
     private static final JsonMapper MAPPER = JsonMapper.builder().build();
 
-    // 10-10 CAFE AALIYA 상세에서 받은 리뷰를 줄인 것 (0번은 한국어 메뉴 문장을 덧붙임)
-    private static final String GOOD = "직원 분들도 완전 친절하시고 와이파이 물어봤을 때도 빨리 가져다 주시고 좋았어요. 한국어 메뉴도 있어서 주문하기 편했어요";
+    // 10-10 CAFE AALIYA 상세에서 받은 리뷰를 줄인 것 (0번은 앞에 한국어 메뉴 문장을 덧붙임. 칭찬 문장과 30자 넘게 떨어져 있다)
+    private static final String GOOD = "한국어 메뉴도 있어서 주문하기 편했어요. 프렌치토스트로 유명하다는건 알고 있었지만 계속 지나치다가 신주쿠 나온 김에 들러봤어요. "
+            + "직원 분들도 완전 친절하시고 와이파이 물어봤을 때도 빨리 가져다 주시고 좋았어요";
     private static final String GREASY = "느끼해서 쥭는줄알았습니다.. 지금 배탈남. 절댜 1시간이상 기다릴맛은 아닙니다.";
     private static final String RUDE = "어떤 손님은 혼자왔는데 4인석에 안내하더라는^^ 점원들의 태도는 저는 친절한 편은 아니라 생각했는데, "
             + "나이가 어린 남자직원분들은 또 굉장히 친절하시더라구요~ 여튼 재방문 의사는 없는 가게입니다~";
@@ -65,7 +66,8 @@ class ReviewInsightAnalyzerTest {
         assertThat(f.label()).isEqualTo("불친절 경험");
         assertThat(f.caution()).isTrue();
         assertThat(result.counts()).extracting(ReviewInsightsDto.TagCount::tag).containsExactly("UNFRIENDLY");
-        assertThat(result.notice()).contains("판단할 수는 없어요");
+        assertThat(result.notice()).contains("한국인이 쓴 Google 리뷰 3개").contains("판단할 수는 없어요");
+        assertThat(result.analyzedReviewCount()).isEqualTo(3);
     }
 
     @Test
@@ -81,6 +83,23 @@ class ReviewInsightAnalyzerTest {
 
         assertThat(result.findings()).isEmpty();
         assertThat(result.counts()).isEmpty();
+    }
+
+    @Test
+    void 근거_구절에_핵심_말이_없어도_바로_앞뒤에_있으면_인정한다() {
+        // 10-10: AI가 "친절한 편은 아니라"만 잘라 와서 버려졌던 경우. 바로 앞에 "점원들의 태도는"이 있다
+        ReviewInsightsDto result = parse("""
+                {"reviews":[{"index":2,"findings":[{"tag":"UNFRIENDLY","evidence":"친절한 편은 아니라 생각했는데"}]}]}""");
+
+        assertThat(result.findings()).extracting(ReviewInsightsDto.Finding::tag).containsExactly("UNFRIENDLY");
+    }
+
+    @Test
+    void 핵심_말이_30자보다_멀리_있으면_인정하지_않는다() {
+        // 0번 리뷰의 "한국어 메뉴"는 칭찬 문장과 30자 넘게 떨어져 있다
+        assertThat(parse("""
+                {"reviews":[{"index":0,"findings":[{"tag":"KOREAN_FRIENDLY","evidence":"와이파이 물어봤을 때도 빨리 가져다 주시고"}]}]}""")
+                .findings()).isEmpty();
     }
 
     @Test
@@ -176,7 +195,7 @@ class ReviewInsightAnalyzerTest {
 
     @Test
     void 기본_모델로_한_번_부르고_결과를_돌려준다() {
-        when(client.generateJson(eq(AiModelTier.BASIC), anyString(), anyString(), anyMap(), anyInt()))
+        when(client.generateJson(eq(AiModelTier.BASIC), anyString(), anyString(), anyMap(), anyInt(), anyDouble()))
                 .thenReturn(ai("""
                         {"reviews":[{"index":2,"findings":[{"tag":"UNFRIENDLY","evidence":"친절한 편은 아니라"}]}]}"""
                         .replace("친절한 편은 아니라", "점원들의 태도는")));
@@ -184,12 +203,13 @@ class ReviewInsightAnalyzerTest {
         ReviewInsightsDto result = analyzer.analyze(reviews());
 
         assertThat(result.findings()).hasSize(1);
-        verify(client, times(1)).generateJson(eq(AiModelTier.BASIC), anyString(), anyString(), anyMap(), anyInt());
+        verify(client, times(1)).generateJson(eq(AiModelTier.BASIC), anyString(), anyString(), anyMap(), anyInt(),
+                eq(ReviewInsightAnalyzer.TEMPERATURE));   // 같은 리뷰면 같은 결과가 나오게
     }
 
     @Test
     void AI가_실패하거나_형식이_틀리면_null() {
-        when(client.generateJson(any(), anyString(), anyString(), anyMap(), anyInt()))
+        when(client.generateJson(any(), anyString(), anyString(), anyMap(), anyInt(), anyDouble()))
                 .thenThrow(new AiServiceException("AI 응답을 받지 못했습니다.", null))
                 .thenReturn(ai("{not json"));
 
@@ -200,7 +220,7 @@ class ReviewInsightAnalyzerTest {
     @Test
     void 정해진_시간을_넘기면_기다리지_않고_null() {
         props.setTimeoutSeconds(1);
-        when(client.generateJson(any(), anyString(), anyString(), anyMap(), anyInt())).thenAnswer(inv -> {
+        when(client.generateJson(any(), anyString(), anyString(), anyMap(), anyInt(), anyDouble())).thenAnswer(inv -> {
             Thread.sleep(3000);
             return ai("{\"reviews\":[]}");
         });
@@ -211,11 +231,59 @@ class ReviewInsightAnalyzerTest {
     }
 
     @Test
-    void 꺼져_있거나_리뷰가_없거나_글이_모두_비면_부르지_않는다() {
+    void 꺼져_있거나_리뷰가_없으면_null이고_AI를_부르지_않는다() {
         assertThat(analyzer.analyze(List.of())).isNull();
-        assertThat(analyzer.analyze(List.of(review("", 5), review(null, 3)))).isNull();
+        assertThat(analyzer.analyze(null)).isNull();
         props.setEnabled(false);
         assertThat(analyzer.analyze(reviews())).isNull();
         verifyNoInteractions(client);
+    }
+
+    // ── 한국인이 쓴 리뷰만 ──
+
+    private static ReviewDto translated(String koreanText, String original, String language) {
+        return new ReviewDto(null, 1, koreanText, true, original, language, "1달 전", null, null);
+    }
+
+    @Test
+    void 번역된_리뷰는_분석에_넣지_않고_그_리뷰의_표시도_버린다() {
+        List<ReviewDto> mixed = List.of(
+                review(RUDE, 2),
+                translated("직원이 외국인이라고 무시했어요", "店員に外国人だからと無視された", "ja"));
+        when(client.generateJson(any(), anyString(), anyString(), anyMap(), anyInt(), anyDouble())).thenReturn(ai("""
+                {"reviews":[{"index":0,"findings":[{"tag":"UNFRIENDLY","evidence":"점원들의 태도는"}]},
+                            {"index":1,"findings":[{"tag":"DISCRIMINATION","evidence":"외국인이라고 무시했어요"}]}]}"""));
+
+        ReviewInsightsDto result = analyzer.analyze(mixed);
+
+        assertThat(result.findings()).extracting(ReviewInsightsDto.Finding::tag).containsExactly("UNFRIENDLY");
+        assertThat(result.analyzedReviewCount()).isEqualTo(1);
+        assertThat(result.notice()).contains("리뷰 1개");
+        verify(client).generateJson(any(), anyString(),
+                argThat((String input) -> input.contains("<review index=\"0\"") && !input.contains("index=\"1\"")
+                        && !input.contains("외국인이라고")),
+                anyMap(), anyInt(), anyDouble());
+    }
+
+    @Test
+    void 한국인이_쓴_리뷰가_없으면_AI를_부르지_않고_분석_0개로_알린다() {
+        ReviewInsightsDto result = analyzer.analyze(List.of(
+                translated("맛있어요", "美味しい", "ja"), review("", 5), review(null, 3)));
+
+        assertThat(result.analyzedReviewCount()).isZero();
+        assertThat(result.findings()).isEmpty();
+        assertThat(result.notice()).contains("한국인이 쓴 리뷰가 없어서");
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void 한국어_원문_리뷰인지_가린다() {
+        assertThat(ReviewInsightAnalyzer.isKoreanOriginal(review("맛있어요", 5))).isTrue();          // 원문 언어 ko
+        assertThat(ReviewInsightAnalyzer.isKoreanOriginal(translated("맛있어요", "美味しい", "ja"))).isFalse();
+        assertThat(ReviewInsightAnalyzer.isKoreanOriginal(
+                new ReviewDto(null, 5, "맛있어요", false, null, null, null, null, null))).isTrue();   // 언어 정보 없음 + 한글
+        assertThat(ReviewInsightAnalyzer.isKoreanOriginal(
+                new ReviewDto(null, 5, "Delicious", false, null, null, null, null, null))).isFalse();
+        assertThat(ReviewInsightAnalyzer.isKoreanOriginal(null)).isFalse();
     }
 }
