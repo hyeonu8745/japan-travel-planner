@@ -197,7 +197,7 @@ public class ItineraryGenerationService {
         }
         trip.setStatus(TripStatus.GENERATED);
 
-        // 어떻게 짰는지 채팅에 남긴다 (이후 대화에서 "라멘 말고"처럼 이어서 고칠 수 있게 맥락으로도 쓰인다)
+        // 어떻게 짰는지 채팅에 남긴다 (일정이 만들어진 뒤에는 채팅 입력이 막혀 있어서 기록으로만 보인다)
         ReasonContext reasons = reasonContextLoader.load(trip);
         chatMessageRepository.save(ChatMessage.builder().trip(trip).role(ChatRole.ASSISTANT)
                 .content(PlanSummary.write(itinerary, reasons)).build());

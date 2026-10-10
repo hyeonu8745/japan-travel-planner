@@ -1,6 +1,7 @@
 package com.example.japantravelplanner.itinerary.planner;
 
 import com.example.japantravelplanner.itinerary.candidate.DayZone;
+import com.example.japantravelplanner.itinerary.candidate.NightSpots;
 import com.example.japantravelplanner.itinerary.candidate.ScoredAttraction;
 import com.example.japantravelplanner.itinerary.travel.TravelLeg;
 import com.example.japantravelplanner.itinerary.travel.TravelMatrix;
@@ -16,7 +17,8 @@ import java.util.*;
 /**
  * 하루의 관광지 방문 순서를 정한다 (TSP).
  *
- * 1. 야경 관심사면 후보 중 전망대 한 곳을 저녁 후 장소로 뺀다 (낮 관광지 수는 그대로)
+ * 1. 저녁 후 야경 장소(NightSpotPlanner가 여행 전체를 보고 정한 곳)를 후보에서 뺀다 (낮 관광지 수는 그대로).
+ *    다른 날 야경으로 잡힌 곳도 낮 후보에서 빼고, 야경이 전망대인 날은 다른 전망대를 낮에 넣지 않는다
  * 2. 남은 후보 상위 perDay곳을 숙소에서 출발하는 모든 순서(최대 5! = 120가지)로 비교해
  *    이동 시간 합이 가장 짧은 순서를 고른다. 끝은 야경 장소가 있으면 그곳, 없으면 숙소로 돌아오는 것까지 계산
  * 3. 앞에서 오전 개수만큼 자르면 오전/오후
@@ -29,21 +31,35 @@ import java.util.*;
 public class RouteOptimizer {
 
     static final int MAX_STOPS = 7;               // 7! = 5,040. 이 이상은 받지 않음
-    static final String NIGHT_TYPE = "observation_deck";
 
     private final TravelTimeService travelTimeService;
 
-    public DayRoute optimize(DayZone day, TravelPoint hotel, TravelPace pace,
-                             TravelOptions options, boolean nightView) {
-        List<ScoredAttraction> pool = new ArrayList<>(day.candidates());
-        if (pool.isEmpty()) {
+    /** 야경 없이 (야경 관심사가 없거나 그날 야경 장소가 없는 경우) */
+    public DayRoute optimize(DayZone day, TravelPoint hotel, TravelPace pace, TravelOptions options) {
+        return optimize(day, hotel, pace, options, null, Set.of());
+    }
+
+    /**
+     * @param night    저녁 뒤 야경 장소. 없으면 null
+     * @param reserved 다른 날 야경으로 잡힌 관광지 id (낮 후보에서 뺀다)
+     */
+    public DayRoute optimize(DayZone day, TravelPoint hotel, TravelPace pace, TravelOptions options,
+                             ScoredAttraction night, Set<Long> reserved) {
+        // ① 낮 후보: 야경 장소와 다른 날 야경 장소를 빼고, 야경이 전망대면 다른 전망대도 뺀다
+        //    (예비로 두면 빈 시간 채우기에서 다시 낮에 들어간다. 10-10 여행 8: 롯폰기 힐스 전망대 낮 + 도쿄타워 밤)
+        boolean observatoryNight = night != null && NightSpots.isObservatory(night.attraction());
+        List<ScoredAttraction> pool = new ArrayList<>();
+        for (ScoredAttraction c : day.candidates()) {
+            Long id = c.attraction().getId();
+            if (night != null && id.equals(night.attraction().getId())) continue;
+            if (reserved.contains(id)) continue;
+            if (observatoryNight && NightSpots.isObservatory(c.attraction())) continue;
+            pool.add(c);
+        }
+        if (pool.isEmpty() && night == null) {
             log.warn("[Route] DAY{} {} 관광지 후보 없음", day.dayNumber(), day.zone().getLabel());
             return DayRoute.empty(day);
         }
-
-        // ① 야경 장소 (점수 가장 높은 전망대)
-        ScoredAttraction night = nightView ? pickNight(pool) : null;
-        if (night != null) pool.remove(night);
 
         // ② 낮 관광지와 예비 후보
         int perDay = Math.min(pace.attractionsPerDay(), pool.size());
@@ -149,19 +165,6 @@ public class RouteOptimizer {
                 used[next] = false;
             }
         }
-    }
-
-    /** 후보는 점수순이라 처음 만나는 전망대가 점수 가장 높은 곳 */
-    static ScoredAttraction pickNight(List<ScoredAttraction> candidates) {
-        return candidates.stream()
-                .filter(c -> hasType(c.attraction().getTypes(), NIGHT_TYPE))
-                .findFirst()
-                .orElse(null);
-    }
-
-    private static boolean hasType(String typesCsv, String type) {
-        if (typesCsv == null) return false;
-        return Arrays.stream(typesCsv.split(",")).map(String::trim).anyMatch(type::equals);
     }
 
     private static TravelPoint toPoint(ScoredAttraction s) {

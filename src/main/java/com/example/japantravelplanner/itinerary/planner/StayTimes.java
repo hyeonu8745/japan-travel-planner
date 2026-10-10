@@ -14,6 +14,8 @@ import java.util.Set;
 public final class StayTimes {
 
     public static final int OTHER = 40;
+    /** 저녁 뒤 야경 장소(전망대가 아닌 곳: 해변·거리·조명 켠 절)는 야경만 보고 나온다. 낮처럼 공원 75분을 잡으면 22시를 넘긴다 */
+    public static final int NIGHT_VIEW = 40;
     public static final int LUNCH = 60;
     public static final int DINNER = 90;
 
@@ -41,6 +43,12 @@ public final class StayTimes {
             if (!java.util.Collections.disjoint(types, rule.getKey())) return rule.getValue();
         }
         return OTHER;
+    }
+
+    /** 저녁 뒤 야경 장소의 기본 체류 시간 (전망대는 낮과 같고, 나머지는 NIGHT_VIEW) */
+    public static int nightBaseOf(String typesCsv) {
+        int base = baseOf(typesCsv);
+        return base == RULES.get(Set.of("observation_deck")) ? base : NIGHT_VIEW;
     }
 
     /** 속도 배율을 곱하고 5분 단위로 반올림 (최소 5분) */

@@ -2,6 +2,7 @@ package com.example.japantravelplanner.itinerary.candidate;
 
 import com.example.japantravelplanner.attraction.entity.Attraction;
 import com.example.japantravelplanner.itinerary.zone.ZoneAssigner;
+import com.example.japantravelplanner.trip.entity.Interest;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -114,6 +115,18 @@ class AttractionScorerTest {
                 place(2, "B", 35.6902, 139.7040, 4.8),
                 place(3, "C", 35.6915, 139.7040, 4.7)));
         assertThat(kept).containsExactly("A", "C");
+    }
+
+    @Test
+    void 야경_관심사면_대표_야경_명소는_가까운_곳에_합쳐지지_않는다() {
+        // 10-10 여행 8 v9: 歌舞伎町一番街アーチ가 137m 옆 新宿東口の猫(점수 더 높음)에 합쳐져 신주쿠 야경이 비었다
+        List<Attraction> places = List.of(
+                place(1, "新宿東口の猫", 35.6926516, 139.7008030, 4.5),
+                place(2, "歌舞伎町一番街アーチ", 35.6938600, 139.7011000, 4.4));
+
+        assertThat(keptNames(places)).containsExactly("新宿東口の猫");   // 야경 관심사가 없으면 예전처럼
+        assertThat(scorer.score(places, List.of(Interest.NIGHT_VIEW)).stream().map(s -> s.attraction().getName()))
+                .containsExactlyInAnyOrder("新宿東口の猫", "歌舞伎町一番街アーチ");
     }
 
     @Test

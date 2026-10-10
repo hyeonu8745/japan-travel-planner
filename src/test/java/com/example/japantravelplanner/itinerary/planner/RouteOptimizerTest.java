@@ -14,6 +14,7 @@ import org.locationtech.jts.geom.PrecisionModel;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -96,7 +97,7 @@ class RouteOptimizerTest {
     @Test
     void 오전_오후_개수대로_나누고_남은_후보는_예비로() {
         DayRoute route = optimizer.optimize(day(List.of(gyoen, hanazono, omoide, goldengai, spare)),
-                hotel, TravelPace.NORMAL, transit, false);
+                hotel, TravelPace.NORMAL, transit);
 
         assertThat(route.morning()).hasSize(2);
         assertThat(route.afternoon()).hasSize(2);
@@ -107,9 +108,9 @@ class RouteOptimizerTest {
     }
 
     @Test
-    void 야경_관심사면_전망대를_저녁_후로_빼고_예비가_낮을_채운다() {
+    void 정해진_야경_장소를_저녁_후로_빼고_예비가_낮을_채운다() {
         DayRoute route = optimizer.optimize(day(List.of(tocho, gyoen, hanazono, omoide, goldengai, spare)),
-                hotel, TravelPace.NORMAL, transit, true);
+                hotel, TravelPace.NORMAL, transit, tocho, Set.of(tocho.attraction().getId()));
 
         assertThat(route.night()).isEqualTo(tocho);
         assertThat(route.daytime()).containsExactlyInAnyOrder(gyoen, hanazono, omoide, goldengai);
@@ -118,27 +119,50 @@ class RouteOptimizerTest {
     }
 
     @Test
-    void 야경_관심사가_없으면_전망대도_낮_관광지다() {
+    void 야경_장소가_없으면_전망대도_낮_관광지다() {
         DayRoute route = optimizer.optimize(day(List.of(tocho, gyoen, hanazono, omoide, goldengai, spare)),
-                hotel, TravelPace.NORMAL, transit, false);
+                hotel, TravelPace.NORMAL, transit);
 
         assertThat(route.night()).isNull();
         assertThat(route.daytime()).contains(tocho);
     }
 
     @Test
-    void 전망대가_없으면_야경_장소는_비운다() {
-        DayRoute route = optimizer.optimize(day(List.of(gyoen, hanazono, omoide, goldengai)),
-                hotel, TravelPace.NORMAL, transit, true);
+    void 야경이_전망대면_다른_전망대는_낮에도_예비에도_넣지_않는다() {
+        // 10-10 여행 8: 롯폰기 힐스 전망대를 낮에 보고 저녁 뒤에 도쿄타워 전망대
+        ScoredAttraction otherDeck = spot(7, "다른 전망대", "observation_deck", 35.6900, 139.6950, 4.9);
+        DayRoute route = optimizer.optimize(day(List.of(otherDeck, gyoen, hanazono, omoide, goldengai, spare)),
+                hotel, TravelPace.NORMAL, transit, tocho, Set.of(tocho.attraction().getId()));
+
+        assertThat(route.night()).isEqualTo(tocho);
+        assertThat(route.daytime()).doesNotContain(otherDeck);
+        assertThat(route.spares()).doesNotContain(otherDeck).containsExactly(spare);
+    }
+
+    @Test
+    void 야경이_전망대가_아니면_전망대도_낮에_넣는다() {
+        ScoredAttraction kabukicho = spot(8, "歌舞伎町一番街アーチ", "cultural_landmark", 35.6942, 139.7016, 4.4);
+        DayRoute route = optimizer.optimize(day(List.of(tocho, gyoen, hanazono, omoide, spare)),
+                hotel, TravelPace.NORMAL, transit, kabukicho, Set.of(kabukicho.attraction().getId()));
+
+        assertThat(route.night()).isEqualTo(kabukicho);
+        assertThat(route.daytime()).contains(tocho);
+    }
+
+    @Test
+    void 다른_날_야경으로_잡힌_곳은_낮_후보에서_뺀다() {
+        DayRoute route = optimizer.optimize(day(List.of(tocho, gyoen, hanazono, omoide, goldengai, spare)),
+                hotel, TravelPace.NORMAL, transit, null, Set.of(tocho.attraction().getId()));
 
         assertThat(route.night()).isNull();
-        assertThat(route.daytime()).hasSize(4);
+        assertThat(route.daytime()).doesNotContain(tocho).hasSize(4);
+        assertThat(route.spares()).containsExactly(spare);
     }
 
     @Test
     void 후보가_적으면_있는_만큼만() {
         DayRoute route = optimizer.optimize(day(List.of(gyoen, hanazono)),
-                hotel, TravelPace.FULL, transit, false);
+                hotel, TravelPace.FULL, transit);
 
         assertThat(route.morning()).hasSize(2);
         assertThat(route.afternoon()).isEmpty();
@@ -146,7 +170,7 @@ class RouteOptimizerTest {
 
     @Test
     void 후보가_없으면_빈_하루() {
-        DayRoute route = optimizer.optimize(day(List.of()), hotel, TravelPace.NORMAL, transit, true);
+        DayRoute route = optimizer.optimize(day(List.of()), hotel, TravelPace.NORMAL, transit);
         assertThat(route.daytime()).isEmpty();
         assertThat(route.travelMinutes()).isZero();
     }

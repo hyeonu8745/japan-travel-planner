@@ -4,6 +4,7 @@ import com.example.japantravelplanner.attraction.repository.AttractionRepository
 import com.example.japantravelplanner.itinerary.candidate.AttractionScorer;
 import com.example.japantravelplanner.itinerary.candidate.DayZone;
 import com.example.japantravelplanner.itinerary.candidate.DayZonePlanner;
+import com.example.japantravelplanner.itinerary.candidate.NightSpotPlanner;
 import com.example.japantravelplanner.itinerary.candidate.ScoredAttraction;
 import com.example.japantravelplanner.itinerary.meal.FoodFilter;
 import com.example.japantravelplanner.itinerary.meal.FoodFilterResolver;
@@ -22,10 +23,13 @@ import org.springframework.stereotype.Component;
 
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
- * 일정을 계산하는 파이프라인 전체: 지역 배정 → 관광지 후보 → 순서(TSP) → 점심·저녁 → 시각.
+ * 일정을 계산하는 파이프라인 전체: 지역 배정 → 관광지 후보 → 야경 장소(여행 전체) → 순서(TSP) → 점심·저녁 → 시각.
  * AI 호출과 DB 저장은 하지 않는다. (일정 생성 Service와 확인용 API가 함께 쓴다)
  * 호출하는 쪽의 트랜잭션 안에서 불러야 한다 (여행·취향의 지연 로딩 컬렉션을 읽는다).
  */
@@ -67,28 +71,47 @@ public class ItineraryPlanner {
         FoodFilter filter = foodFilterResolver.resolve(constraints, trip.getAllergies());
         MealHistory history = new MealHistory();
 
-        List<ScheduledDay> scheduledDays = new ArrayList<>();
+        List<ScoredAttraction> scored = scoredAttractions(trip);
+        List<DayZone> zones = planZones(trip, constraints, hotel, scored);
         List<DayWindow> windows = new ArrayList<>();
-        for (DayZone day : planZones(trip, constraints, hotel)) {
-            DayWindow window = DayWindow.of(day.dayNumber() == 1, day.dayNumber() == days,
+        for (DayZone day : zones) {
+            windows.add(DayWindow.of(day.dayNumber() == 1, day.dayNumber() == days,
                     preference == null ? null : preference.getArrivalTime(),
                     preference == null ? null : preference.getDepartureTime(),
-                    nightView);
-            DayRoute route = routeOptimizer.optimize(day, hotelPoint, trip.getTravelPace(), options, nightView);
+                    nightView));
+        }
+
+        // 야경 장소는 날짜마다 따로 고르지 않고 여행 전체를 보고 나눈다 (전망대만 반복되지 않게)
+        Map<Integer, ScoredAttraction> nights = nightView ? NightSpotPlanner.assign(zones, scored, windows) : Map.of();
+        Set<Long> nightIds = new HashSet<>();
+        nights.values().forEach(n -> nightIds.add(n.attraction().getId()));
+
+        List<ScheduledDay> scheduledDays = new ArrayList<>();
+        for (int i = 0; i < zones.size(); i++) {
+            DayZone day = zones.get(i);
+            DayWindow window = windows.get(i);
+            DayRoute route = routeOptimizer.optimize(day, hotelPoint, trip.getTravelPace(), options,
+                    nights.get(day.dayNumber()), nightIds);
             DayMeals meals = mealPlanner.plan(route, hotelPoint, window, budget, filter, history);
             scheduledDays.add(dayScheduler.schedule(route, meals, window, hotelPoint, options,
                     trip.getTravelPace().getStayMultiplier()));
-            windows.add(window);
         }
         return new Result(options, nightView, budget, scheduledDays, windows);
     }
 
     /** 날짜별 지역과 관광지 후보 (②③ 단계) */
     public List<DayZone> planZones(Trip trip, List<PreferenceConstraint> constraints, Point hotel) {
-        List<Interest> interests = interestsOf(trip);
-        List<ScoredAttraction> scored = scorer.score(attractionRepository.findAll(), interests);
+        return planZones(trip, constraints, hotel, scoredAttractions(trip));
+    }
+
+    private List<ScoredAttraction> scoredAttractions(Trip trip) {
+        return scorer.score(attractionRepository.findAll(), interestsOf(trip));
+    }
+
+    private List<DayZone> planZones(Trip trip, List<PreferenceConstraint> constraints, Point hotel,
+                                    List<ScoredAttraction> scored) {
         return dayZonePlanner.plan(scored, trip.getStartDate(), daysOf(trip),
-                trip.getTravelPace().attractionsPerDay(), interests, constraints,
+                trip.getTravelPace().attractionsPerDay(), interestsOf(trip), constraints,
                 hotel.getY(), hotel.getX());
     }
 

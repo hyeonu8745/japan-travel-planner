@@ -18,6 +18,8 @@ import java.util.*;
  *  - 이름이 겹치고 800m 이내 (東京都庁 + 東京都庁第一本庁舎 北展望室)
  *  - 이름과 상관없이 sameSpotMeters(150m) 이내 (愛宕山 + 出世の石段 43m, スクランブル交差点 + ハチ公像 48m)
  * 리뷰가 minReviews(100개) 미만인 관광지도 제외 (なだれ坂 36개처럼 일정에 넣기엔 너무 작은 곳)
+ * 야경 관심사면 대표 야경 명소(NightSpots)는 같은 장소 합치기에서 빼지 않는다
+ *  - 歌舞伎町一番街アーチ가 137m 옆 新宿東口の猫에 합쳐져 사라져서 신주쿠 날 야경이 비었다 (10-10 여행 8 v9)
  */
 @Slf4j
 @Component
@@ -47,12 +49,13 @@ public class AttractionScorer {
             double lng = a.getLocation().getX();
             zoneAssigner.assign(lat, lng).ifPresent(zone -> {
                 double score = bayesian(a.getRating(), reviews, mean, props.getPriorReviews())
-                        + interestBonus(a.getTypes(), interests);
+                        + interestBonus(a, interests);
                 result.add(new ScoredAttraction(a, zone, score));
             });
         }
         result.sort(Comparator.comparingDouble(ScoredAttraction::score).reversed());
-        return removeNearDuplicates(result);
+        boolean keepNightSpots = interests != null && interests.contains(Interest.NIGHT_VIEW);
+        return removeNearDuplicates(result, keepNightSpots);
     }
 
     /** 보정 평점: 리뷰가 적을수록 전체 평균 쪽으로 끌어당김 */
@@ -60,11 +63,10 @@ public class AttractionScorer {
         return (reviews * rating + priorReviews * mean) / (reviews + priorReviews);
     }
 
-    private double interestBonus(String typesCsv, Collection<Interest> interests) {
-        if (typesCsv == null || interests == null || interests.isEmpty()) return 0;
-        Set<String> types = new HashSet<>(Arrays.asList(typesCsv.split(",")));
+    private double interestBonus(Attraction attraction, Collection<Interest> interests) {
+        if (interests == null || interests.isEmpty()) return 0;
         long matched = interests.stream()
-                .filter(interest -> InterestTypes.of(interest).stream().anyMatch(types::contains))
+                .filter(interest -> InterestTypes.matches(interest, attraction))
                 .count();
         return Math.min(matched, 2) * props.getInterestBonus();
     }
@@ -73,9 +75,13 @@ public class AttractionScorer {
      * 점수 높은 순으로 보면서, 이미 남긴 관광지와 같은 장소면 건너뛴다.
      * 예: 東京都庁 + 東京都庁第一本庁舎 北展望室, 新宿御苑 + 新宿御苑 桜園地
      */
-    private List<ScoredAttraction> removeNearDuplicates(List<ScoredAttraction> sorted) {
+    private List<ScoredAttraction> removeNearDuplicates(List<ScoredAttraction> sorted, boolean keepNightSpots) {
         List<ScoredAttraction> kept = new ArrayList<>();
         for (ScoredAttraction candidate : sorted) {
+            if (keepNightSpots && NightSpots.isRepresentative(candidate.attraction())) {
+                kept.add(candidate);   // 밤에 따로 가는 장소라 낮 명소와 가까워도 남긴다
+                continue;
+            }
             boolean duplicate = kept.stream().anyMatch(k ->
                     isSameSpot(k.lat(), k.lng(), candidate.lat(), candidate.lng(), props.getSameSpotMeters())
                             || isNearDuplicate(

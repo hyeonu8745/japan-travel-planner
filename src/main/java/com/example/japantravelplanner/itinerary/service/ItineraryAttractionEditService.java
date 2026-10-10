@@ -5,6 +5,7 @@ import com.example.japantravelplanner.attraction.repository.AttractionRepository
 import com.example.japantravelplanner.global.exception.ConflictException;
 import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.itinerary.candidate.AttractionScorer;
+import com.example.japantravelplanner.itinerary.candidate.NightSpots;
 import com.example.japantravelplanner.itinerary.candidate.ScoredAttraction;
 import com.example.japantravelplanner.itinerary.dictionary.PlaceTypeLabels;
 import com.example.japantravelplanner.itinerary.dto.AttractionCandidatesResponseDto;
@@ -74,9 +75,6 @@ public class ItineraryAttractionEditService {
 
     /** 같은 지역의 후보가 이 수보다 적으면 가까운 다른 지역 관광지도 후보에 넣는다 */
     static final int MIN_SAME_ZONE_CANDIDATES = 3;
-
-    /** 저녁 뒤 야경 장소의 종류 (RouteOptimizer와 같은 기준) */
-    private static final String NIGHT_TYPE = "observation_deck";
 
     /** 바꾸려는 장소에서 이 거리(미터) 안이면 다른 지역이라도 후보가 된다 (지역을 나눌 때 쓰는 기준과 같다) */
     static final double NEARBY_METERS = 3000;
@@ -159,7 +157,7 @@ public class ItineraryAttractionEditService {
         List<CandidateDto> candidates = new ArrayList<>();
         for (int i = 0; i < found.size(); i++) {
             Attraction a = found.get(i).attraction();
-            int stay = stayOf(a, target.trip());
+            int stay = stayOf(a, target);
             Retimed retimed = retimeDay(target, a, stay);
             TravelLeg leg = matrix.get(0, i + 1);
             candidates.add(new CandidateDto(a.getId(), a.getName(), typeLabels.toVisibleLabels(a.getTypes()),
@@ -198,7 +196,7 @@ public class ItineraryAttractionEditService {
                 .filter(a -> Objects.equals(a.getId(), attractionId))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("이 자리에 넣을 수 없는 관광지예요. 후보 목록에서 골라주세요."));
-        int stay = stayOf(replacement, target.trip());
+        int stay = stayOf(replacement, target);
 
         Itinerary latest = target.latest();
         Itinerary next = Itinerary.create(target.trip(), latest.getVersionNo() + 1, latest.getKrwPerYen(),
@@ -342,7 +340,7 @@ public class ItineraryAttractionEditService {
     /**
      * 일정에 아직 안 쓴 관광지 (같은 지역이 먼저, 각각 점수 높은 순).
      * 점수·리뷰 100개 이상·같은 장소(150m) 합치기는 일정을 만들 때와 같은 AttractionScorer가 처리한다.
-     * 저녁 뒤 야경 장소를 바꾸는 경우에는 전망대만 후보가 된다.
+     * 저녁 뒤 야경 장소를 바꾸는 경우에는 야경 장소(전망대 + 대표 야경 명소, NightSpots)만 후보가 된다.
      *
      * 같은 지역에 남은 후보가 적으면(3곳 미만) 바꾸려는 장소에서 3km 안의 다른 지역 관광지도 넣는다.
      * 지역마다 리뷰 기준을 통과하는 관광지가 몇 곳뿐이라, 일정이 그 지역 관광지를 거의 다 쓰고 있으면
@@ -354,7 +352,7 @@ public class ItineraryAttractionEditService {
                 .score(attractionRepository.findAll(), ItineraryPlanner.interestsOf(target.trip()))
                 .stream()
                 .filter(c -> !used.contains(c.attraction().getId()))
-                .filter(c -> !target.night() || hasType(c.attraction().getTypes(), NIGHT_TYPE))
+                .filter(c -> !target.night() || NightSpots.isNightCandidate(c.attraction()))
                 .sorted(Comparator.comparingDouble(ScoredAttraction::score).reversed())
                 .toList();
 
@@ -382,14 +380,6 @@ public class ItineraryAttractionEditService {
                 .filter(s -> s.getAttraction() != null)
                 .map(s -> s.getAttraction().getId())
                 .collect(Collectors.toSet());
-    }
-
-    private static boolean hasType(String typesCsv, String type) {
-        if (typesCsv == null) return false;
-        for (String t : typesCsv.split(",")) {
-            if (t.trim().equals(type)) return true;
-        }
-        return false;
     }
 
     // ===================== 불러오기·검사 =====================
@@ -447,8 +437,10 @@ public class ItineraryAttractionEditService {
 
     // ===================== 좌표·계산 =====================
 
-    private static int stayOf(Attraction attraction, Trip trip) {
-        return StayTimes.scaled(StayTimes.baseOf(attraction.getTypes()), trip.getTravelPace().getStayMultiplier());
+    // 야경 자리는 일정을 만들 때와 같은 야경 체류 시간 (전망대가 아닌 곳은 짧게)
+    private static int stayOf(Attraction attraction, Target target) {
+        int base = target.night() ? StayTimes.nightBaseOf(attraction.getTypes()) : StayTimes.baseOf(attraction.getTypes());
+        return StayTimes.scaled(base, target.trip().getTravelPace().getStayMultiplier());
     }
 
     private static TravelPoint pointOf(ItineraryStop stop) {

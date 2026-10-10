@@ -9,7 +9,7 @@ import java.util.List;
  * 같은 지역에 남은 후보가 적으면(3곳 미만) 바꾸려는 장소에서 3km 안의 다른 지역 관광지도 함께 준다.
  * 같은 지역 후보가 먼저, 그다음 다른 지역 후보가 나온다.
  *
- * @param night     저녁 뒤 야경 장소인지. true면 후보는 전망대만 나온다
+ * @param night     저녁 뒤 야경 장소인지. true면 후보는 야경 장소(전망대 + 대표 야경 명소)만 나온다
  * @param broadened 같은 지역 후보가 부족해서 다른 지역 관광지가 후보에 섞였는지
  */
 public record AttractionCandidatesResponseDto(

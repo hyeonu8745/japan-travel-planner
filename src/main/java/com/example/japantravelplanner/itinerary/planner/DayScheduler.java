@@ -79,7 +79,7 @@ public class DayScheduler {
 
         if (route.night() != null) {
             if (plan.dinner != null) {
-                plan.night = attractionItem(route.night(), points, stayMultiplier);
+                plan.night = nightItem(route.night(), points, stayMultiplier);
             } else {
                 dropped.add(new DroppedStop(route.night().attraction().getName(), DropReason.NIGHT_WITHOUT_DINNER));
             }
@@ -308,6 +308,14 @@ public class DayScheduler {
         int index = points.size();
         points.add(new TravelPoint(a.attraction().getName(), a.lat(), a.lng()));
         int stay = StayTimes.scaled(StayTimes.baseOf(a.attraction().getTypes()), multiplier);
+        return new Item(StopType.ATTRACTION, a, null, index, stay, a.score());
+    }
+
+    /** 저녁 뒤 야경 장소 (체류 시간이 낮과 다르다: StayTimes.nightBaseOf) */
+    private static Item nightItem(ScoredAttraction a, List<TravelPoint> points, double multiplier) {
+        int index = points.size();
+        points.add(new TravelPoint(a.attraction().getName(), a.lat(), a.lng()));
+        int stay = StayTimes.scaled(StayTimes.nightBaseOf(a.attraction().getTypes()), multiplier);
         return new Item(StopType.ATTRACTION, a, null, index, stay, a.score());
     }
 

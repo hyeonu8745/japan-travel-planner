@@ -23,6 +23,14 @@ class StayTimesTest {
     }
 
     @Test
+    void 저녁_뒤_야경은_전망대만_낮과_같고_나머지는_짧게() {
+        assertThat(StayTimes.nightBaseOf("observation_deck,landmark")).isEqualTo(60);
+        assertThat(StayTimes.nightBaseOf("park,tourist_attraction")).isEqualTo(StayTimes.NIGHT_VIEW);   // 낮이면 75
+        assertThat(StayTimes.nightBaseOf("buddhist_temple")).isEqualTo(StayTimes.NIGHT_VIEW);
+        assertThat(StayTimes.nightBaseOf(null)).isEqualTo(StayTimes.NIGHT_VIEW);
+    }
+
+    @Test
     void 종류를_모르면_기타() {
         assertThat(StayTimes.baseOf(null)).isEqualTo(40);
         assertThat(StayTimes.baseOf("")).isEqualTo(40);
