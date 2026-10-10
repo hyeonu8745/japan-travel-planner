@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
+import com.example.japantravelplanner.itinerary.reason.ReasonContextLoader;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 
@@ -119,7 +120,7 @@ class ItineraryAttractionEditServiceTest {
         TravelTimeService travel = new TravelTimeService(new TravelProperties(), null);
         service = new ItineraryAttractionEditService(tripRepository, mock(TripPreferenceRepository.class),
                 itineraryRepository, stopRepository, attractionRepository, restaurantRepository, locator, scorer,
-                travel, new TravelProperties(), new DayScheduler(travel), typeLabels, lock, transactionManager);
+                travel, new TravelProperties(), new DayScheduler(travel), typeLabels, lock, mock(ReasonContextLoader.class), transactionManager);
     }
 
     /** DAY1: 공원 → 점심 → 박물관 → 저녁 → 전망대(야경) / DAY2: 둘째 날 장소 → 저녁 */

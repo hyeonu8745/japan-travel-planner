@@ -30,6 +30,14 @@ import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
+import com.example.japantravelplanner.chat.entity.ChatMessage;
+import com.example.japantravelplanner.chat.entity.ChatRole;
+import com.example.japantravelplanner.chat.repository.ChatMessageRepository;
+import com.example.japantravelplanner.itinerary.meal.FoodFilter;
+import com.example.japantravelplanner.itinerary.reason.ReasonCode;
+import com.example.japantravelplanner.itinerary.reason.ReasonContext;
+import com.example.japantravelplanner.itinerary.reason.ReasonContextLoader;
+import com.example.japantravelplanner.trip.entity.Interest;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 
@@ -65,6 +73,8 @@ class ItineraryGenerationServiceTest {
     private final GenerationLock lock = new GenerationLock();
     // 기본값(verifyRounds 0)이면 식당 확인을 하지 않는다 → 기존 테스트는 확인 없이 흐른다
     private final RestaurantMatchService matchService = mock(RestaurantMatchService.class);
+    private final ReasonContextLoader reasonContextLoader = mock(ReasonContextLoader.class);
+    private final ChatMessageRepository chatMessageRepository = mock(ChatMessageRepository.class);
 
     // 트랜잭션이 열려 있는 동안 true (AI 호출이 트랜잭션 밖인지 확인하는 용도)
     private final boolean[] transactionActive = {false};
@@ -101,7 +111,8 @@ class ItineraryGenerationServiceTest {
 
         service = new ItineraryGenerationService(tripRepository, preferenceRepository, itineraryRepository,
                 attractionRepository, restaurantRepository, locator, planner, narrator, typeLabels,
-                new MealProperties(), lock, matchService, transactionManager);
+                new MealProperties(), lock, matchService, reasonContextLoader, chatMessageRepository,
+                transactionManager);
     }
 
     private ItineraryPlanner.Result plannedResult() {
@@ -360,5 +371,43 @@ class ItineraryGenerationServiceTest {
     void 남의_여행_일정은_조회할_수_없다() {
         assertThatThrownBy(() -> service.getLatest(99L, TRIP_ID)).isInstanceOf(NotFoundException.class);
         verify(itineraryRepository, never()).findFirstByTripIdOrderByVersionNoDesc(anyLong());
+    }
+
+    // ── 고른 이유, "이렇게 짰어요" ──
+
+    @Test
+    void 저장할_때_채팅에_이렇게_짰어요_요약을_남긴다() {
+        when(reasonContextLoader.load(trip)).thenReturn(new ReasonContext(List.of(Interest.NIGHT_VIEW),
+                new FoodFilter(Set.of("つけ麺"), Set.of(), false)));
+        ArgumentCaptor<ChatMessage> saved = ArgumentCaptor.forClass(ChatMessage.class);
+
+        generate();
+
+        verify(chatMessageRepository).save(saved.capture());
+        assertThat(saved.getValue().getRole()).isEqualTo(ChatRole.ASSISTANT);
+        assertThat(saved.getValue().getTrip()).isSameAs(trip);
+        assertThat(saved.getValue().getContent()).startsWith("일정을 이렇게 짰어요.")
+                .contains("관심사 '야경'에 맞는 곳은 이번 동선에 넣지 못했어요.")
+                .contains("좋아하는 음식은 1끼에 넣었어요.");
+    }
+
+    @Test
+    void 응답의_항목마다_고른_이유가_붙는다() {
+        when(reasonContextLoader.load(trip)).thenReturn(new ReasonContext(List.of(),
+                new FoodFilter(Set.of("つけ麺"), Set.of(), false)));
+
+        ItineraryResponseDto response = service.generate(USER_ID, TRIP_ID);
+
+        assertThat(response.days().get(0).stops().get(1).reasons())
+                .extracting(reason -> reason.code())
+                .contains(ReasonCode.FOOD_PREFER, ReasonCode.HIGH_RATING);
+    }
+
+    @Test
+    void 일정을_저장하지_못하면_요약도_남기지_않는다() {
+        when(itineraryRepository.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("거절"));
+
+        assertThatThrownBy(this::generate).isInstanceOf(DataIntegrityViolationException.class);
+        verify(chatMessageRepository, never()).save(any());
     }
 }

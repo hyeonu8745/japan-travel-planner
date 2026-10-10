@@ -13,6 +13,9 @@ import com.example.japantravelplanner.restaurant.entity.Restaurant;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.itinerary.entity.ItinerarySource;
 import com.example.japantravelplanner.itinerary.meal.RegularHoliday;
+import com.example.japantravelplanner.itinerary.reason.ReasonContext;
+import com.example.japantravelplanner.itinerary.reason.StopReason;
+import com.example.japantravelplanner.itinerary.reason.StopReasons;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -55,6 +58,9 @@ public record ItineraryResponseDto(
     ) {
     }
 
+    /**
+     * @param reasons 이곳을 고른 이유 (화면의 칩, 최대 3개, 없으면 빈 목록). 서버가 고른 기준에서 매번 계산한다
+     */
     public record StopDto(
             Long id,
             int order,
@@ -69,7 +75,8 @@ public record ItineraryResponseDto(
             Double lng,
             AttractionDto attraction,
             RestaurantDto restaurant,
-            List<AlternativeDto> alternatives
+            List<AlternativeDto> alternatives,
+            List<StopReason> reasons
     ) {
     }
 
@@ -109,7 +116,17 @@ public record ItineraryResponseDto(
      */
     public static ItineraryResponseDto from(Itinerary itinerary, Function<String, List<String>> typeLabels,
                                             Map<Long, Restaurant> alternatives) {
-        List<DayDto> days = itinerary.getDays().stream().map(day -> toDay(day, typeLabels, alternatives)).toList();
+        return from(itinerary, typeLabels, alternatives, ReasonContext.NONE);
+    }
+
+    /**
+     * @param reasons 고른 이유를 계산할 여행 조건 (관심사, 음식 조건). null이면 관심사·좋아하는 음식 이유 없이
+     */
+    public static ItineraryResponseDto from(Itinerary itinerary, Function<String, List<String>> typeLabels,
+                                            Map<Long, Restaurant> alternatives, ReasonContext reasons) {
+        ReasonContext context = ReasonContext.orNone(reasons);
+        List<DayDto> days = itinerary.getDays().stream()
+                .map(day -> toDay(day, typeLabels, alternatives, context)).toList();
         Trip trip = itinerary.getTrip();
         AccommodationDto accommodation = new AccommodationDto(trip.getAccommodationName(),
                 trip.getAccommodationAddress(), lat(trip.getAccommodationLocation()), lng(trip.getAccommodationLocation()));
@@ -125,16 +142,16 @@ public record ItineraryResponseDto(
     }
 
     private static DayDto toDay(ItineraryDay day, Function<String, List<String>> typeLabels,
-                                Map<Long, Restaurant> alternatives) {
+                                Map<Long, Restaurant> alternatives, ReasonContext reasons) {
         return new DayDto(day.getDayNumber(), day.getDate(), day.getZone(), day.getZone().getLabel(),
                 day.getWindowStart(), day.getWindowEnd(), day.getDescription(),
-                day.getStops().stream().map(stop -> toStop(stop, day.getDate(), typeLabels, alternatives)).toList(),
+                day.getStops().stream().map(stop -> toStop(stop, day.getDate(), typeLabels, alternatives, reasons)).toList(),
                 day.getDropped().stream().map(ItineraryResponseDto::toDropped).toList(),
                 List.copyOf(day.getWarnings()));
     }
 
     private static StopDto toStop(ItineraryStop stop, LocalDate date, Function<String, List<String>> typeLabels,
-                                  Map<Long, Restaurant> alternatives) {
+                                  Map<Long, Restaurant> alternatives, ReasonContext reasons) {
         TravelDto travel = new TravelDto(stop.getTravelMode(), stop.getTravelMinutes(),
                 stop.getTravelDistanceMeters(), stop.isTravelEstimated());
 
@@ -145,7 +162,7 @@ public record ItineraryResponseDto(
                     travel, lat(a.getLocation()), lng(a.getLocation()),
                     new AttractionDto(a.getId(), typeLabels.apply(a.getTypes()), a.getRating(), a.getReviewCnt(),
                             a.getAddress(), a.getWard(), a.getPlaceId()),
-                    null, List.of());
+                    null, List.of(), StopReasons.of(stop, reasons));
         }
 
         Restaurant r = stop.getRestaurant();
@@ -157,7 +174,7 @@ public record ItineraryResponseDto(
                         stop.isBudgetRelaxed(), stop.isGenreRepeated(),
                         r.getReviewCnt(), r.getNearestStation(), r.getNearestDistance(), r.getHoliday(),
                         RegularHoliday.isClosedOn(r.getHoliday(), date)),
-                toAlternatives(stop, date, alternatives));
+                toAlternatives(stop, date, alternatives), StopReasons.of(stop, reasons));
     }
 
     // 저장된 순서(점수 높은 순)를 지키고, 그 사이에 사라진 식당은 건너뛴다

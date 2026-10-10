@@ -42,6 +42,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.locationtech.jts.geom.Point;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import com.example.japantravelplanner.itinerary.reason.ReasonContextLoader;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import com.example.japantravelplanner.itinerary.meal.RegularHoliday;
@@ -101,6 +102,7 @@ public class ItineraryEditService {
     private final PlaceTypeLabels typeLabels;
     private final GenerationLock lock;
     private final RestaurantMatchService restaurantMatchService;
+    private final ReasonContextLoader reasonContextLoader;
     private final TransactionTemplate readTransaction;
     private final TransactionTemplate writeTransaction;
 
@@ -119,6 +121,7 @@ public class ItineraryEditService {
                                 PlaceTypeLabels typeLabels,
                                 GenerationLock lock,
                                 RestaurantMatchService restaurantMatchService,
+                                ReasonContextLoader reasonContextLoader,
                                 PlatformTransactionManager transactionManager) {
         this.tripRepository = tripRepository;
         this.preferenceRepository = preferenceRepository;
@@ -135,6 +138,7 @@ public class ItineraryEditService {
         this.typeLabels = typeLabels;
         this.lock = lock;
         this.restaurantMatchService = restaurantMatchService;
+        this.reasonContextLoader = reasonContextLoader;
         this.readTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction.setReadOnly(true);
         this.writeTransaction = new TransactionTemplate(transactionManager);
@@ -606,7 +610,8 @@ public class ItineraryEditService {
         Map<Long, Restaurant> alternatives = ids.isEmpty() ? Map.of()
                 : restaurantRepository.findAllById(ids).stream()
                   .collect(Collectors.toMap(Restaurant::getId, Function.identity()));
-        return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels, alternatives);
+        return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels, alternatives,
+                reasonContextLoader.load(itinerary.getTrip()));
     }
 
     // ===================== 좌표·표시 =====================

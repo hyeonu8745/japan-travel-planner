@@ -37,6 +37,7 @@ import org.locationtech.jts.geom.Coordinate;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.dao.DataIntegrityViolationException;
+import com.example.japantravelplanner.itinerary.reason.ReasonContextLoader;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 
@@ -120,7 +121,7 @@ class ItineraryEditServiceTest {
                 restaurantRepository, locator, finder, budgetCalculator, filterResolver,
                 new TravelTimeService(new TravelProperties(), null), new TravelProperties(),
                 new DayScheduler(new TravelTimeService(new TravelProperties(), null)),
-                typeLabels, lock, matchService, transactionManager);
+                typeLabels, lock, matchService, mock(ReasonContextLoader.class), transactionManager);
     }
 
     // ── 테스트 자료 ──

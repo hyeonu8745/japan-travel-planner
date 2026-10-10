@@ -34,6 +34,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.mockito.ArgumentCaptor;
+import com.example.japantravelplanner.itinerary.reason.ReasonContextLoader;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 
@@ -113,7 +114,7 @@ class ItineraryStopEditServiceTest {
         service = new ItineraryStopEditService(tripRepository, mock(TripPreferenceRepository.class),
                 itineraryRepository, stopRepository, mock(AttractionRepository.class), mock(RestaurantRepository.class),
                 locator, scorer, travel, new TravelProperties(), new DayScheduler(travel), typeLabels, lock,
-                transactionManager);
+                mock(ReasonContextLoader.class), transactionManager);
     }
 
     /**

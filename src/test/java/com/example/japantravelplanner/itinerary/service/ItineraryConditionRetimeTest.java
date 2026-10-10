@@ -32,6 +32,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.mockito.ArgumentCaptor;
+import com.example.japantravelplanner.itinerary.reason.ReasonContextLoader;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 
@@ -83,7 +84,8 @@ class ItineraryConditionRetimeTest {
         service = new ItineraryEditService(tripRepository, mock(TripPreferenceRepository.class), itineraryRepository,
                 mock(ItineraryStopRepository.class), mock(RestaurantRepository.class), locator,
                 mock(RestaurantFinder.class), mock(MealBudgetCalculator.class), mock(FoodFilterResolver.class),
-                travel, new TravelProperties(), new DayScheduler(travel), labels, lock, mock(RestaurantMatchService.class), transactionManager);
+                travel, new TravelProperties(), new DayScheduler(travel), labels, lock, mock(RestaurantMatchService.class),
+                mock(ReasonContextLoader.class), transactionManager);
     }
 
     /** 관광지1 → 점심 → 관광지2 → 저녁 하루. 사용자가 고른 정기 휴일 식당 안내가 남아 있다 */

@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
+import com.example.japantravelplanner.itinerary.reason.ReasonContextLoader;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 
@@ -97,7 +98,8 @@ class ItineraryHistoryTest {
         service = new ItineraryEditService(tripRepository, mock(TripPreferenceRepository.class), itineraryRepository,
                 mock(ItineraryStopRepository.class), restaurantRepository, mock(AccommodationLocator.class), finder,
                 mock(MealBudgetCalculator.class), mock(FoodFilterResolver.class), travel, new TravelProperties(),
-                new DayScheduler(travel), labels, lock, mock(RestaurantMatchService.class), transactionManager);
+                new DayScheduler(travel), labels, lock, mock(RestaurantMatchService.class),
+                mock(ReasonContextLoader.class), transactionManager);
 
         when(itineraryRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
     }
@@ -283,7 +285,8 @@ class ItineraryHistoryTest {
         when(locator.locate(trip)).thenReturn(GF.createPoint(new Coordinate(139.70, 35.69)));
         ItineraryEditService editService = new ItineraryEditService(tripRepository, mock(TripPreferenceRepository.class),
                 itineraryRepository, stopRepository, restaurantRepository, locator, finder, budget, filters, travel,
-                new TravelProperties(), new DayScheduler(travel), labels, lock, mock(RestaurantMatchService.class), transactionManager);
+                new TravelProperties(), new DayScheduler(travel), labels, lock, mock(RestaurantMatchService.class),
+                mock(ReasonContextLoader.class), transactionManager);
 
         // 최신(v2)의 점심 항목을 다른 식당으로 교체
         ItineraryStop lunchStop = v2.getDays().get(0).getStops().get(1);

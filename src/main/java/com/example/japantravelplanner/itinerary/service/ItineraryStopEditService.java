@@ -42,6 +42,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.locationtech.jts.geom.Point;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import com.example.japantravelplanner.itinerary.reason.ReasonContextLoader;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -92,6 +93,7 @@ public class ItineraryStopEditService {
     private final DayScheduler dayScheduler;
     private final PlaceTypeLabels typeLabels;
     private final GenerationLock lock;
+    private final ReasonContextLoader reasonContextLoader;
     private final TransactionTemplate readTransaction;
     private final TransactionTemplate writeTransaction;
 
@@ -108,6 +110,7 @@ public class ItineraryStopEditService {
                                     DayScheduler dayScheduler,
                                     PlaceTypeLabels typeLabels,
                                     GenerationLock lock,
+                                    ReasonContextLoader reasonContextLoader,
                                     PlatformTransactionManager transactionManager) {
         this.tripRepository = tripRepository;
         this.preferenceRepository = preferenceRepository;
@@ -122,6 +125,7 @@ public class ItineraryStopEditService {
         this.dayScheduler = dayScheduler;
         this.typeLabels = typeLabels;
         this.lock = lock;
+        this.reasonContextLoader = reasonContextLoader;
         this.readTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction.setReadOnly(true);
         this.writeTransaction = new TransactionTemplate(transactionManager);
@@ -521,7 +525,8 @@ public class ItineraryStopEditService {
         Map<Long, Restaurant> alternatives = ids.isEmpty() ? Map.of()
                 : restaurantRepository.findAllById(ids).stream()
                   .collect(Collectors.toMap(Restaurant::getId, Function.identity()));
-        return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels, alternatives);
+        return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels, alternatives,
+                reasonContextLoader.load(itinerary.getTrip()));
     }
 
     // ===================== 작은 도우미 =====================

@@ -26,6 +26,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.locationtech.jts.geom.Point;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import com.example.japantravelplanner.chat.entity.ChatMessage;
+import com.example.japantravelplanner.chat.entity.ChatRole;
+import com.example.japantravelplanner.chat.repository.ChatMessageRepository;
+import com.example.japantravelplanner.itinerary.reason.PlanSummary;
+import com.example.japantravelplanner.itinerary.reason.ReasonContext;
+import com.example.japantravelplanner.itinerary.reason.ReasonContextLoader;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import com.example.japantravelplanner.itinerary.entity.ItinerarySource;
@@ -46,7 +52,7 @@ import java.util.stream.Collectors;
  *  ① 계산 (트랜잭션): 여행 확인, 횟수 제한, 숙소 좌표, 일정 계산. 외부 AI 호출 없음
  *  ①-1 식당 확인 (트랜잭션 밖): 고른 식당이 Google에 있는지 확인. 폐업 등으로 빠진 곳이 있으면 ①을 다시
  *  ② 설명 (트랜잭션 밖): Terra가 하루 설명을 쓴다. 실패해도 일정은 정상
- *  ③ 저장 (트랜잭션): 새 버전으로 저장하고 여행 상태를 GENERATED로
+ *  ③ 저장 (트랜잭션): 새 버전으로 저장하고 여행 상태를 GENERATED로. 채팅에 "이렇게 짰어요" 요약을 남긴다 (서버가 쓰는 글, AI 아님)
  *
  * 다시 만들면 새 버전이 쌓인다. 같은 여행을 동시에 만들 수 없고, 여행당 24시간에 5번까지 만들 수 있다.
  */
@@ -75,6 +81,8 @@ public class ItineraryGenerationService {
     private final MealProperties mealProperties;
     private final GenerationLock lock;
     private final RestaurantMatchService restaurantMatchService;
+    private final ReasonContextLoader reasonContextLoader;
+    private final ChatMessageRepository chatMessageRepository;
     private final TransactionTemplate readTransaction;
     private final TransactionTemplate writeTransaction;
 
@@ -90,6 +98,8 @@ public class ItineraryGenerationService {
                                       MealProperties mealProperties,
                                       GenerationLock lock,
                                       RestaurantMatchService restaurantMatchService,
+                                      ReasonContextLoader reasonContextLoader,
+                                      ChatMessageRepository chatMessageRepository,
                                       PlatformTransactionManager transactionManager) {
         this.tripRepository = tripRepository;
         this.preferenceRepository = preferenceRepository;
@@ -103,6 +113,8 @@ public class ItineraryGenerationService {
         this.mealProperties = mealProperties;
         this.lock = lock;
         this.restaurantMatchService = restaurantMatchService;
+        this.reasonContextLoader = reasonContextLoader;
+        this.chatMessageRepository = chatMessageRepository;
         this.readTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction.setReadOnly(true);
         this.writeTransaction = new TransactionTemplate(transactionManager);
@@ -185,9 +197,14 @@ public class ItineraryGenerationService {
         }
         trip.setStatus(TripStatus.GENERATED);
 
+        // 어떻게 짰는지 채팅에 남긴다 (이후 대화에서 "라멘 말고"처럼 이어서 고칠 수 있게 맥락으로도 쓰인다)
+        ReasonContext reasons = reasonContextLoader.load(trip);
+        chatMessageRepository.save(ChatMessage.builder().trip(trip).role(ChatRole.ASSISTANT)
+                .content(PlanSummary.write(itinerary, reasons)).build());
+
         log.info("[Itinerary] 저장 tripId={} version={} 일수={} 설명={}일", tripId, version,
                 planned.result().days().size(), descriptions.size());
-        return toResponse(itinerary);
+        return toResponse(itinerary, reasons);
     }
 
     // ===================== 조회 =====================
@@ -198,17 +215,18 @@ public class ItineraryGenerationService {
             findTrip(userId, tripId);
             Itinerary itinerary = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
                     .orElseThrow(() -> new NotFoundException("아직 만들어진 일정이 없습니다."));
-            return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels);
+            return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels, Map.of(),
+                    reasonContextLoader.load(itinerary.getTrip()));
         });
     }
 
     // 식당 대안 후보는 id만 저장되어 있어서, 일정 전체의 대안을 한 번에 조회해서 풀어준다
-    private ItineraryResponseDto toResponse(Itinerary itinerary) {
+    private ItineraryResponseDto toResponse(Itinerary itinerary, ReasonContext reasons) {
         Set<Long> ids = ItineraryResponseDto.alternativeRestaurantIds(itinerary);
         Map<Long, Restaurant> alternatives = ids.isEmpty() ? Map.of()
                 : restaurantRepository.findAllById(ids).stream()
                   .collect(Collectors.toMap(Restaurant::getId, Function.identity()));
-        return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels, alternatives);
+        return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels, alternatives, reasons);
     }
 
     private Trip findTrip(Long userId, Long tripId) {
