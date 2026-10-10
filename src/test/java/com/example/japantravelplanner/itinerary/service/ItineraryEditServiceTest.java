@@ -23,7 +23,9 @@ import com.example.japantravelplanner.itinerary.repository.ItineraryRepository;
 import com.example.japantravelplanner.itinerary.repository.ItineraryStopRepository;
 import com.example.japantravelplanner.itinerary.travel.TravelProperties;
 import com.example.japantravelplanner.itinerary.travel.TravelTimeService;
+import com.example.japantravelplanner.restaurant.entity.GoogleMatchStatus;
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
+import com.example.japantravelplanner.restaurant.match.RestaurantMatchService;
 import com.example.japantravelplanner.restaurant.repository.RestaurantRepository;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.trip.entity.TripStatus;
@@ -33,6 +35,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
@@ -72,6 +75,7 @@ class ItineraryEditServiceTest {
     private final PlaceTypeLabels typeLabels = mock(PlaceTypeLabels.class);
     private final PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
     private final GenerationLock lock = new GenerationLock();
+    private final RestaurantMatchService matchService = mock(RestaurantMatchService.class);
 
     private final Trip trip = trip();
     private final Attraction a1 = attraction(11, "관광지1", "tourist_attraction");
@@ -116,7 +120,7 @@ class ItineraryEditServiceTest {
                 restaurantRepository, locator, finder, budgetCalculator, filterResolver,
                 new TravelTimeService(new TravelProperties(), null), new TravelProperties(),
                 new DayScheduler(new TravelTimeService(new TravelProperties(), null)),
-                typeLabels, lock, transactionManager);
+                typeLabels, lock, matchService, transactionManager);
     }
 
     // ── 테스트 자료 ──
@@ -244,6 +248,46 @@ class ItineraryEditServiceTest {
     }
 
     // ── 교체 ──
+
+    // ── 폐업 의심 식당 (Google 매칭) ──
+
+    @Test
+    void 교체_전에_고른_식당을_트랜잭션_밖에서_Google로_확인한다() {
+        finderReturns(candidate(restaurant(41, "새 점심집", "洋食"), false));
+
+        service.replace(USER_ID, TRIP_ID, 1L, 41L);
+
+        InOrder order = inOrder(matchService, transactionManager);
+        order.verify(matchService).verify(Set.of(41L));
+        order.verify(transactionManager, atLeastOnce()).getTransaction(any());
+    }
+
+    @Test
+    void 확인해보니_찾지_못했거나_폐업이면_교체를_막는다() {
+        Restaurant closed = restaurant(41, "폐업 의심 집", "洋食");
+        finderReturns(candidate(closed, false));
+        when(restaurantRepository.findById(41L)).thenReturn(Optional.of(closed));
+        doAnswer(inv -> {
+            closed.recordGoogleMatch(GoogleMatchStatus.NOT_FOUND, null, java.time.LocalDateTime.now());
+            return 1;
+        }).when(matchService).verify(Set.of(41L));
+
+        assertThatThrownBy(() -> service.replace(USER_ID, TRIP_ID, 1L, 41L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("폐업했을 수 있어요");
+        verify(itineraryRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void 저장된_대안이라도_폐업으로_확인된_식당이면_막는다() {
+        alt1.recordGoogleMatch(GoogleMatchStatus.CLOSED, "p-closed", java.time.LocalDateTime.now());
+        when(restaurantRepository.findById(31L)).thenReturn(Optional.of(alt1));
+
+        assertThatThrownBy(() -> service.replace(USER_ID, TRIP_ID, 1L, 31L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("폐업했을 수 있어요");
+        verify(itineraryRepository, never()).saveAndFlush(any());
+    }
 
     @Test
     void 교체하면_새_버전_EDITED로_저장되고_이전_버전은_그대로다() {

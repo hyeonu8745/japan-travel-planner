@@ -24,6 +24,7 @@ import com.example.japantravelplanner.itinerary.repository.ItineraryStopReposito
 import com.example.japantravelplanner.itinerary.travel.TravelProperties;
 import com.example.japantravelplanner.itinerary.travel.TravelTimeService;
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
+import com.example.japantravelplanner.restaurant.match.RestaurantMatchService;
 import com.example.japantravelplanner.restaurant.repository.RestaurantRepository;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.trip.entity.TripStatus;
@@ -96,7 +97,7 @@ class ItineraryHistoryTest {
         service = new ItineraryEditService(tripRepository, mock(TripPreferenceRepository.class), itineraryRepository,
                 mock(ItineraryStopRepository.class), restaurantRepository, mock(AccommodationLocator.class), finder,
                 mock(MealBudgetCalculator.class), mock(FoodFilterResolver.class), travel, new TravelProperties(),
-                new DayScheduler(travel), labels, lock, transactionManager);
+                new DayScheduler(travel), labels, lock, mock(RestaurantMatchService.class), transactionManager);
 
         when(itineraryRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
     }
@@ -282,7 +283,7 @@ class ItineraryHistoryTest {
         when(locator.locate(trip)).thenReturn(GF.createPoint(new Coordinate(139.70, 35.69)));
         ItineraryEditService editService = new ItineraryEditService(tripRepository, mock(TripPreferenceRepository.class),
                 itineraryRepository, stopRepository, restaurantRepository, locator, finder, budget, filters, travel,
-                new TravelProperties(), new DayScheduler(travel), labels, lock, transactionManager);
+                new TravelProperties(), new DayScheduler(travel), labels, lock, mock(RestaurantMatchService.class), transactionManager);
 
         // 최신(v2)의 점심 항목을 다른 식당으로 교체
         ItineraryStop lunchStop = v2.getDays().get(0).getStops().get(1);

@@ -21,6 +21,7 @@ import com.example.japantravelplanner.itinerary.travel.LegMode;
 import com.example.japantravelplanner.itinerary.travel.TravelProperties;
 import com.example.japantravelplanner.itinerary.travel.TravelTimeService;
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
+import com.example.japantravelplanner.restaurant.match.RestaurantMatchService;
 import com.example.japantravelplanner.restaurant.repository.RestaurantRepository;
 import com.example.japantravelplanner.trip.entity.TransportMode;
 import com.example.japantravelplanner.trip.entity.Trip;
@@ -82,7 +83,7 @@ class ItineraryConditionRetimeTest {
         service = new ItineraryEditService(tripRepository, mock(TripPreferenceRepository.class), itineraryRepository,
                 mock(ItineraryStopRepository.class), mock(RestaurantRepository.class), locator,
                 mock(RestaurantFinder.class), mock(MealBudgetCalculator.class), mock(FoodFilterResolver.class),
-                travel, new TravelProperties(), new DayScheduler(travel), labels, lock, transactionManager);
+                travel, new TravelProperties(), new DayScheduler(travel), labels, lock, mock(RestaurantMatchService.class), transactionManager);
     }
 
     /** 관광지1 → 점심 → 관광지2 → 저녁 하루. 사용자가 고른 정기 휴일 식당 안내가 남아 있다 */

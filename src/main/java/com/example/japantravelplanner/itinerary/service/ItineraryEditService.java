@@ -31,6 +31,7 @@ import com.example.japantravelplanner.itinerary.travel.TravelPoint;
 import com.example.japantravelplanner.itinerary.travel.TravelProperties;
 import com.example.japantravelplanner.itinerary.travel.TravelTimeService;
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
+import com.example.japantravelplanner.restaurant.match.RestaurantMatchService;
 import com.example.japantravelplanner.restaurant.repository.RestaurantRepository;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.trip.entity.TripPreference;
@@ -80,6 +81,8 @@ public class ItineraryEditService {
 
     private static final double DEFAULT_FOOD_RATIO = 0.4;
 
+    static final String CLOSED_RESTAURANT_MESSAGE = "이 식당은 폐업했을 수 있어요. 다른 후보를 골라주세요.";
+
     /** Itinerary의 (여행, 버전 번호) 유일 제약 이름 */
     private static final String VERSION_UNIQUE_CONSTRAINT = "uk_itineraries_trip_version";
 
@@ -97,6 +100,7 @@ public class ItineraryEditService {
     private final DayScheduler dayScheduler;
     private final PlaceTypeLabels typeLabels;
     private final GenerationLock lock;
+    private final RestaurantMatchService restaurantMatchService;
     private final TransactionTemplate readTransaction;
     private final TransactionTemplate writeTransaction;
 
@@ -114,6 +118,7 @@ public class ItineraryEditService {
                                 DayScheduler dayScheduler,
                                 PlaceTypeLabels typeLabels,
                                 GenerationLock lock,
+                                RestaurantMatchService restaurantMatchService,
                                 PlatformTransactionManager transactionManager) {
         this.tripRepository = tripRepository;
         this.preferenceRepository = preferenceRepository;
@@ -129,6 +134,7 @@ public class ItineraryEditService {
         this.dayScheduler = dayScheduler;
         this.typeLabels = typeLabels;
         this.lock = lock;
+        this.restaurantMatchService = restaurantMatchService;
         this.readTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction.setReadOnly(true);
         this.writeTransaction = new TransactionTemplate(transactionManager);
@@ -265,6 +271,9 @@ public class ItineraryEditService {
             throw new ConflictException("이미 일정을 만들거나 고치고 있어요. 잠시만 기다려주세요.");
         }
         try {
+            // 고른 식당이 아직 Google에서 확인 전이면 먼저 확인한다 (트랜잭션 밖, 1건). 폐업 의심이면 아래 doReplace에서 막힌다.
+            // Google이 실패하면 기록 없이 통과 (일정 생성과 같은 원칙)
+            restaurantMatchService.verify(Set.of(restaurantId));
             return writeTransaction.execute(status -> doReplace(userId, tripId, stopId, restaurantId));
         } finally {
             lock.release(tripId);
@@ -277,6 +286,11 @@ public class ItineraryEditService {
 
         if (Objects.equals(stop.getRestaurant().getId(), restaurantId)) {
             throw new IllegalArgumentException("이미 이 식당으로 정해져 있어요.");
+        }
+        // Google에서 찾지 못했거나 폐업으로 나온 식당은 후보였더라도(저장된 대안 포함) 넣지 않는다
+        Restaurant requested = restaurantRepository.findById(restaurantId).orElse(null);
+        if (requested != null && requested.isExcludedByGoogleMatch()) {
+            throw new IllegalArgumentException(CLOSED_RESTAURANT_MESSAGE);
         }
         RestaurantCandidate chosen = findChosen(target, restaurantId);
         Restaurant replacement = chosen.restaurant();
