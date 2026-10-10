@@ -60,6 +60,10 @@ app:
     page-size: 3                 # 검색 결과 몇 개를 비교할지
     verify-rounds: 2             # 폐업 의심 식당을 빼고 다시 계산하는 최대 횟수
 
+  review-insight:                # 식당 상세의 Google 리뷰를 AI(gpt-4o-mini)로 읽고 차별·불친절·위생·좋은 점 표시 (저장 안 함)
+    enabled: true
+    timeout-seconds: 8           # 넘으면 분석 없이 상세를 돌려준다
+
   travel:
     use-google-routes: false     # true면 도보 시간을 Google Routes(WALK)에서 실시간 조회 (저장 안 함)
     walk-threshold-minutes: 20   # 이 시간 이내는 도보

@@ -14,10 +14,13 @@ import com.example.japantravelplanner.restaurant.dto.RestaurantDetailResponseDto
 import com.example.japantravelplanner.restaurant.entity.GoogleMatchStatus;
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
 import com.example.japantravelplanner.restaurant.match.RestaurantMatchService;
+import com.example.japantravelplanner.restaurant.review.ReviewInsightAnalyzer;
+import com.example.japantravelplanner.attraction.dto.AttractionDetailResponseDto.ReviewDto;
 import com.example.japantravelplanner.restaurant.repository.RestaurantRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Set;
 
 import static com.example.japantravelplanner.attraction.service.PlaceContentMapper.text;
@@ -42,6 +45,7 @@ public class RestaurantDetailService {
     private final RestaurantMatchService matchService;
     private final GooglePlacesClient placesClient;
     private final GoogleProperties googleProperties;
+    private final ReviewInsightAnalyzer reviewInsightAnalyzer;
 
     public RestaurantDetailResponseDto details(Long restaurantId) {
         Restaurant restaurant = find(restaurantId);
@@ -62,11 +66,13 @@ public class RestaurantDetailService {
         }
 
         PlaceDetails place = restaurantPlace.details();
+        List<ReviewDto> reviews = PlaceContentMapper.reviews(place);
         GoogleDto google = new GoogleDto(restaurant.getGooglePlaceId(), text(place.displayName()),
                 text(place.editorialSummary()), place.rating(), place.userRatingCount(),
                 PlaceContentMapper.openingHours(place), place.websiteUri(), place.googleMapsUri(),
-                PlaceContentMapper.photos(place), PlaceContentMapper.reviews(place),
-                RestaurantFeatures.from(restaurantPlace));
+                PlaceContentMapper.photos(place), reviews,
+                RestaurantFeatures.from(restaurantPlace),
+                reviewInsightAnalyzer.analyze(reviews));   // 저장하지 않고 볼 때마다 분석, 실패하면 null
         return new RestaurantDetailResponseDto(restaurant.getId(), restaurant.getName(), restaurant.getGenre(),
                 restaurant.getAddress(), tabelog(restaurant), GoogleStatus.MATCHED, null, google,
                 PlaceContentMapper.ATTRIBUTION, PlaceContentMapper.REVIEW_NOTICE);

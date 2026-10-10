@@ -18,6 +18,8 @@ import com.example.japantravelplanner.restaurant.dto.RestaurantDetailResponseDto
 import com.example.japantravelplanner.restaurant.entity.GoogleMatchStatus;
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
 import com.example.japantravelplanner.restaurant.match.RestaurantMatchService;
+import com.example.japantravelplanner.restaurant.dto.ReviewInsightsDto;
+import com.example.japantravelplanner.restaurant.review.ReviewInsightAnalyzer;
 import com.example.japantravelplanner.restaurant.repository.RestaurantRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,6 +46,7 @@ class RestaurantDetailServiceTest {
     private final RestaurantMatchService matchService = mock(RestaurantMatchService.class);
     private final GooglePlacesClient placesClient = mock(GooglePlacesClient.class);
     private final GoogleProperties properties = new GoogleProperties();
+    private final ReviewInsightAnalyzer analyzer = mock(ReviewInsightAnalyzer.class);
     private RestaurantDetailService service;
 
     private final Restaurant sushi = Restaurant.builder().id(1L).name("鮨いしかわ").genre("寿司")
@@ -55,7 +58,7 @@ class RestaurantDetailServiceTest {
     void setUp() {
         properties.setPhotoMaxWidthPx(800);
         when(repository.findById(1L)).thenReturn(Optional.of(sushi));
-        service = new RestaurantDetailService(repository, matchService, placesClient, properties);
+        service = new RestaurantDetailService(repository, matchService, placesClient, properties, analyzer);
     }
 
     private void matched() {
@@ -119,6 +122,29 @@ class RestaurantDetailServiceTest {
         assertThat(features.acceptsCashOnly()).isFalse();
         assertThat(features.priceMinYen()).isEqualTo(10000);
         assertThat(features.priceMaxYen()).isEqualTo(20000);
+    }
+
+    @Test
+    void 리뷰_분석_결과를_구글_정보에_담고_실패하면_null이다() {
+        matched();
+        when(placesClient.restaurantDetails(PLACE_ID)).thenReturn(Optional.of(place()));
+        ReviewInsightsDto insights = new ReviewInsightsDto(List.of(), List.of(), "안내");
+        when(analyzer.analyze(any())).thenReturn(insights).thenReturn(null);
+
+        assertThat(service.details(1L).google().reviewInsights()).isSameAs(insights);
+        RestaurantDetailResponseDto failed = service.details(1L);
+        assertThat(failed.google().reviewInsights()).isNull();      // 분석만 빠지고
+        assertThat(failed.google().reviews()).hasSize(1);           // 상세는 그대로
+        verify(analyzer, times(2)).analyze(argThat(list -> list.size() == 1 && list.get(0).text().equals("초밥이 훌륭해요")));
+    }
+
+    @Test
+    void 구글_정보가_없으면_리뷰_분석도_하지_않는다() {
+        sushi.recordGoogleMatch(GoogleMatchStatus.NOT_FOUND, null, LocalDateTime.now());
+
+        service.details(1L);
+
+        verifyNoInteractions(analyzer);
     }
 
     @Test

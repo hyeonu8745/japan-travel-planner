@@ -52,11 +52,12 @@ public record RestaurantDetailResponseDto(
      * @param summary       한 줄 소개 (식당은 없는 곳이 많다)
      * @param photos        최대 5장. GET /api/restaurants/{id}/photo?name= 로 주소를 받는다
      * @param features      식당 특성 (10-09 추가)
+     * @param reviewInsights 리뷰 분석: 차별·불친절·위생·한국인에게 좋은 점 (10-10 추가). 리뷰가 없거나 분석 실패면 null
      */
     public record GoogleDto(String placeId, String localizedName, String summary, Double rating,
                             Integer userRatingCount, List<String> openingHours, String websiteUri,
                             String googleMapsUri, List<PhotoDto> photos, List<ReviewDto> reviews,
-                            FeaturesDto features) {
+                            FeaturesDto features, ReviewInsightsDto reviewInsights) {
     }
 
     /**
