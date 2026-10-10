@@ -2,6 +2,7 @@ package com.example.japantravelplanner.itinerary.planner;
 
 import com.example.japantravelplanner.itinerary.candidate.DayZone;
 import com.example.japantravelplanner.itinerary.candidate.ScoredAttraction;
+import com.example.japantravelplanner.itinerary.travel.LegMode;
 import com.example.japantravelplanner.itinerary.travel.TravelLeg;
 import com.example.japantravelplanner.itinerary.travel.TravelMatrix;
 import com.example.japantravelplanner.itinerary.travel.TravelPoint;
@@ -32,6 +33,7 @@ import java.util.List;
  * 고친 뒤에도 저녁 전에 1시간 이상 비면(식사 시간대 대기) 예비 관광지를 끼워 넣는다
  *
  * 이동 시간 표는 하루에 한 번만 만든다 (Google 실시간 도보 조회가 켜져 있어도 호출은 한 번)
+ * 하루 도보 거리 제한("하루 2km 이내 도보")이 있으면 탈것 표를 하나 더 만들어, 걸은 거리가 제한을 넘는 구간부터 탈것으로 바꾼다
  * 단, 끼워 넣어서 이동이 15분 넘게 늘어나는 예비는 쓰지 않는다 (멀리 돌아가는 일정 방지)
  */
 @Slf4j
@@ -92,8 +94,7 @@ public class DayScheduler {
             spares.add(attractionItem(a, points, stayMultiplier));
         }
 
-        TravelMatrix matrix = travelTimeService.buildMatrix(points, options.mode(), options.walkThresholdMinutes());
-        Context ctx = new Context(matrix, toMinutes(window.start()), toMinutes(window.end()));
+        Context ctx = context(points, options, toMinutes(window.start()), toMinutes(window.end()));
 
         // ② 시간이 안 맞으면 고치기
         List<Item> droppedItems = new ArrayList<>();
@@ -169,8 +170,7 @@ public class DayScheduler {
             sequence.add(new Item(item.type(), null, null, index, item.stayMinutes(), 0));
         }
 
-        TravelMatrix matrix = travelTimeService.buildMatrix(points, options.mode(), options.walkThresholdMinutes());
-        Sim sim = simulateSequence(sequence, new Context(matrix, toMinutes(windowStart), toMinutes(windowEnd)));
+        Sim sim = simulateSequence(sequence, context(points, options, toMinutes(windowStart), toMinutes(windowEnd)));
 
         List<String> warnings = new ArrayList<>();
         if (sim.lunchLate) warnings.add("점심 시간이 13:30을 넘겼어요.");
@@ -185,6 +185,19 @@ public class DayScheduler {
 
     // ── 시간 계산 ──
 
+    /**
+     * 이동 시간 표. 하루 도보 제한이 있으면 걷는 기준 0분으로 만든 탈것 표도 같이 둔다
+     * (탈것 표도 아주 가까운 곳은 걷는 쪽이 빨라서 걷기로 남는다)
+     */
+    private Context context(List<TravelPoint> points, TravelOptions options, int start, int end) {
+        TravelMatrix matrix = travelTimeService.buildMatrix(points, options.mode(), options.walkThresholdMinutes());
+        if (options.dailyWalkMeters() == null) {
+            return new Context(matrix, null, Integer.MAX_VALUE, start, end);
+        }
+        TravelMatrix rides = travelTimeService.buildMatrix(points, options.mode(), 0);
+        return new Context(matrix, rides, options.dailyWalkMeters(), start, end);
+    }
+
     /** 계획대로 하루를 보냈을 때의 시각표와 문제점 */
     static Sim simulate(Plan plan, Context ctx) {
         return simulateSequence(plan.sequence(), ctx);
@@ -197,9 +210,15 @@ public class DayScheduler {
         boolean dinnerLate = false;
         int now = ctx.start;
         int prev = 0;
+        int walked = 0;
 
         for (Item item : sequence) {
             TravelLeg leg = ctx.matrix.get(prev, item.pointIndex);
+            // 하루 도보 제한: 이 구간까지 걸으면 넘는 경우 탈것으로
+            if (leg.mode() == LegMode.WALK && ctx.rides != null && walked + leg.distanceMeters() > ctx.walkBudget) {
+                leg = ctx.rides.get(prev, item.pointIndex);
+            }
+            if (leg.mode() == LegMode.WALK) walked += leg.distanceMeters();
             int arrive = now + leg.minutes() + MOVE_BUFFER_MINUTES;
             int begin = arrive;
 
@@ -405,7 +424,11 @@ public class DayScheduler {
 
     // ── 내부 자료 ──
 
-    private record Context(TravelMatrix matrix, int start, int end) {
+    /**
+     * @param rides      걷는 기준 0분으로 만든 탈것 표 (하루 도보 제한이 없으면 null)
+     * @param walkBudget 하루에 걸을 최대 거리(미터)
+     */
+    private record Context(TravelMatrix matrix, TravelMatrix rides, int walkBudget, int start, int end) {
     }
 
     /** 일정 항목 하나. pointIndex는 이동 시간 표의 번호 */

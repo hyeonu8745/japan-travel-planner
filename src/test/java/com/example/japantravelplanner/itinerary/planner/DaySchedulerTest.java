@@ -167,6 +167,28 @@ class DaySchedulerTest {
     }
 
     @Test
+    void 하루_도보_거리를_넘는_구간부터는_대중교통으로_간다() {
+        // 10-10 여행 8 이동 조건 "하루 2km 이내 도보". 약 1.1km 간격(걸어서 17분, 도보 기준 30분 안)
+        ScoredAttraction n1 = spot(41, "북쪽1", "tourist_attraction", 35.7050, 139.7020, 4.8);
+        ScoredAttraction n2 = spot(42, "북쪽2", "tourist_attraction", 35.7150, 139.7020, 4.7);
+        ScoredAttraction n3 = spot(43, "북쪽3", "tourist_attraction", 35.7250, 139.7020, 4.6);
+        DayRoute route = route(List.of(n1, n2, n3), List.of(), null);
+        DayWindow allDay = window("09:30", "21:00", false, false);
+
+        ScheduledDay free = scheduler.schedule(route, new DayMeals(null, null), allDay, HOTEL,
+                new TravelOptions(LegMode.TRANSIT, 30), 1.0);
+        ScheduledDay limited = scheduler.schedule(route, new DayMeals(null, null), allDay, HOTEL,
+                new TravelOptions(LegMode.TRANSIT, 30, false, 2000), 1.0);
+
+        assertThat(free.stops()).extracting(s -> s.travelIn().mode()).containsOnly(LegMode.WALK);
+        assertThat(limited.stops()).extracting(s -> s.travelIn().mode())
+                .containsExactly(LegMode.WALK, LegMode.TRANSIT, LegMode.TRANSIT);
+        int walked = limited.stops().stream().filter(s -> s.travelIn().mode() == LegMode.WALK)
+                .mapToInt(s -> s.travelIn().distanceMeters()).sum();
+        assertThat(walked).isLessThanOrEqualTo(2000);
+    }
+
+    @Test
     void 긴_곳을_빼다가_짧은_곳까지_빠지면_혼자_들어가는_곳은_되돌린다() {
         // 10-10 여행 8 v10 마지막 날(09:30~12:00, 숙소에서 30분 넘게 이동): 박물관 2곳과 40분짜리 平将門塚가 모두 빠져 하루가 비었다
         ScoredAttraction m1 = spot(21, "絶滅メディア博物館", "museum", 35.6984, 139.7731, 4.8);

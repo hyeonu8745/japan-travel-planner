@@ -37,11 +37,28 @@ class TravelOptionsTest {
     }
 
     @Test
-    void 여유_속도나_조건_입력의_이동_제약이면_짧게_가까운_곳_위주() {
-        assertThat(TravelOptions.of(trip(TravelPace.RELAXED, null), List.of(), props))
-                .isEqualTo(new TravelOptions(LegMode.TRANSIT, 10, true));
+    void 조건_입력의_이동_제약이면_짧게_가까운_곳_위주() {
         assertThat(TravelOptions.of(trip(TravelPace.NORMAL, "무릎이 안 좋아요"), List.of(), props))
                 .isEqualTo(new TravelOptions(LegMode.TRANSIT, 10, true));
+    }
+
+    @Test
+    void 여유_속도는_이동_범위를_줄이지_않는다() {
+        // 10-10 사용자 결정 (나): 여유 속도는 장소 수·체류 시간만 줄인다. 여행 8은 여유 속도라 1km 남짓도 대중교통이 됐다
+        assertThat(TravelOptions.of(trip(TravelPace.RELAXED, null), List.of(), props))
+                .isEqualTo(new TravelOptions(LegMode.TRANSIT, 30, false));
+    }
+
+    @Test
+    void 하루_도보_거리를_말하면_제한으로_쓴다() {
+        // 10-10 여행 8의 실제 이동 조건
+        TravelOptions options = TravelOptions.of(trip(TravelPace.RELAXED, null), mobility("하루 2km 이내 도보"), props);
+
+        assertThat(options).isEqualTo(new TravelOptions(LegMode.TRANSIT, 30, false, 2000));
+        assertThat(TravelOptions.statedDailyWalkMeters("하루에 1.5킬로 정도만 걷고 싶어요")).isEqualTo(1500);
+        assertThat(TravelOptions.statedDailyWalkMeters("도보 800m 이내")).isEqualTo(800);
+        assertThat(TravelOptions.statedDailyWalkMeters("하루 2km")).isNull();        // 걷는 이야기가 없으면 아님
+        assertThat(TravelOptions.statedDailyWalkMeters("하루 100km 걸어도 돼요")).isEqualTo(20_000);
     }
 
     @Test

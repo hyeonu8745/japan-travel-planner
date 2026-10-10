@@ -5,7 +5,6 @@ import com.example.japantravelplanner.itinerary.travel.TravelProperties;
 import com.example.japantravelplanner.trip.entity.ConstraintCategory;
 import com.example.japantravelplanner.trip.entity.PreferenceConstraint;
 import com.example.japantravelplanner.trip.entity.TransportMode;
-import com.example.japantravelplanner.trip.entity.TravelPace;
 import com.example.japantravelplanner.trip.entity.Trip;
 
 import java.util.List;
@@ -16,7 +15,9 @@ import java.util.regex.Pattern;
  * 여행 하나의 이동 방식. 동선·끼니·시간 계산이 모두 같은 값을 쓰도록 한 곳에서 정한다.
  *
  * 걷는 기준 (10-10 사용자 결정: 기본은 30분까지 걷는다, 가까운 곳을 원하면 예전처럼 좁게)
- *  1. 여유 속도이거나 조건 입력에 이동 제약이 있으면 짧게 (relaxed, 가까운 곳 위주)
+ *  1. 조건 입력에 이동 제약이 있으면 짧게 (relaxed, 가까운 곳 위주)
+ *     여유 속도는 하루 장소 수·체류 시간만 줄이고 이동 범위는 기본과 같다 (10-10 사용자 결정 (나):
+ *     "여유롭게"는 덜 바쁘게이지 가까운 곳만이 아니다. 여행 8이 여유 속도라 1km 남짓도 대중교통이 됐다)
  *  2. 대화의 이동 조건에 "N분 정도 걸어서"처럼 시간이 있으면 그 시간 (10~40분, 기본보다 짧으면 가까운 곳 위주)
  *  3. 대화에서 가까운 곳·적게 걷기·계단·체력 이야기가 있으면 짧게 (가까운 곳 위주)
  *  4. 그 밖에는 기본 (30분, 지역 안에서 넓게)
@@ -26,8 +27,9 @@ import java.util.regex.Pattern;
  * @param mode                 기본 이동수단 (대중교통 또는 렌트카)
  * @param walkThresholdMinutes 이 시간 이내는 걸어감
  * @param compact              가까운 곳 위주 (true면 하루 관광지를 점수순으로만 고르고, false면 지역 안에서 종류·위치를 섞는다)
+ * @param dailyWalkMeters      하루에 걸을 최대 거리(미터). 넘으면 그 뒤 구간은 대중교통·차 ("하루 2km 이내 도보"). 없으면 null
  */
-public record TravelOptions(LegMode mode, int walkThresholdMinutes, boolean compact) {
+public record TravelOptions(LegMode mode, int walkThresholdMinutes, boolean compact, Integer dailyWalkMeters) {
 
     static final int MIN_WALK_MINUTES = 10;
     static final int MAX_WALK_MINUTES = 40;
@@ -45,9 +47,20 @@ public record TravelOptions(LegMode mode, int walkThresholdMinutes, boolean comp
     /** "30분 정도 걸어서", "도보 20분" 같은 말에서 분을 찾는다 */
     private static final Pattern WALK_MINUTES = Pattern.compile("(\\d{1,2})\\s*분[^.,]{0,12}?(걸|걷|도보)|(걸|걷|도보)[^.,]{0,8}?(\\d{1,2})\\s*분");
 
-    /** 테스트·기존 코드용 (가까운 곳 위주가 아님) */
+    static final int MIN_DAILY_WALK_METERS = 500;
+    static final int MAX_DAILY_WALK_METERS = 20_000;
+
+    /** "하루 2km", "3킬로 정도 걷", "1500m 이내 도보" (걷는 이야기가 같이 있을 때만) */
+    private static final Pattern WALK_KM = Pattern.compile("(\\d+(?:\\.\\d+)?)\\s*(km|㎞|킬로)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern WALK_M = Pattern.compile("(\\d{3,5})\\s*(m|미터)(?![a-z])", Pattern.CASE_INSENSITIVE);
+
+    /** 테스트·기존 코드용 (가까운 곳 위주가 아님, 하루 도보 제한 없음) */
     public TravelOptions(LegMode mode, int walkThresholdMinutes) {
-        this(mode, walkThresholdMinutes, false);
+        this(mode, walkThresholdMinutes, false, null);
+    }
+
+    public TravelOptions(LegMode mode, int walkThresholdMinutes, boolean compact) {
+        this(mode, walkThresholdMinutes, compact, null);
     }
 
     public static TravelOptions of(Trip trip, List<PreferenceConstraint> constraints, TravelProperties props) {
@@ -59,29 +72,45 @@ public record TravelOptions(LegMode mode, int walkThresholdMinutes, boolean comp
                 .filter(d -> d != null && !d.isBlank())
                 .toList();
 
-        // 조건 입력(여유 속도, 이동 제약)은 사용자가 직접 고른 것이라 그대로 짧게
-        boolean conditionGentle = trip.getTravelPace() == TravelPace.RELAXED
-                || (trip.getMobilityConstraints() != null && !trip.getMobilityConstraints().isBlank());
+        // 조건 입력의 이동 제약은 사용자가 직접 적은 것이라 그대로 짧게 (여유 속도는 해당 없음)
+        boolean conditionGentle = trip.getMobilityConstraints() != null && !trip.getMobilityConstraints().isBlank();
+        Integer dailyWalk = mobility.stream().map(TravelOptions::statedDailyWalkMeters)
+                .filter(m -> m != null).findFirst().orElse(null);
         boolean chatGentle = mobility.stream().anyMatch(TravelOptions::wantsGentle);
         Integer stated = mobility.stream().map(TravelOptions::statedWalkMinutes)
                 .filter(m -> m != null).findFirst().orElse(null);
 
         if (conditionGentle) {
-            return new TravelOptions(mode, props.getRelaxedWalkThresholdMinutes(), true);
+            return new TravelOptions(mode, props.getRelaxedWalkThresholdMinutes(), true, dailyWalk);
         }
         if (stated != null) {
             // "가까운 곳은 30분 정도 걸어서"처럼 가깝다는 말과 시간이 같이 오면 시간을 따른다
             int threshold = Math.max(MIN_WALK_MINUTES, Math.min(MAX_WALK_MINUTES, stated));
-            return new TravelOptions(mode, threshold, threshold < props.getWalkThresholdMinutes());
+            return new TravelOptions(mode, threshold, threshold < props.getWalkThresholdMinutes(), dailyWalk);
         }
         return chatGentle
-                ? new TravelOptions(mode, props.getRelaxedWalkThresholdMinutes(), true)
-                : new TravelOptions(mode, props.getWalkThresholdMinutes(), false);
+                ? new TravelOptions(mode, props.getRelaxedWalkThresholdMinutes(), true, dailyWalk)
+                : new TravelOptions(mode, props.getWalkThresholdMinutes(), false, dailyWalk);
     }
 
     static boolean wantsGentle(String text) {
         if (text == null) return false;
         return GENTLE_WORDS.stream().anyMatch(text::contains);
+    }
+
+    /** 하루에 걸을 거리를 말했으면 미터 (500m~20km로 자름), 없으면 null */
+    static Integer statedDailyWalkMeters(String text) {
+        if (text == null || !(text.contains("걷") || text.contains("걸") || text.contains("도보"))) return null;
+        Matcher km = WALK_KM.matcher(text);
+        Integer meters = null;
+        if (km.find()) {
+            meters = (int) Math.round(Double.parseDouble(km.group(1)) * 1000);
+        } else {
+            Matcher m = WALK_M.matcher(text);
+            if (m.find()) meters = Integer.parseInt(m.group(1));
+        }
+        if (meters == null) return null;
+        return Math.max(MIN_DAILY_WALK_METERS, Math.min(MAX_DAILY_WALK_METERS, meters));
     }
 
     /** 걷는 시간을 직접 말했으면 그 분, 없으면 null */
