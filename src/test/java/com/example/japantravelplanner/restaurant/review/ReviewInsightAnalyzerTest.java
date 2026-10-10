@@ -126,6 +126,44 @@ class ReviewInsightAnalyzerTest {
     }
 
     @Test
+    void 실제_표본에서_잘못_붙었던_유형은_규칙에서_걸러진다() {
+        // 10-10 식당 20곳 표본: 손님 이야기→차별, 직원 칭찬·언급→불친절, 맛·인기→좋은 점으로 붙었던 것 (같은 유형으로 새로 씀)
+        assertThat(ReviewTag.DISCRIMINATION.supportedBy("여러 외국인 손님들이 대기해서 오래 기다렸어요")).isFalse();
+        assertThat(ReviewTag.UNFRIENDLY.supportedBy("종업원분들께서도 굉장히 친절하시고")).isFalse();
+        assertThat(ReviewTag.UNFRIENDLY.supportedBy("직원에게 물어본 것")).isFalse();
+        assertThat(ReviewTag.KOREAN_FRIENDLY.supportedBy("한국인에게도 맛있는 우동")).isFalse();
+        assertThat(ReviewTag.KOREAN_FRIENDLY.supportedBy("규카츠 한국인 많은 것은 알죠")).isFalse();
+    }
+
+    @Test
+    void 차별은_국적_말과_다르게_대한_말이_함께_있어야_한다() {
+        assertThat(ReviewTag.DISCRIMINATION.supportedBy("외국인이라고 무시했어요")).isTrue();
+        assertThat(ReviewTag.DISCRIMINATION.supportedBy("차별받았어요")).isTrue();
+        assertThat(ReviewTag.DISCRIMINATION.supportedBy("외국인 손님이 많아요")).isFalse();
+        assertThat(ReviewTag.DISCRIMINATION.supportedBy("차별은 없었어요")).isFalse();
+    }
+
+    @Test
+    void 부정된_말은_세지_않고_불친절을_부정하면_불친절이_아니다() {
+        assertThat(ReviewTag.UNFRIENDLY.supportedBy("직원이 불친절하지는 않았어요")).isFalse();
+        assertThat(ReviewTag.UNFRIENDLY.supportedBy("직원이 특별히 친절하진 않았지만 불친절하다고 느껴지진 않았어요")).isFalse();
+        assertThat(ReviewTag.UNFRIENDLY.supportedBy("직원이 친절하지 않았어요")).isTrue();
+        assertThat(ReviewTag.KOREAN_FRIENDLY.supportedBy("한국어 메뉴는 없어요")).isFalse();
+        assertThat(ReviewTag.KOREAN_FRIENDLY.supportedBy("한국어를 못하는 직원")).isFalse();
+        assertThat(ReviewTag.KOREAN_FRIENDLY.supportedBy("혼자 가기 부담 없어요")).isTrue();   // "부담 없"은 좋은 뜻
+        assertThat(ReviewTag.HYGIENE.supportedBy("벌레는 없었어요")).isFalse();
+        assertThat(ReviewTag.HYGIENE.supportedBy("가게가 청결해요")).isFalse();
+        assertThat(ReviewTag.HYGIENE.supportedBy("위생은 좀 별로예요")).isTrue();
+    }
+
+    @Test
+    void 불친절의_친절은_친절로_세지_않는다() {
+        assertThat(ReviewTag.KOREAN_FRIENDLY.supportedBy("한국인 손님에게 불친절했어요")).isFalse();
+        assertThat(ReviewTag.KOREAN_FRIENDLY.supportedBy("한국인 손님에게 친절하게 대해 주셨어요")).isTrue();
+        assertThat(ReviewTag.UNFRIENDLY.supportedBy("한국인 손님에게 불친절했어요")).isTrue();
+    }
+
+    @Test
     void 리뷰에_없는_근거는_지어낸_것으로_보고_버린다() {
         assertThat(parse("""
                 {"reviews":[{"index":1,"findings":[{"tag":"HYGIENE","evidence":"음식이 상해 있었다"}]}]}""")
