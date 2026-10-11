@@ -54,7 +54,7 @@ class PlanSummaryTest {
                 .contains("- 담배 연기가 있을 수 있는 이자카야·바는 뺐어요.\n")
                 .contains("- 예산 안에서 찾지 못해 예산을 조금 넘는 식당이 1곳 있어요.\n")
                 .contains("- 앞 끼니와 같은 음식을 피하지 못한 식당이 1곳 있어요.\n")
-                .endsWith("장소마다 고른 이유도 함께 표시해 두었어요.");
+                .endsWith("장소마다 고른 이유도 함께 표시해 두었어요.\n" + PlanSummary.EDIT_HINT);
     }
 
     @Test
@@ -81,7 +81,7 @@ class PlanSummaryTest {
         String summary = PlanSummary.write(itinerary(List.of(
                 attractionStop(1, attraction("公園", "park", 4.0, 100), LegMode.TRANSIT, 20)), List.of()), null);
 
-        assertThat(summary).isEqualTo("일정을 이렇게 짰어요.\n장소마다 고른 이유도 함께 표시해 두었어요.");
+        assertThat(summary).isEqualTo("일정을 이렇게 짰어요.\n장소마다 고른 이유도 함께 표시해 두었어요.\n" + PlanSummary.EDIT_HINT);
     }
 
     @Test

@@ -22,6 +22,8 @@ public final class PlanSummary {
 
     /** 관심사마다 이름을 보여줄 관광지 수 (나머지는 "외 N곳") */
     static final int MAX_NAMES = 2;
+    /** 일정을 만든 뒤에는 채팅으로 고칠 수 있다고 알려준다 (10-11) */
+    static final String EDIT_HINT = "바꾸고 싶은 곳이 있으면 \"2일차 저녁을 스시로 바꿔줘\"처럼 여기에 말씀해 주세요.";
 
     private PlanSummary() {
     }
@@ -82,7 +84,8 @@ public final class PlanSummary {
 
         StringBuilder sb = new StringBuilder("일정을 이렇게 짰어요.\n");
         lines.forEach(line -> sb.append("- ").append(line).append('\n'));
-        sb.append("장소마다 고른 이유도 함께 표시해 두었어요.");
+        sb.append("장소마다 고른 이유도 함께 표시해 두었어요.\n");
+        sb.append(EDIT_HINT);
         return sb.toString();
     }
 

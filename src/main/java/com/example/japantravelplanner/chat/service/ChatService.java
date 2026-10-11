@@ -7,6 +7,7 @@ import com.example.japantravelplanner.chat.ai.PreferenceChatResult;
 import com.example.japantravelplanner.chat.ai.PreferenceChatSchema;
 import com.example.japantravelplanner.chat.ai.PreferencePrompt;
 import com.example.japantravelplanner.chat.dto.ChatMessageResponseDto;
+import com.example.japantravelplanner.chat.edit.ItineraryChatEditService;
 import com.example.japantravelplanner.chat.dto.ChatReplyResponseDto;
 import com.example.japantravelplanner.chat.dto.PreferenceResponseDto;
 import com.example.japantravelplanner.chat.entity.ChatMessage;
@@ -42,12 +43,15 @@ public class ChatService {
     private static final int MAX_CONSTRAINTS = 30;
     private static final List<TripStatus> CHAT_ALLOWED_STATUSES = List.of(
             TripStatus.CONDITIONS_SET, TripStatus.PREFERENCE_GATHERING, TripStatus.READY_TO_GENERATE);
+    /** 일정이 만들어진 뒤에는 같은 채팅이 일정 수정 대화가 된다 (10-11, 예전에는 409로 막았다) */
+    private static final List<TripStatus> EDIT_STATUSES = List.of(TripStatus.GENERATED, TripStatus.EDITING);
 
     private final TripRepository tripRepository;
     private final TripPreferenceRepository tripPreferenceRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final OpenAiClient openAiClient;
     private final JsonMapper jsonMapper;
+    private final ItineraryChatEditService editChat;
     private final TransactionTemplate readTransaction;
     private final TransactionTemplate writeTransaction;
 
@@ -56,12 +60,14 @@ public class ChatService {
                        ChatMessageRepository chatMessageRepository,
                        OpenAiClient openAiClient,
                        JsonMapper jsonMapper,
+                       ItineraryChatEditService editChat,
                        PlatformTransactionManager transactionManager) {
         this.tripRepository = tripRepository;
         this.tripPreferenceRepository = tripPreferenceRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.openAiClient = openAiClient;
         this.jsonMapper = jsonMapper;
+        this.editChat = editChat;
         this.readTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction.setReadOnly(true);
         this.writeTransaction = new TransactionTemplate(transactionManager);
@@ -70,8 +76,14 @@ public class ChatService {
     // ===================== 메시지 전송 =====================
 
     public ChatReplyResponseDto sendMessage(Long userId, Long tripId, String content) {
-        // ① 읽기: 검증하고 AI에게 보낼 맥락을 만든다
-        String context = readTransaction.execute(status -> buildContext(userId, tripId));
+        // 내 여행인지, 호출 제한을 넘지 않았는지 (두 대화 모두)
+        TripStatus tripStatus = readTransaction.execute(s -> checkTrip(userId, tripId));
+        if (EDIT_STATUSES.contains(tripStatus)) {
+            return editChat.handle(userId, tripId, content);
+        }
+
+        // ① 읽기: AI에게 보낼 맥락을 만든다
+        String context = readTransaction.execute(s -> buildContext(userId, tripId));
 
         // ② AI 호출: 수 초가 걸리므로 트랜잭션 밖에서 (DB 연결을 붙잡지 않음)
         String input = context + "\n[사용자 새 메시지]\n<<<\n" + content + "\n>>>";
@@ -81,18 +93,24 @@ public class ChatService {
         return writeTransaction.execute(status -> saveTurn(tripId, content, turn));
     }
 
+    private TripStatus checkTrip(Long userId, Long tripId) {
+        Trip trip = tripRepository.findByIdAndUserId(tripId, userId)
+                .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
+        long recentCount = chatMessageRepository.countByTripUserIdAndRoleAndCreatedAtAfter(
+                userId, ChatRole.USER, LocalDateTime.now().minusHours(1));
+        if (recentCount >= HOURLY_MESSAGE_LIMIT) {
+            throw new TooManyRequestsException("메시지를 너무 많이 보냈습니다. 잠시 후 다시 시도해주세요.");
+        }
+        return trip.getStatus();
+    }
+
     private String buildContext(Long userId, Long tripId) {
         Trip trip = tripRepository.findByIdAndUserId(tripId, userId)
                 .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
 
         if (!CHAT_ALLOWED_STATUSES.contains(trip.getStatus())) {
-            throw new ConflictException("이미 일정이 만들어진 여행입니다. 일정 수정은 플래너에서 진행해주세요.");
-        }
-
-        long recentCount = chatMessageRepository.countByTripUserIdAndRoleAndCreatedAtAfter(
-                userId, ChatRole.USER, LocalDateTime.now().minusHours(1));
-        if (recentCount >= HOURLY_MESSAGE_LIMIT) {
-            throw new TooManyRequestsException("메시지를 너무 많이 보냈습니다. 잠시 후 다시 시도해주세요.");
+            // checkTrip과 이 사이에 일정이 만들어진 경우
+            throw new ConflictException("일정이 방금 만들어졌어요. 화면을 새로고침한 뒤 다시 말씀해 주세요.");
         }
 
         TripPreference preference = tripPreferenceRepository.findByTripId(tripId).orElse(null);
@@ -343,4 +361,4 @@ public class ChatService {
 
     private record AiTurn(PreferenceChatResult result, String model) {
     }
-}
+}

@@ -38,6 +38,8 @@ class ChatServiceTest {
     private final ChatMessageRepository chatMessageRepository = mock(ChatMessageRepository.class);
     private final OpenAiClient openAiClient = mock(OpenAiClient.class);
     private final PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
+    private final com.example.japantravelplanner.chat.edit.ItineraryChatEditService editChat =
+            mock(com.example.japantravelplanner.chat.edit.ItineraryChatEditService.class);
 
     private final Trip trip = Trip.builder().id(TRIP_ID)
             .startDate(LocalDate.of(2026, 10, 12)).endDate(LocalDate.of(2026, 10, 18))
@@ -55,7 +57,7 @@ class ChatServiceTest {
         when(chatMessageRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(preferenceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         service = new ChatService(tripRepository, preferenceRepository, chatMessageRepository, openAiClient,
-                JsonMapper.builder().build(), transactionManager);
+                JsonMapper.builder().build(), editChat, transactionManager);
     }
 
     private List<ChatMessage> savedMessages() {
@@ -132,5 +134,16 @@ class ChatServiceTest {
 
         assertThat(response.assistantMessage().content()).endsWith(ReplyFlow.FOLLOW_UP);
         assertThat(savedMessages()).extracting(ChatMessage::getRole).containsExactly(ChatRole.USER, ChatRole.ASSISTANT);
+    }
+
+    @Test
+    void 일정이_만들어진_여행의_메시지는_일정_수정_대화로_넘긴다() {
+        // 10-11: 예전에는 409로 막았다
+        trip.setStatus(TripStatus.EDITING);
+
+        service.sendMessage(USER_ID, TRIP_ID, "2일차 저녁을 스시로 바꿔줘");
+
+        verify(editChat).handle(USER_ID, TRIP_ID, "2일차 저녁을 스시로 바꿔줘");
+        verifyNoInteractions(openAiClient);
     }
 }

@@ -34,6 +34,11 @@ public class ChatMessage {
     @Column(length = 50)
     private String model;
 
+    // 일정 수정 대화에서 "이렇게 바꿀까요?"라고 물은 AI 메시지에 붙는 대기 중인 변경 (JSON, 10-11).
+    // 사용자가 "네"나 번호로 답하면 이 값대로 적용한다. 그 밖의 메시지는 null
+    @Column(name = "pending_edit", columnDefinition = "text")
+    private String pendingEdit;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -41,4 +46,4 @@ public class ChatMessage {
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
     }
-}
+}
