@@ -74,11 +74,25 @@ public class RestaurantFinder {
     public List<RestaurantCandidate> findWanted(double lat, double lng, Meal meal, int maxYen, FoodFilter filter,
                                                 Set<Long> excludeIds, int limit, Set<String> wanted) {
         if (wanted == null || wanted.isEmpty()) return List.of();
+        // ① 보통 반경(1.5km까지) × 예산 단계 → ② 그래도 없으면 더 넓은 반경(2·3km) × 예산 단계 (10-11 여행 9:
+        //    "5일차 점심 장어덮밥" → 진구마에 근처 1.5km 안에 장어집이 없어 카레집만 나왔다)
+        List<RestaurantCandidate> found = findWanted(lat, lng, meal, maxYen, filter, excludeIds, limit, wanted,
+                props.getSearchRadii());
+        if (found.isEmpty() && props.getWantedExtraRadii() != null && !props.getWantedExtraRadii().isEmpty()) {
+            found = findWanted(lat, lng, meal, maxYen, filter, excludeIds, limit, wanted, props.getWantedExtraRadii());
+        }
+        if (found.isEmpty()) log.info("[Meal] {} 원하는 장르 {} 후보 없음", meal, wanted);
+        return found;
+    }
+
+    private List<RestaurantCandidate> findWanted(double lat, double lng, Meal meal, int maxYen, FoodFilter filter,
+                                                 Set<Long> excludeIds, int limit, Set<String> wanted,
+                                                 List<Integer> radii) {
         List<Double> factors = new ArrayList<>();
         factors.add(1.0);
         factors.addAll(props.getBudgetRelaxSteps());
         for (double factor : factors) {
-            for (int radius : props.getSearchRadii()) {
+            for (int radius : radii) {
                 List<RestaurantCandidate> found = search(lat, lng, radius, meal, (int) (maxYen * factor), filter,
                         excludeIds, null, factor > 1.0).stream()
                         .filter(c -> !Collections.disjoint(genresOf(c.restaurant().getGenre()), wanted))

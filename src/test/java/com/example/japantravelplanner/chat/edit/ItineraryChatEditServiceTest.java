@@ -364,6 +364,25 @@ class ItineraryChatEditServiceTest {
     }
 
     @Test
+    void 방문하는_날이_정기_휴일인_식당은_뒤로_보내고_표시한다() {
+        // 10-11 여행 9: 채팅으로 고른 1일차 점심 天三이 그날 정기 휴일이었는데 제안할 때는 말하지 않았다
+        aiSays(command("REPLACE", "D1-4", null, null, "장어덮밥"));
+        var closed = new StopCandidatesResponseDto.CandidateDto(25L, "天三", "うなぎ", 3.9, 500, "￥3,000～￥3,999",
+                "주소", "역", 35.71, 139.79, 300, new ItineraryResponseDto.TravelDto(LegMode.WALK, 4, 300, true),
+                false, false, "日曜日", true, "텐산", List.of("장어"));
+        var open = new StopCandidatesResponseDto.CandidateDto(26L, "うな鐵", "うなぎ", 3.6, 500, "￥3,000～￥3,999",
+                "주소", "역", 35.71, 139.79, 600, new ItineraryResponseDto.TravelDto(LegMode.WALK, 8, 600, true),
+                false, false, null, false, "우나테츠", List.of("장어"));
+        when(editService.candidates(eq(USER_ID), eq(TRIP_ID), eq(104L), anySet()))
+                .thenReturn(new StopCandidatesResponseDto(104L, StopType.DINNER, 5700, List.of(closed, open)));
+
+        String content = service.handle(USER_ID, TRIP_ID, "1일차 저녁 장어덮밥으로").assistantMessage().content();
+
+        assertThat(content).contains("1. 우나테츠 (장어 · 타베로그 3.60 · 걸어서 8분)")
+                .contains("2. 텐산 (장어 · 타베로그 3.90 · 걸어서 4분 · 이 날 정기 휴일)");
+    }
+
+    @Test
     void 원하는_음식이_넓게_찾아도_없으면_어느_끼니인지_밝히고_보통_후보를_보여준다() {
         aiSays(command("REPLACE", "D1-4", null, null, "스시"));
         when(editService.candidates(eq(USER_ID), eq(TRIP_ID), eq(104L), anySet()))

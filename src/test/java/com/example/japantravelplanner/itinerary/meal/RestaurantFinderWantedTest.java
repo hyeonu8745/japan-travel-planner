@@ -63,6 +63,33 @@ class RestaurantFinderWantedTest {
     }
 
     @Test
+    void 보통_반경_1500m_안에_없으면_3km까지_넓혀서_찾는다() {
+        // 여행 9: "5일차 점심 장어덮밥" → 진구마에 근처 1.5km 안에 장어집이 없어 카레집만 나왔다
+        Restaurant unagi = restaurant(12, "장어집", "うなぎ", 5000);
+        when(repository.findWithinRadius(anyDouble(), anyDouble(), eq(3000.0))).thenReturn(List.of(pizza, unagi));
+
+        List<RestaurantCandidate> found = finder.findWanted(35.663, 139.745, Meal.DINNER, 5700, NO_FILTER,
+                Set.of(), 10, Set.of("うなぎ"));
+
+        assertThat(found).extracting(c -> c.restaurant().getName()).containsExactly("장어집");
+        verify(repository).findWithinRadius(anyDouble(), anyDouble(), eq(2000.0));
+    }
+
+    @Test
+    void 가까운_곳에서_예산을_조금_넘는_곳이_있으면_더_멀리_가지_않는다() {
+        Restaurant near = restaurant(13, "가까운 장어집", "うなぎ", 7500);   // 1.4배 안
+        Restaurant far = restaurant(14, "먼 장어집", "うなぎ", 5000);
+        when(repository.findWithinRadius(anyDouble(), anyDouble(), eq(1500.0))).thenReturn(List.of(near));
+        when(repository.findWithinRadius(anyDouble(), anyDouble(), eq(2000.0))).thenReturn(List.of(near, far));
+
+        List<RestaurantCandidate> found = finder.findWanted(35.663, 139.745, Meal.DINNER, 5700, NO_FILTER,
+                Set.of(), 10, Set.of("うなぎ"));
+
+        assertThat(found).extracting(c -> c.restaurant().getName()).containsExactly("가까운 장어집");
+        verify(repository, never()).findWithinRadius(anyDouble(), anyDouble(), eq(2000.0));
+    }
+
+    @Test
     void 원하는_장르가_없거나_비어_있으면_빈_목록() {
         when(repository.findWithinRadius(anyDouble(), anyDouble(), anyDouble())).thenReturn(List.of(pizza, soba));
 

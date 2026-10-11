@@ -38,6 +38,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -218,12 +219,12 @@ public class ItineraryChatEditService {
             for (var c : found.candidates()) {
                 options.add(new Scored(c.id(), false, c.name(), c.nameKo(),
                         attractionDetail(c.labels(), c.travel(), c.fitsInDay()),
-                        matchesPlace(target, c.name(), c.nameKo(), c.labels(), true)));
+                        matchesPlace(target, c.name(), c.nameKo(), c.labels(), true), false));
             }
         } else {
             kind = PendingEdit.REPLACE_MEAL;
             Set<String> genres = target == null ? Set.of() : foodDictionary.findGenres(target, FoodPreferenceType.PREFER);
-            // 원하는 음식이 있으면 그 장르만 넓게(1.5km, 예산 조금 넘는 곳까지) 먼저 찾는다.
+            // 원하는 음식이 있으면 그 장르만 넓게(3km, 예산 조금 넘는 곳까지) 먼저 찾는다.
             // 10-11 여행 8: "둘째날 스시" → 보통 후보(500m, 예산 안)에는 스시집이 없어 이탈리안·소바만 나왔다
             StopCandidatesResponseDto found = genres.isEmpty() ? null
                     : editService.candidates(userId, tripId, stop.stopId(), genres);
@@ -235,8 +236,12 @@ public class ItineraryChatEditService {
                 boolean match = target != null && (!Collections.disjoint(genresOf(c.genre()), genres)
                         || matchesPlace(target, c.name(), c.nameKo(), c.genreLabels(), false));
                 options.add(new Scored(c.id(), true, c.name(), c.nameKo(),
-                        mealDetail(c.genre(), c.rating(), c.travel(), c.budgetRelaxed()), match));
+                        mealDetail(c.genre(), c.rating(), c.travel(), c.budgetRelaxed(), c.closedOnVisitDay()),
+                        match, c.closedOnVisitDay()));
             }
+            // 방문하는 날이 정기 휴일인 곳은 뒤로 (빼지는 않는다. 문구로 알려준다).
+            // 10-11 여행 9: 채팅으로 고른 1일차 점심 天三이 그날 정기 휴일이었는데 제안할 때는 말하지 않았다
+            options.sort(Comparator.comparing(Scored::closed));
         }
         return propose(snapshot, kind, stop.stopId(), stop.day(), null, where, stop.name(), target, options);
     }
@@ -256,7 +261,7 @@ public class ItineraryChatEditService {
         for (var c : found.candidates()) {
             options.add(new Scored(c.id(), false, c.name(), c.nameKo(),
                     attractionDetail(c.labels(), c.travel(), c.fitsInDay()),
-                    matchesPlace(target, c.name(), c.nameKo(), c.labels(), true)));
+                    matchesPlace(target, c.name(), c.nameKo(), c.labels(), true), false));
         }
         return propose(snapshot, PendingEdit.ADD, null, day, position, "DAY" + day + "에 넣을 곳", null, target, options);
     }
@@ -487,13 +492,14 @@ public class ItineraryChatEditService {
     }
 
     private static String mealDetail(String genre, Double rating, ItineraryResponseDto.TravelDto travel,
-                                     boolean overBudget) {
+                                     boolean overBudget, boolean closed) {
         List<String> parts = new ArrayList<>();
         String g = GenreLabels.joined(genre);
         if (g != null) parts.add(g);
         if (rating != null) parts.add("타베로그 " + String.format(Locale.ROOT, "%.2f", rating));
         if (travel != null) parts.add(moveLabel(travel));
         if (overBudget) parts.add("예산 조금 넘음");
+        if (closed) parts.add("이 날 정기 휴일");
         return parts.isEmpty() ? "" : " (" + String.join(" · ", parts) + ")";
     }
 
@@ -561,7 +567,8 @@ public class ItineraryChatEditService {
     }
 
     /** 후보 하나 (이름표는 한국어 이름을 채운 뒤에 만든다) */
-    private record Scored(Long id, boolean restaurant, String name, String nameKo, String detail, boolean matches) {
+    private record Scored(Long id, boolean restaurant, String name, String nameKo, String detail, boolean matches,
+                          boolean closed) {
     }
 
     /** 보여줄 후보의 한국어 이름이 없으면 만들어서(저장됨) 이름표를 만든다. 실패하면 원래 이름 */

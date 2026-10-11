@@ -108,6 +108,7 @@ app:
     prefer-bonus: 0.1            # 좋아하는 장르 가산 (타베로그 평점은 3.0~4.5 범위라 작게)
     distance-penalty-per-km: 0.1 # 멀수록 감점
     search-radii: 500,1000,1500  # 이 순서로 넓혀가며 검색
+    wanted-extra-radii: 2000,3000 # 채팅에서 원하는 음식을 말했는데 위 반경에 없으면 여기까지 더 넓혀서
     budget-relax-steps: 1.2,1.4  # 그래도 없으면 예산을 이만큼 올려서
     repeat-group-penalty: 0.15   # 같은 묶음(라멘류 등)이 이미 나왔으면 나온 횟수 × 이만큼 감점
     min-candidates: 3            # 반경 안에 후보가 이만큼 안 되면 더 넓게 (1곳뿐이면 선택지가 없음)

@@ -21,9 +21,11 @@ public class MealProperties {
     private double preferBonus = 0.1;
     private double distancePenaltyPerKm = 0.1;
     private List<Integer> searchRadii = List.of(500, 1000, 1500);
+    // 채팅에서 원하는 음식("장어덮밥")을 말했는데 searchRadii 안에 없으면 이 반경까지 더 넓혀 찾는다 (10-11)
+    private List<Integer> wantedExtraRadii = List.of(2000, 3000);
     private List<Double> budgetRelaxSteps = List.of(1.2, 1.4);
     // 여행 중 같은 묶음(라멘류 등)이 이미 나왔을 때, 다시 나오는 횟수마다 깎는 점수
     private double repeatGroupPenalty = 0.15;
     // 반경 안에 후보가 이만큼 안 되면 더 넓은 반경까지 찾아서 고른다 (후보가 1곳뿐이면 선택지 없이 정해져 버림)
     private int minCandidates = 3;
-}
+}
