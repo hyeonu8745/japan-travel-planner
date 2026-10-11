@@ -51,7 +51,7 @@ public final class NarrationInputBuilder {
         for (ScheduledDay day : days) {
             sb.append("DAY ").append(day.dayNumber()).append(" · ")
                     .append(day.date().getMonthValue()).append('/').append(day.date().getDayOfMonth())
-                    .append(" · ").append(day.zone().getLabel()).append('\n');
+                    .append(" · ").append(zonesLabel(day)).append('\n');
             if (day.stops().isEmpty()) {
                 sb.append("(일정 없음)\n");
                 continue;
@@ -62,6 +62,15 @@ public final class NarrationInputBuilder {
             }
         }
         return sb.toString();
+    }
+
+    /** 그날 도는 지역 (하루에 두 지역이면 "아사쿠사·우에노 + 아키하바라·간다") */
+    static String zonesLabel(ScheduledDay day) {
+        java.util.Set<com.example.japantravelplanner.itinerary.zone.TripZone> zones = new java.util.LinkedHashSet<>();
+        zones.add(day.zone());
+        day.stops().stream().filter(stop -> stop.attraction() != null && stop.attraction().zone() != null)
+                .forEach(stop -> zones.add(stop.attraction().zone()));
+        return com.example.japantravelplanner.itinerary.zone.TripZone.labelOf(zones);
     }
 
     /**
@@ -154,4 +163,4 @@ public final class NarrationInputBuilder {
             case ETC -> "기타";
         };
     }
-}
+}

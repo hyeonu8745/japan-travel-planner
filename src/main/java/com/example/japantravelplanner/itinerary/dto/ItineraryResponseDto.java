@@ -54,7 +54,9 @@ public record ItineraryResponseDto(
             String description,
             List<StopDto> stops,
             List<DroppedDto> dropped,
-            List<String> warnings
+            List<String> warnings,
+            List<TripZone> zones,     // 10-11 추가: 그날 실제로 도는 지역 (중심 지역 먼저, 관광지 위치로 계산). 하루에 두 지역일 수 있다
+            String zonesLabel         // zones를 한 줄로 ("아사쿠사·우에노 + 아키하바라·간다")
     ) {
     }
 
@@ -147,7 +149,19 @@ public record ItineraryResponseDto(
                 day.getWindowStart(), day.getWindowEnd(), day.getDescription(),
                 day.getStops().stream().map(stop -> toStop(stop, day.getDate(), typeLabels, alternatives, reasons)).toList(),
                 day.getDropped().stream().map(ItineraryResponseDto::toDropped).toList(),
-                List.copyOf(day.getWarnings()));
+                List.copyOf(day.getWarnings()), zonesOf(day), TripZone.labelOf(zonesOf(day)));
+    }
+
+    /** 그날 도는 지역: 저장된 중심 지역 + 관광지 위치의 지역 (방문 순서대로, 중복 없이) */
+    static List<TripZone> zonesOf(ItineraryDay day) {
+        Set<TripZone> zones = new LinkedHashSet<>();
+        if (day.getZone() != null) zones.add(day.getZone());
+        day.getStops().stream()
+                .filter(stop -> stop.getType() == StopType.ATTRACTION && stop.getAttraction() != null
+                        && stop.getAttraction().getLocation() != null)
+                .forEach(stop -> TripZone.nearest(stop.getAttraction().getLocation().getY(),
+                        stop.getAttraction().getLocation().getX()).ifPresent(zones::add));
+        return List.copyOf(zones);
     }
 
     private static StopDto toStop(ItineraryStop stop, LocalDate date, Function<String, List<String>> typeLabels,
@@ -205,4 +219,4 @@ public record ItineraryResponseDto(
     private static Double lng(org.locationtech.jts.geom.Point point) {
         return point == null ? null : point.getX();
     }
-}
+}

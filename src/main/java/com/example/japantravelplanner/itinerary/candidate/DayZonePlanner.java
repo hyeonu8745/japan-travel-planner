@@ -19,6 +19,8 @@ import java.util.stream.Collectors;
  * - 대화에서 말한 지역(SCHEDULE·ETC 조건에 지역 이름)은 꼭 포함
  * - 오다이바는 야경·쇼핑 관심사가 없으면 점수 절반 (관광지가 적어서)
  * - 첫날·마지막 날은 숙소에서 가까운 지역
+ * - 하루에 두 지역 (10-11 사용자 결정): 중심 지역에서 이동 범위(가까운 곳 위주 7km, 대중교통 10km, 렌터카 12km) 안의
+ *   이웃 지역 하나를 함께 돌고, 두 지역 관광지를 섞어서 후보로 쓴다 (예: 아사쿠사+아키하바라, 롯폰기+시부야)
  * - 날짜마다 후보: 기본은 지역 안에서 종류·위치를 섞어서 고른다 (같은 종류·500m 안이면 감점).
  *   가까운 곳 위주 여행(TravelOptions.compact)은 예전처럼 점수순
  *   (10-10 사용자 결정: 점수순으로만 고르면 浜離宮恩賜庭園 + 그 안의 三百年の松처럼 주변만 돌았다)
@@ -48,6 +50,15 @@ public class DayZonePlanner {
     public List<DayZone> plan(List<ScoredAttraction> scored, LocalDate startDate, int days, int perDay,
                               Collection<Interest> interests, List<PreferenceConstraint> constraints,
                               double hotelLat, double hotelLng, boolean compact) {
+        return plan(scored, startDate, days, perDay, interests, constraints, hotelLat, hotelLng, compact, 0);
+    }
+
+    /**
+     * @param rangeMeters 하루 이동 범위. 0보다 크면 중심 지역에서 이 거리 안의 이웃 지역 하나를 함께 돈다 (rangeMeters(...))
+     */
+    public List<DayZone> plan(List<ScoredAttraction> scored, LocalDate startDate, int days, int perDay,
+                              Collection<Interest> interests, List<PreferenceConstraint> constraints,
+                              double hotelLat, double hotelLng, boolean compact, double rangeMeters) {
 
         Map<TripZone, List<ScoredAttraction>> byZone = scored.stream()
                 .collect(Collectors.groupingBy(ScoredAttraction::zone, () -> new EnumMap<>(TripZone.class),
@@ -88,11 +99,25 @@ public class DayZonePlanner {
         // ④ 날짜마다 후보 (이미 고른 관광지는 제외)
         Set<Long> used = new HashSet<>();
         Set<String> usedBrands = new HashSet<>();   // 같은 가게의 다른 지점은 여행 전체에서 한 번 (BrandKey)
+        Set<TripZone> primaries = EnumSet.copyOf(dayOrder);
+        Map<TripZone, Integer> partnerUses = new EnumMap<>(TripZone.class);
         List<DayZone> result = new ArrayList<>();
         for (int i = 0; i < days; i++) {
             TripZone zone = dayOrder.get(i);
+            TripZone partner = rangeMeters > 0
+                    ? choosePartner(zone, byZone, used, primaries, partnerUses, perDay, interests, rangeMeters)
+                    : null;
+            if (partner != null) partnerUses.merge(partner, 1, Integer::sum);
+
+            List<ScoredAttraction> zonePool = new ArrayList<>(byZone.getOrDefault(zone, List.of()));
+            if (partner != null) {
+                byZone.getOrDefault(partner, List.of()).stream()
+                        .filter(c -> zone.distanceTo(c.lat(), c.lng()) <= rangeMeters)
+                        .forEach(zonePool::add);
+                zonePool.sort(Comparator.comparingDouble(ScoredAttraction::score).reversed());
+            }
             Map<String, ScoredAttraction> byBrand = new LinkedHashMap<>();   // 점수 높은 지점 하나만
-            byZone.getOrDefault(zone, List.of()).stream()
+            zonePool.stream()
                     .filter(c -> !used.contains(c.attraction().getId()))
                     .filter(c -> !usedBrands.contains(BrandKey.of(c.attraction().getName())))
                     .forEach(c -> byBrand.putIfAbsent(BrandKey.of(c.attraction().getName()), c));
@@ -105,12 +130,55 @@ public class DayZonePlanner {
                 used.add(c.attraction().getId());
                 usedBrands.add(BrandKey.of(c.attraction().getName()));
             });
-            result.add(new DayZone(i + 1, startDate.plusDays(i), zone, candidates));
+            result.add(new DayZone(i + 1, startDate.plusDays(i), zone, candidates, partner));
         }
 
-        log.info("[DayZone] 요청 지역 {}, 배정 {}", requested,
-                result.stream().map(d -> d.zone().getLabel()).toList());
+        log.info("[DayZone] 요청 지역 {}, 배정 {}", requested, result.stream()
+                .map(d -> d.partner() == null ? d.zone().getLabel() : d.zone().getLabel() + "+" + d.partner().getLabel())
+                .toList());
         return result;
+    }
+
+    /**
+     * 그날 함께 돌 이웃 지역. 중심 사이 거리가 rangeMeters 안인 지역 중
+     * 값 = 아직 안 쓴 상위 관광지(하루 방문 수의 절반) 점수 합 - 거리(km) × partnerDistancePenaltyPerKm
+     *      - (다른 날의 중심 지역이면 partnerReusePenalty) - (이미 함께 돈 횟수 × partnerReusePenalty)
+     * 가 가장 큰 곳. 오다이바는 지역 점수와 같은 이유로 야경·쇼핑 관심사가 없으면 점수 절반. 남은 관광지가 없으면 null
+     */
+    TripZone choosePartner(TripZone zone, Map<TripZone, List<ScoredAttraction>> byZone, Set<Long> used,
+                           Set<TripZone> primaries, Map<TripZone, Integer> partnerUses, int perDay,
+                           Collection<Interest> interests, double rangeMeters) {
+        int take = Math.max(1, (perDay + 1) / 2);
+        TripZone best = null;
+        double bestValue = Double.NEGATIVE_INFINITY;
+        for (TripZone other : TripZone.values()) {
+            if (other == zone || zone.distanceTo(other) > rangeMeters) continue;
+            double sum = byZone.getOrDefault(other, List.of()).stream()
+                    .filter(c -> !used.contains(c.attraction().getId()))
+                    .filter(c -> zone.distanceTo(c.lat(), c.lng()) <= rangeMeters)
+                    .limit(take)
+                    .mapToDouble(ScoredAttraction::score).sum();
+            if (sum == 0) continue;
+            if (other == TripZone.ODAIBA
+                    && !interests.contains(Interest.NIGHT_VIEW) && !interests.contains(Interest.SHOPPING)) {
+                sum *= 0.5;
+            }
+            double value = sum - zone.distanceTo(other) / 1000 * props.getPartnerDistancePenaltyPerKm()
+                    - (primaries.contains(other) ? props.getPartnerReusePenalty() : 0)
+                    - partnerUses.getOrDefault(other, 0) * props.getPartnerReusePenalty();
+            if (value > bestValue) {
+                best = other;
+                bestValue = value;
+            }
+        }
+        return best;
+    }
+
+    /** 이동수단·여행 성향에 따른 하루 이동 범위(미터) */
+    public double rangeMeters(boolean compact, boolean rentalCar) {
+        double km = compact ? props.getDayRangeCompactKm()
+                : rentalCar ? props.getDayRangeCarKm() : props.getDayRangeTransitKm();
+        return km * 1000;
     }
 
     /**

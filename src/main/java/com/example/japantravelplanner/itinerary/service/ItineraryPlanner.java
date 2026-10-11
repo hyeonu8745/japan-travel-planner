@@ -16,6 +16,7 @@ import com.example.japantravelplanner.itinerary.travel.TravelPoint;
 import com.example.japantravelplanner.itinerary.travel.TravelProperties;
 import com.example.japantravelplanner.trip.entity.Interest;
 import com.example.japantravelplanner.trip.entity.PreferenceConstraint;
+import com.example.japantravelplanner.trip.entity.TransportMode;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.trip.entity.TripPreference;
 import lombok.RequiredArgsConstructor;
@@ -112,9 +113,10 @@ public class ItineraryPlanner {
 
     private List<DayZone> planZones(Trip trip, List<PreferenceConstraint> constraints, Point hotel,
                                     List<ScoredAttraction> scored, boolean compact) {
+        double range = dayZonePlanner.rangeMeters(compact, trip.getTransportMode() == TransportMode.RENTAL_CAR);
         return dayZonePlanner.plan(scored, trip.getStartDate(), daysOf(trip),
                 trip.getTravelPace().attractionsPerDay(), interestsOf(trip), constraints,
-                hotel.getY(), hotel.getX(), compact);
+                hotel.getY(), hotel.getX(), compact, range);
     }
 
     public static List<PreferenceConstraint> constraintsOf(TripPreference preference) {

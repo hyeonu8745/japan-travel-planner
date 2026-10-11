@@ -85,6 +85,12 @@ app:
     same-kind-penalty: 0.15   # 하루 안에서 같은 종류(정원·절·박물관 등)를 또 고르면 감점 (가까운 곳 위주 여행은 적용 안 함)
     near-meters: 500          # 이미 고른 곳에서 이 거리 안이면
     near-penalty: 0.2         # 이만큼 감점 (한 동네에 몰리지 않게)
+    # 하루 이동 범위 (10-11 사용자 결정: 하루에 두 지역은 돈다). 중심 지역에서 이 거리 안의 이웃 지역 하나를 함께 돈다
+    day-range-compact-km: 7   # 가까운 곳 위주 (이동 제약·적게 걷기)
+    day-range-transit-km: 10  # 대중교통
+    day-range-car-km: 12      # 렌터카
+    partner-distance-penalty-per-km: 0.15   # 이웃 지역 고를 때 중심 사이 1km당 감점
+    partner-reuse-penalty: 0.5               # 다른 날의 중심 지역이거나 이미 함께 돈 지역이면 감점
 
   meal:
     krw-per-yen: 9.0             # 환율 고정값 (100엔 = 900원). #6에서 API로 교체 예정

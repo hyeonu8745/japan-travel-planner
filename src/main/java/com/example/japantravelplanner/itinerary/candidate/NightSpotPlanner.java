@@ -49,7 +49,7 @@ public final class NightSpotPlanner {
                 DayZone day = days.get(i);
                 if (result.containsKey(day.dayNumber()) || !eligible(windows.get(i))) continue;
                 for (ScoredAttraction spot : spots) {
-                    if (spot.zone() != day.zone() || usedSpots.contains(spot.attraction().getId())) continue;
+                    if (!day.covers(spot.zone()) || usedSpots.contains(spot.attraction().getId())) continue;
                     int count = kindCount.getOrDefault(NightSpots.kindOf(spot.attraction()), 0);
                     if (count >= MAX_PER_KIND) continue;
                     if (count < bestCount || (count == bestCount && spot.score() > bestSpot.score())) {

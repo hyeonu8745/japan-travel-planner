@@ -2,8 +2,6 @@ package com.example.japantravelplanner.itinerary.zone;
 
 import org.springframework.stereotype.Component;
 
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Optional;
 
 /**
@@ -13,11 +11,9 @@ import java.util.Optional;
 @Component
 public class ZoneAssigner {
 
-    static final double MAX_DISTANCE_M = 3_000;
+    static final double MAX_DISTANCE_M = TripZone.MAX_DISTANCE_M;
 
     public Optional<TripZone> assign(double lat, double lng) {
-        return Arrays.stream(TripZone.values())
-                .min(Comparator.comparingDouble(zone -> zone.distanceTo(lat, lng)))
-                .filter(zone -> zone.distanceTo(lat, lng) <= MAX_DISTANCE_M);
+        return TripZone.nearest(lat, lng);
     }
 }
