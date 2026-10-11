@@ -104,4 +104,15 @@ class StopReasonsTest {
         assertThat(StopReasons.tenThousands(19_999)).isEqualTo("1.9만");   // 반올림하지 않는다 (부풀리지 않게)
         assertThat(StopReasons.tenThousands(80_000)).isEqualTo("8만");
     }
+
+    @Test
+    void 대화에서_말한_취향과_맞는_관광지는_취향_이유가_붙는다() {
+        var shop = attraction("コトブキヤ秋葉原館", "toy_store,store", 4.3, 2_494);
+        ReasonContext ctx = new ReasonContext(List.of(), null,
+                Set.of(com.example.japantravelplanner.itinerary.candidate.Wish.HOBBY));
+
+        assertThat(StopReasons.of(attractionStop(1, shop, LegMode.TRANSIT, 20), ctx))
+                .extracting(StopReason::code, StopReason::label)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple(ReasonCode.WISH, "말씀하신 취향: 피규어·애니"));
+    }
 }

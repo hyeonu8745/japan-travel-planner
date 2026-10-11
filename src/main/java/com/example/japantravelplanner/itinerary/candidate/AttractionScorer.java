@@ -12,7 +12,7 @@ import java.util.*;
 
 /**
  * 관광지마다 점수를 매기고 지역을 배정한다.
- * 점수 = 보정 평점 + 관심사 보너스 (관심사 하나당, 최대 2개까지)
+ * 점수 = 보정 평점 + 관심사 보너스 (관심사 하나당, 최대 2개까지) + 대화에서 말한 취향(Wish) 보너스 (한 번)
  * 어느 지역에도 속하지 않는 관광지(중심에서 3km 초과)는 제외
  * 같은 장소가 여러 개로 수집된 경우 점수 높은 하나만 남긴다
  *  - 이름이 겹치고 800m 이내 (東京都庁 + 東京都庁第一本庁舎 北展望室)
@@ -32,6 +32,14 @@ public class AttractionScorer {
     private final ZoneAssigner zoneAssigner;
 
     public List<ScoredAttraction> score(List<Attraction> attractions, Collection<Interest> interests) {
+        return score(attractions, interests, Set.of());
+    }
+
+    /**
+     * @param wishes 대화에서 말한 취향(피규어 숍 등). 맞는 관광지에 관심사와 같은 크기의 가산점을 한 번 준다
+     */
+    public List<ScoredAttraction> score(List<Attraction> attractions, Collection<Interest> interests,
+                                        Collection<Wish> wishes) {
         double mean = attractions.stream()
                 .filter(a -> a.getRating() != null)
                 .mapToDouble(Attraction::getRating)
@@ -49,7 +57,7 @@ public class AttractionScorer {
             double lng = a.getLocation().getX();
             zoneAssigner.assign(lat, lng).ifPresent(zone -> {
                 double score = bayesian(a.getRating(), reviews, mean, props.getPriorReviews())
-                        + interestBonus(a, interests);
+                        + interestBonus(a, interests) + wishBonus(a, wishes);
                 result.add(new ScoredAttraction(a, zone, score));
             });
         }
@@ -69,6 +77,11 @@ public class AttractionScorer {
                 .filter(interest -> InterestTypes.matches(interest, attraction))
                 .count();
         return Math.min(matched, 2) * props.getInterestBonus();
+    }
+
+    private double wishBonus(Attraction attraction, Collection<Wish> wishes) {
+        if (wishes == null || wishes.isEmpty()) return 0;
+        return wishes.stream().anyMatch(w -> w.matches(attraction)) ? props.getInterestBonus() : 0;
     }
 
     /**
@@ -128,4 +141,4 @@ public class AttractionScorer {
     private static String normalize(String name) {
         return name.replaceAll("\\(.*?\\)|（.*?）", "").replaceAll("\\s", "");
     }
-}
+}

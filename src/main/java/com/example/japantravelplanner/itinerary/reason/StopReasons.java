@@ -2,6 +2,7 @@ package com.example.japantravelplanner.itinerary.reason;
 
 import com.example.japantravelplanner.attraction.entity.Attraction;
 import com.example.japantravelplanner.itinerary.candidate.InterestTypes;
+import com.example.japantravelplanner.itinerary.candidate.Wish;
 import com.example.japantravelplanner.itinerary.entity.ItineraryStop;
 import com.example.japantravelplanner.itinerary.meal.RestaurantFinder;
 import com.example.japantravelplanner.itinerary.planner.StopType;
@@ -17,7 +18,7 @@ import java.util.Set;
 
 /**
  * 일정 항목마다 "왜 이곳인지" 짧은 이유 (화면의 칩). AI가 아니라 서버가 고를 때 쓴 기준에서만 만든다.
- *  - 관광지: 관심사와 맞는 종류, 높은 Google 평점, 아주 많은 리뷰 (AttractionScorer 점수 = 보정 평점 + 관심사 보너스)
+ *  - 관광지: 관심사와 맞는 종류, 대화에서 말한 취향(피규어 숍 등), 높은 Google 평점, 아주 많은 리뷰 (AttractionScorer 점수 = 보정 평점 + 관심사 보너스)
  *  - 식당: 좋아하는 음식 장르, 높은 타베로그 평점 (RestaurantFinder 점수 = 보정 평점 + 선호 장르 보너스 - 거리 감점)
  *  - 공통: 앞 장소(첫 항목은 숙소)에서 걸어서 가까움
  * 저장하지 않고 응답을 만들 때마다 계산한다. 교체·추가·되돌리기 뒤에도 그 항목에 맞는 이유가 붙는다.
@@ -61,6 +62,15 @@ public final class StopReasons {
                 .toList();
     }
 
+    /** 관광지와 맞는 대화 속 취향 (점수 가산과 같은 기준: Wish.matches) */
+    public static List<Wish> matchedWishes(Attraction attraction, ReasonContext context) {
+        if (attraction == null) return List.of();
+        return ReasonContext.orNone(context).wishes().stream()
+                .filter(wish -> wish.matches(attraction))
+                .sorted()
+                .toList();
+    }
+
     /** 대화에서 말한 좋아하는 음식 장르가 있는 식당인지 (식당을 고를 때와 같은 기준: 장르 중 하나라도) */
     public static boolean matchesPreferredFood(Restaurant restaurant, ReasonContext context) {
         if (restaurant == null) return false;
@@ -81,6 +91,9 @@ public final class StopReasons {
         if (a == null) return;
         for (Interest interest : matchedInterests(a, ctx)) {
             reasons.add(new StopReason(ReasonCode.INTEREST, "관심사: " + interestLabel(interest)));
+        }
+        for (Wish wish : matchedWishes(a, ctx)) {
+            reasons.add(new StopReason(ReasonCode.WISH, "말씀하신 취향: " + wish.label()));
         }
         if (a.getRating() != null && a.getRating() >= HIGH_GOOGLE_RATING) {
             reasons.add(new StopReason(ReasonCode.HIGH_RATING,

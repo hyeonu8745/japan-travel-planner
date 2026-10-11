@@ -99,7 +99,7 @@ public class ChatService {
         List<ChatMessage> recent = new ArrayList<>(chatMessageRepository.findTop10ByTripIdOrderByIdDesc(tripId));
         Collections.reverse(recent);   // 최신순으로 가져왔으니 시간순으로 뒤집기
 
-        return describeTrip(trip) + "\n" + describePreference(preference) + "\n" + describeHistory(recent);
+        return describeTrip(trip) + "\n" + describePreference(preference) + "\n" + describeHistory(recent, trip);
     }
 
     private AiTurn askAi(Long tripId, String input) {
@@ -145,7 +145,10 @@ public class ChatService {
                     + "인원이 바뀌었다면 플래너의 '여행 조건' 메뉴에서 수정해주세요.";
         }
 
-        // ② 생성 준비 상태로 처음 바뀌는 순간에는 제안 문장을 서버가 보장
+        // ② 준비 전에는 답이 질문으로 끝나게 (AI가 "잘 전달되었습니다!"로 대화를 끊은 적이 있다)
+        reply = ReplyFlow.keepGoing(reply, result.readyToGenerate(), result.userWantsGeneration());
+
+        // ③ 생성 준비 상태로 처음 바뀌는 순간에는 제안 문장을 서버가 보장
         boolean becameReady = result.readyToGenerate() && trip.getStatus() != TripStatus.READY_TO_GENERATE;
         if (becameReady && !result.userWantsGeneration() && !reply.contains("만들어드릴까요")) {
             reply = reply.contains("?")
@@ -153,6 +156,10 @@ public class ChatService {
                     : reply + "\n\n이제 일정을 만들어드릴까요?";
         }
 
+        // 화면에서 대화 기록을 열지 않고 바로 보낸 경우에도 첫 인사가 대화 맨 앞에 오게
+        if (!chatMessageRepository.existsByTripId(tripId)) {
+            saveGreeting(trip);
+        }
         ChatMessage userMessage = chatMessageRepository.save(ChatMessage.builder()
                 .trip(trip).role(ChatRole.USER).content(content).build());
         ChatMessage assistantMessage = chatMessageRepository.save(ChatMessage.builder()
@@ -179,14 +186,36 @@ public class ChatService {
 
     // ===================== 조회 =====================
 
+    /**
+     * 대화 기록. 아직 대화가 없고 취향 대화를 할 수 있는 상태면 서버가 첫 인사(AI 호출 없음)를 남기고 돌려준다.
+     * 그래서 화면은 대화를 열자마자 AI가 먼저 묻는 모습이 된다.
+     */
     public List<ChatMessageResponseDto> getHistory(Long userId, Long tripId) {
-        return readTransaction.execute(status -> {
+        List<ChatMessageResponseDto> history = readTransaction.execute(status -> {
             tripRepository.findByIdAndUserId(tripId, userId)
                     .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
             return chatMessageRepository.findByTripIdOrderByIdAsc(tripId).stream()
                     .map(ChatMessageResponseDto::from)
                     .toList();
         });
+        if (!history.isEmpty()) return history;
+
+        return writeTransaction.execute(status -> {
+            Trip trip = tripRepository.findByIdAndUserId(tripId, userId)
+                    .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
+            // 동시에 두 번 열린 경우를 대비해 트랜잭션 안에서 다시 확인
+            if (CHAT_ALLOWED_STATUSES.contains(trip.getStatus()) && !chatMessageRepository.existsByTripId(tripId)) {
+                saveGreeting(trip);
+            }
+            return chatMessageRepository.findByTripIdOrderByIdAsc(tripId).stream()
+                    .map(ChatMessageResponseDto::from)
+                    .toList();
+        });
+    }
+
+    private ChatMessage saveGreeting(Trip trip) {
+        return chatMessageRepository.save(ChatMessage.builder()
+                .trip(trip).role(ChatRole.ASSISTANT).content(ChatGreeting.of(trip)).build());
     }
 
     public PreferenceResponseDto getPreference(Long userId, Long tripId) {
@@ -253,9 +282,10 @@ public class ChatService {
                 blankToNone(preference.getSummary()));
     }
 
-    private String describeHistory(List<ChatMessage> messages) {
+    private String describeHistory(List<ChatMessage> messages, Trip trip) {
         if (messages.isEmpty()) {
-            return "[최근 대화]\n- 없음\n";
+            // 첫 인사가 아직 저장되기 전이라도 AI는 자기가 먼저 음식을 물었다고 알아야 한다
+            return "[최근 대화]\nAI: " + ChatGreeting.of(trip) + "\n";
         }
         return "[최근 대화]\n" + messages.stream()
                 .map(m -> (m.getRole() == ChatRole.USER ? "사용자: " : "AI: ") + m.getContent())

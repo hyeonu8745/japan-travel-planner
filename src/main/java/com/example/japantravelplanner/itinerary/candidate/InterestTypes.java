@@ -29,6 +29,9 @@ public final class InterestTypes {
             Interest.FOOD, Set.of("market")
     );
 
+    /** 이름에 이 말이 있으면 market이어도 먹거리 시장이 아니다 (주방용품 거리) */
+    private static final java.util.List<String> NOT_FOOD_NAMES = java.util.List.of("道具", "かっぱ橋", "合羽橋");
+
     /** 관심사와 어울리는 type (야경은 type이 아니라 NightSpots 목록으로 판단해서 비어 있다) */
     public static Set<String> of(Interest interest) {
         return TYPES.getOrDefault(interest, Set.of());
@@ -40,6 +43,18 @@ public final class InterestTypes {
         if (attraction.getTypes() == null) return false;
         Set<String> types = Arrays.stream(attraction.getTypes().split(","))
                 .map(String::trim).collect(Collectors.toSet());
+        if (interest == Interest.FOOD && !isFoodMarket(attraction, types)) return false;
         return of(interest).stream().anyMatch(types::contains);
+    }
+
+    /**
+     * market type 중 먹거리와 상관없는 곳은 '현지 음식'으로 보지 않는다.
+     * 10-10 요약에 "관심사 '현지 음식'에 맞는 곳: アメ横商店街, かっぱ橋道具街"가 나왔다 — 갓파바시는 주방용품 거리다.
+     * 할인점(ドン・キホーテ)도 market이 붙어 있어 뺀다
+     */
+    private static boolean isFoodMarket(Attraction attraction, Set<String> types) {
+        String name = attraction.getName() == null ? "" : attraction.getName();
+        if (NOT_FOOD_NAMES.stream().anyMatch(name::contains)) return false;
+        return !types.contains("discount_store");
     }
 }

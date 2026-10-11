@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.itinerary.reason;
 
+import com.example.japantravelplanner.itinerary.candidate.Wish;
 import com.example.japantravelplanner.itinerary.entity.Itinerary;
 import com.example.japantravelplanner.itinerary.entity.ItineraryStop;
 import com.example.japantravelplanner.itinerary.planner.StopType;
@@ -42,6 +43,19 @@ public final class PlanSummary {
         byInterest.forEach((interest, names) -> lines.add(names.isEmpty()
                 ? "관심사 '" + StopReasons.interestLabel(interest) + "'에 맞는 곳은 이번 동선에 넣지 못했어요."
                 : "관심사 '" + StopReasons.interestLabel(interest) + "'에 맞는 곳: " + names(names)));   // 이름 뒤 조사(을/를)는 받침에 따라 달라져서 쓰지 않는다
+
+        // 대화에서 말한 취향 (관심사 체크박스에 없는 것)
+        Map<Wish, Set<String>> byWish = new LinkedHashMap<>();
+        ctx.wishes().stream().sorted().forEach(wish -> byWish.put(wish, new LinkedHashSet<>()));
+        for (ItineraryStop stop : stops) {
+            if (stop.getType() != StopType.ATTRACTION) continue;
+            for (Wish wish : StopReasons.matchedWishes(stop.getAttraction(), ctx)) {
+                byWish.get(wish).add(stop.getAttraction().getName());
+            }
+        }
+        byWish.forEach((wish, names) -> lines.add(names.isEmpty()
+                ? "말씀하신 '" + wish.label() + "' 취향에 맞는 곳은 이번 동선에 넣지 못했어요."
+                : "말씀하신 '" + wish.label() + "' 취향에 맞는 곳: " + names(names)));
 
         // 식당
         List<ItineraryStop> meals = stops.stream().filter(stop -> stop.getType() != StopType.ATTRACTION).toList();

@@ -32,7 +32,8 @@ public class DayZonePlanner {
     private static final Map<TripZone, List<String>> ALIASES = Map.of(
             TripZone.ASAKUSA_UENO, List.of("아사쿠사", "우에노", "야나카", "센소지"),
             TripZone.GINZA_TOKYO, List.of("긴자", "도쿄역", "마루노우치", "니혼바시", "쓰키지", "쓰키시마", "황궁"),
-            TripZone.AKIHABARA_KANDA, List.of("아키하바라", "간다", "진보초", "구단시타", "야스쿠니"),
+            TripZone.AKIHABARA_KANDA, List.of("아키하바라", "간다", "진보초", "구단시타", "야스쿠니",
+                    "피규어", "프라모델", "건프라", "애니"),   // 피규어·애니 숍이 모인 곳 (Wish.HOBBY)
             TripZone.SHINJUKU, List.of("신주쿠", "가부키초", "도청"),
             TripZone.SHIBUYA_HARAJUKU, List.of("시부야", "하라주쿠", "오모테산도", "메이지", "요요기"),
             TripZone.ROPPONGI_TOWER, List.of("롯폰기", "도쿄타워", "도쿄 타워", "아자부"),
@@ -173,4 +174,4 @@ public class DayZonePlanner {
         }
         return result;
     }
-}
+}

@@ -3,6 +3,7 @@ package com.example.japantravelplanner.itinerary.reason;
 /** 일정 항목을 고른 이유의 종류 (화면에서 칩 색·아이콘을 고를 때 쓴다) */
 public enum ReasonCode {
     INTEREST,      // 관심사와 맞는 종류의 관광지
+    WISH,          // 대화에서 말한 취향과 맞는 관광지 (관심사 체크박스에 없는 것, 10-11 추가)
     HIGH_RATING,   // 평점이 높음 (관광지: Google, 식당: 타베로그)
     MANY_REVIEWS,  // 리뷰가 아주 많은 관광지
     FOOD_PREFER,   // 대화에서 말한 좋아하는 음식

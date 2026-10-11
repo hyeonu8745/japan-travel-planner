@@ -6,6 +6,7 @@ import com.example.japantravelplanner.itinerary.candidate.DayZone;
 import com.example.japantravelplanner.itinerary.candidate.DayZonePlanner;
 import com.example.japantravelplanner.itinerary.candidate.NightSpotPlanner;
 import com.example.japantravelplanner.itinerary.candidate.ScoredAttraction;
+import com.example.japantravelplanner.itinerary.candidate.Wish;
 import com.example.japantravelplanner.itinerary.meal.FoodFilter;
 import com.example.japantravelplanner.itinerary.meal.FoodFilterResolver;
 import com.example.japantravelplanner.itinerary.meal.MealBudget;
@@ -71,7 +72,7 @@ public class ItineraryPlanner {
         FoodFilter filter = foodFilterResolver.resolve(constraints, trip.getAllergies());
         MealHistory history = new MealHistory();
 
-        List<ScoredAttraction> scored = scoredAttractions(trip);
+        List<ScoredAttraction> scored = scoredAttractions(trip, constraints);
         List<DayZone> zones = planZones(trip, constraints, hotel, scored, options.compact());
         List<DayWindow> windows = new ArrayList<>();
         for (DayZone day : zones) {
@@ -102,11 +103,11 @@ public class ItineraryPlanner {
     /** 날짜별 지역과 관광지 후보 (②③ 단계) */
     public List<DayZone> planZones(Trip trip, List<PreferenceConstraint> constraints, Point hotel) {
         boolean compact = TravelOptions.of(trip, constraints, travelProperties).compact();
-        return planZones(trip, constraints, hotel, scoredAttractions(trip), compact);
+        return planZones(trip, constraints, hotel, scoredAttractions(trip, constraints), compact);
     }
 
-    private List<ScoredAttraction> scoredAttractions(Trip trip) {
-        return scorer.score(attractionRepository.findAll(), interestsOf(trip));
+    private List<ScoredAttraction> scoredAttractions(Trip trip, List<PreferenceConstraint> constraints) {
+        return scorer.score(attractionRepository.findAll(), interestsOf(trip), Wish.from(constraints));
     }
 
     private List<DayZone> planZones(Trip trip, List<PreferenceConstraint> constraints, Point hotel,
@@ -127,4 +128,4 @@ public class ItineraryPlanner {
     public static int daysOf(Trip trip) {
         return (int) ChronoUnit.DAYS.between(trip.getStartDate(), trip.getEndDate()) + 1;
     }
-}
+}

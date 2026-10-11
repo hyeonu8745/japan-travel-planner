@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.itinerary.reason;
 
+import com.example.japantravelplanner.itinerary.candidate.Wish;
 import com.example.japantravelplanner.itinerary.meal.FoodFilterResolver;
 import com.example.japantravelplanner.itinerary.service.ItineraryPlanner;
 import com.example.japantravelplanner.trip.entity.Trip;
@@ -19,7 +20,8 @@ public class ReasonContextLoader {
     public ReasonContext load(Trip trip) {
         if (trip == null) return ReasonContext.NONE;
         TripPreference preference = preferenceRepository.findByTripId(trip.getId()).orElse(null);
+        var constraints = ItineraryPlanner.constraintsOf(preference);
         return new ReasonContext(ItineraryPlanner.interestsOf(trip),
-                foodFilterResolver.resolve(ItineraryPlanner.constraintsOf(preference), trip.getAllergies()));
+                foodFilterResolver.resolve(constraints, trip.getAllergies()), Wish.from(constraints));
     }
 }

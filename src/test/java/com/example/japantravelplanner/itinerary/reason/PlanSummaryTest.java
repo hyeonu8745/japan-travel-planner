@@ -83,4 +83,17 @@ class PlanSummaryTest {
 
         assertThat(summary).isEqualTo("일정을 이렇게 짰어요.\n장소마다 고른 이유도 함께 표시해 두었어요.");
     }
+
+    @Test
+    void 대화에서_말한_취향을_넣었는지도_알린다() {
+        ReasonContext ctx = new ReasonContext(List.of(), null,
+                Set.of(com.example.japantravelplanner.itinerary.candidate.Wish.HOBBY));
+        List<ItineraryStop> withShop = List.of(
+                attractionStop(1, attraction("コトブキヤ秋葉原館", "toy_store,store", 4.3, 2_494), LegMode.WALK, 8));
+
+        assertThat(PlanSummary.write(itinerary(withShop, List.of()), ctx))
+                .contains("- 말씀하신 '피규어·애니' 취향에 맞는 곳: コトブキヤ秋葉原館\n");
+        assertThat(PlanSummary.write(itinerary(stops(), List.of()), ctx))
+                .contains("- 말씀하신 '피규어·애니' 취향에 맞는 곳은 이번 동선에 넣지 못했어요.\n");
+    }
 }
