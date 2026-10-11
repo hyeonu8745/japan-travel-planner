@@ -364,6 +364,54 @@ class ItineraryChatEditServiceTest {
     }
 
     @Test
+    void 하나뿐인_제안에도_번호로_답하면_고른_것으로_본다() {
+        // 10-11 여행 9: "1번으로 바꿔줘"를 못 알아들어 AI가 새 교체 요청으로 읽었다
+        PendingEdit one = new PendingEdit(PendingEdit.REPLACE_MEAL, 3, 104L, 1, null, null,
+                List.of(new PendingEdit.Option(22L, "오히츠젠 탄보 (일식)")), "麺屋");
+        PendingEdit choice = new PendingEdit(PendingEdit.REPLACE_MEAL, 3, 104L, 1, null, null,
+                List.of(new PendingEdit.Option(1L, "A"), new PendingEdit.Option(2L, "B")), "麺屋");
+
+        assertThat(ItineraryChatEditService.quickCommand("1번으로 바꿔줘", one).choiceIndex()).isEqualTo(1);
+        assertThat(ItineraryChatEditService.quickCommand("2번으로 바꿔주세요", choice).choiceIndex()).isEqualTo(2);
+        assertThat(ItineraryChatEditService.quickCommand("3번 할게요", choice).choiceIndex()).isEqualTo(3);
+        assertThat(ItineraryChatEditService.quickCommand("네", one).intent()).isEqualTo("CONFIRM");
+    }
+
+    @Test
+    void 보여준_선택지_이름을_말하면_다시_찾지_않고_그곳으로_바꾼다() {
+        PendingEdit pending = new PendingEdit(PendingEdit.REPLACE_MEAL, 3, 104L, 1, null, null,
+                List.of(new PendingEdit.Option(22L, "오히츠젠 탄보 요요기 본점 (일식·오니기리·장어)")), "麺屋");
+        remember(ChatMessage.builder().trip(trip).role(ChatRole.ASSISTANT).content("이렇게 바꿀까요?")
+                .pendingEdit(jsonMapper.writeValueAsString(pending)).build());
+        aiSays(command("REPLACE", "D1-4", null, 1, "오히츠젠 탄보 요요기 본점"));
+        when(editService.replace(USER_ID, TRIP_ID, 104L, 22L)).thenReturn(edited);
+
+        ChatReplyResponseDto reply = service.handle(USER_ID, TRIP_ID, "오히츠젠 탄보로 바꿔줘");
+
+        assertThat(reply.itinerary()).isSameAs(edited);
+        verify(editService, never()).candidates(any(), any(), any());
+    }
+
+    @Test
+    void 다른_항목을_말하면_선택지_이름과_겹쳐도_새_요청으로_본다() {
+        PendingEdit pending = new PendingEdit(PendingEdit.REPLACE_MEAL, 3, 999L, 2, null, null,
+                List.of(new PendingEdit.Option(22L, "스시 이시카와 (스시)")), "다른 식당");
+
+        assertThat(ItineraryChatEditService.optionNamed(pending, "스시 이시카와")).isEqualTo(1);
+        assertThat(ItineraryChatEditService.optionNamed(pending, "라멘")).isNull();
+
+        remember(ChatMessage.builder().trip(trip).role(ChatRole.ASSISTANT).content("이렇게 바꿀까요?")
+                .pendingEdit(jsonMapper.writeValueAsString(pending)).build());
+        aiSays(command("REPLACE", "D1-4", null, 1, "스시 이시카와"));
+        when(editService.candidates(USER_ID, TRIP_ID, 104L)).thenReturn(new StopCandidatesResponseDto(104L,
+                StopType.DINNER, 5700, List.of(meal(21, "らーめん屋", "ラーメン", 3.8))));
+
+        service.handle(USER_ID, TRIP_ID, "1일차 저녁을 스시 이시카와로");
+
+        verify(editService, never()).replace(any(), any(), any(), any());
+    }
+
+    @Test
     void 방문하는_날이_정기_휴일인_식당은_뒤로_보내고_표시한다() {
         // 10-11 여행 9: 채팅으로 고른 1일차 점심 天三이 그날 정기 휴일이었는데 제안할 때는 말하지 않았다
         aiSays(command("REPLACE", "D1-4", null, null, "장어덮밥"));

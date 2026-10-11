@@ -80,7 +80,9 @@ public class ItineraryChatEditService {
                     + "(그렇게\\s*)?(넣어|바꿔|빼|옮겨|해)\\s*(줘|주세요|줄래|줄래요|요|봐|봐요)?[\\s.!~]*$");
     private static final Pattern NO = Pattern.compile(
             "^(아니(요|오)?|아뇨|취소|됐어(요)?|괜찮아(요)?|그대로(\\s*둬(요|주세요)?)?|하지\\s*마(세요)?)[\\s.!~]*$");
-    private static final Pattern NUMBER = Pattern.compile("^\\s*([1-9])\\s*(번|번째)?\\s*(으로|로|요|이요)?[\\s.!~]*$");
+    /** "2번", "1번으로 바꿔줘", "3번 할게요" (10-11 여행 9: "1번으로 바꿔줘"를 못 알아들어 AI가 다른 요청으로 읽었다) */
+    private static final Pattern NUMBER = Pattern.compile("^\\s*([1-9])\\s*(번|번째)?\\s*(으로|로|요|이요)?\\s*"
+            + "((바꿔|해|넣어|골라|할게|갈게|부탁해)\\s*(줘|주세요|줄래|줄래요|요)?)?[\\s.!~]*$");
     private static final List<String> ORDINALS = List.of("첫", "두", "세");
 
     private final TripRepository tripRepository;
@@ -137,13 +139,15 @@ public class ItineraryChatEditService {
         if (pending == null || content == null) return null;
         String text = content.strip().toLowerCase(Locale.ROOT);
         if (NO.matcher(text).matches()) return EditCommand.of("CANCEL");
-        if (pending.needsChoice()) {
+        boolean hasOptions = pending.options() != null && !pending.options().isEmpty();
+        if (hasOptions) {
+            // 선택지가 하나여도 "1번으로"는 고르기다 (하나뿐인 제안에 "1번으로 바꿔줘"라고 답한 적이 있다)
             Matcher number = NUMBER.matcher(text);
             if (number.matches()) return EditCommand.choose(Integer.parseInt(number.group(1)));
             for (int i = 0; i < ORDINALS.size(); i++) {
                 if (text.matches("^" + ORDINALS.get(i) + "\\s*번째.{0,8}$")) return EditCommand.choose(i + 1);
             }
-            return null;
+            if (pending.needsChoice()) return null;
         }
         return YES.matcher(text).matches() || DO_IT.matcher(text).matches() ? EditCommand.of("CONFIRM") : null;
     }
@@ -176,6 +180,11 @@ public class ItineraryChatEditService {
         }
         PendingEdit pending = snapshot.pending();
         String intent = command.intent() == null ? "OTHER" : command.intent();
+        // 방금 보여준 선택지 이름을 말하면 그곳으로 (10-11 여행 9: "오히츠젠 탄보로 바꿔줘"를 AI가 새 교체 요청으로 읽어
+        // 그 이름으로 다시 찾다가 "맞는 곳이 없어요"라고 했다)
+        Integer named = ("REPLACE".equals(intent) || "ADD".equals(intent) || "CHOOSE".equals(intent))
+                && samePlaceAsPending(snapshot, pending, command) ? optionNamed(pending, command.target()) : null;
+        if (named != null) return choose(userId, tripId, snapshot, pending, named);
         return switch (intent) {
             case "CONFIRM" -> confirm(userId, tripId, snapshot, pending);
             case "CHOOSE" -> choose(userId, tripId, snapshot, pending, command.choiceIndex());
@@ -518,6 +527,32 @@ public class ItineraryChatEditService {
             default -> "대중교통";
         };
         return how + " " + travel.minutes() + "분";
+    }
+
+    /** 명령이 대기 중인 변경과 같은 자리를 말하는지 (다른 날·다른 항목을 말하면 새 요청으로 본다). 말하지 않았으면 같다고 본다 */
+    private static boolean samePlaceAsPending(Snapshot snapshot, PendingEdit pending, EditCommand command) {
+        if (pending == null) return false;
+        if (notBlank(command.stopRef())) {
+            StopRef ref = snapshot.refs().get(normalizeRef(command.stopRef()));
+            if (ref != null && pending.stopId() != null && !ref.stopId().equals(pending.stopId())) return false;
+        }
+        return command.day() == null || pending.day() == null || command.day().equals(pending.day());
+    }
+
+    /** 대기 중인 선택지 중 이름이 target과 맞는 것의 번호 (1부터). 없거나 여러 개면 null */
+    static Integer optionNamed(PendingEdit pending, String target) {
+        if (pending == null || pending.options() == null || !notBlank(target)) return null;
+        String t = squeeze(target);
+        Integer found = null;
+        for (int i = 0; i < pending.options().size(); i++) {
+            String name = squeeze(nameOnly(pending.options().get(i).label()));
+            if (name.length() < 2 || t.length() < 2) continue;
+            if (t.contains(name) || name.contains(t)) {
+                if (found != null) return null;
+                found = i + 1;
+            }
+        }
+        return found;
     }
 
     /** 선택지 이름표에서 괄호 설명을 뺀 이름 */
