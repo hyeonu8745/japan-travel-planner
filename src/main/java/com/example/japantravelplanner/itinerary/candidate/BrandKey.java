@@ -20,10 +20,24 @@ public final class BrandKey {
     private BrandKey() {
     }
 
+    /**
+     * 띄어쓰기 없이 지역 이름이 붙은 지점 ("忍者体験カフェ原宿" ↔ "忍者体験カフェ浅草", 10-11 여행 8 v12).
+     * 일본어 지역 이름으로 끝나고 앞부분이 3글자 이상일 때만 뺀다 ("新宿御苑", "浅草寺"처럼 지역 이름으로 끝나지 않으면 그대로)
+     */
+    static String withoutGluedArea(String name) {
+        for (String area : AREA_WORDS) {
+            if (area.chars().allMatch(ch -> ch < 128)) continue;   // 영문은 띄어 쓰는 경우만 본다
+            if (name.endsWith(area) && name.length() - area.length() >= 3) {
+                return name.substring(0, name.length() - area.length());
+            }
+        }
+        return name;
+    }
+
     public static String of(String name) {
         if (name == null) return "";
         String[] tokens = name.trim().split("\\s+");
-        if (tokens.length < 2) return name.trim();
+        if (tokens.length < 2) return withoutGluedArea(name.trim());
         String last = tokens[tokens.length - 1];
         boolean branch = last.endsWith("店") || AREA_WORDS.contains(last.toLowerCase(Locale.ROOT));
         return branch ? String.join(" ", Arrays.copyOf(tokens, tokens.length - 1)) : name.trim();

@@ -60,8 +60,11 @@ public class KoreanNameTranslator {
 
     private Map<String, String> translateChunk(List<Map.Entry<String, String>> chunk) {
         String input = buildInput(chunk);
-        int maxTokens = 200 + chunk.size() * OUTPUT_TOKENS_PER_NAME;
-        Future<AiResult> future = EXECUTOR.submit(() -> openAiClient.generateJson(AiModelTier.BASIC,
+        boolean advanced = props.isUseAdvancedModel();
+        // 추론 모델은 추론에 쓴 토큰도 한도에 들어가서 넉넉하게
+        int maxTokens = (200 + chunk.size() * OUTPUT_TOKENS_PER_NAME) * (advanced ? 4 : 1);
+        AiModelTier tier = advanced ? AiModelTier.ADVANCED : AiModelTier.BASIC;
+        Future<AiResult> future = EXECUTOR.submit(() -> openAiClient.generateJson(tier,
                 KoreanNamePrompt.INSTRUCTIONS, input, KoreanNamePrompt.format(), maxTokens, 0.0));
         try {
             AiResult ai = future.get(props.getTimeoutSeconds(), TimeUnit.SECONDS);

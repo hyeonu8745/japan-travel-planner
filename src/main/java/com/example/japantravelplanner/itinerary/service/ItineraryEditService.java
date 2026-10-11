@@ -235,9 +235,17 @@ public class ItineraryEditService {
     // ===================== 후보 조회 =====================
 
     public StopCandidatesResponseDto candidates(Long userId, Long tripId, Long stopId) {
+        return candidates(userId, tripId, stopId, Set.of());
+    }
+
+    /**
+     * @param wantedGenres 원하는 장르 (채팅 수정 "스시로 바꿔줘"). 있으면 그 장르만 더 넓게·예산을 올려서 찾는다
+     *                     (RestaurantFinder.findWanted). 비어 있으면 보통 후보
+     */
+    public StopCandidatesResponseDto candidates(Long userId, Long tripId, Long stopId, Set<String> wantedGenres) {
         return readTransaction.execute(status -> {
             Target target = load(userId, tripId, stopId);
-            Search search = search(target, CANDIDATE_LIMIT);
+            Search search = search(target, CANDIDATE_LIMIT, wantedGenres);
             return toCandidatesResponse(target, search);
         });
     }
@@ -331,6 +339,17 @@ public class ItineraryEditService {
                 .findFirst().orElse(null);
         if (found != null) {
             return found;
+        }
+        // 원하는 장르로 넓혀 찾은 후보(채팅 수정)도 같은 규칙으로 다시 찾아서 인정한다
+        Restaurant requested = restaurantRepository.findById(restaurantId).orElse(null);
+        if (requested != null) {
+            RestaurantCandidate wanted = search(target, VERIFY_LIMIT, RestaurantFinder.genresOf(requested.getGenre()))
+                    .found().stream()
+                    .filter(c -> Objects.equals(c.restaurant().getId(), restaurantId))
+                    .findFirst().orElse(null);
+            if (wanted != null) {
+                return wanted;
+            }
         }
         if (target.stop().getAlternativeRestaurantIds().contains(restaurantId)) {
             Restaurant saved = restaurantRepository.findById(restaurantId).orElse(null);
@@ -521,6 +540,10 @@ public class ItineraryEditService {
     // ===================== 후보 검색 =====================
 
     private Search search(Target target, int limit) {
+        return search(target, limit, Set.of());
+    }
+
+    private Search search(Target target, int limit, Set<String> wantedGenres) {
         Meal meal = target.stop().getType() == StopType.LUNCH ? Meal.LUNCH : Meal.DINNER;
         int maxYen = target.budget().of(meal);
 
@@ -541,8 +564,11 @@ public class ItineraryEditService {
         }
         TravelPoint previous = before != null ? before : hotelPoint(target.trip());
 
-        List<RestaurantCandidate> found = restaurantFinder.find(anchor.lat(), anchor.lng(), meal, maxYen,
-                target.filter(), usedRestaurantIds(target.latest()), limit);
+        List<RestaurantCandidate> found = wantedGenres == null || wantedGenres.isEmpty()
+                ? restaurantFinder.find(anchor.lat(), anchor.lng(), meal, maxYen,
+                        target.filter(), usedRestaurantIds(target.latest()), limit)
+                : restaurantFinder.findWanted(anchor.lat(), anchor.lng(), meal, maxYen,
+                        target.filter(), usedRestaurantIds(target.latest()), limit, wantedGenres);
         return new Search(meal, maxYen, previous, found);
     }
 

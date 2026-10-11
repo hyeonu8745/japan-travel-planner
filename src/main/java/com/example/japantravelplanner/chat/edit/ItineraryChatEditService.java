@@ -70,6 +70,13 @@ public class ItineraryChatEditService {
     private static final Pattern REF = Pattern.compile("D(\\d+)-(\\d+)");
     private static final Pattern YES = Pattern.compile(
             "^(네|넵|예|응|어|좋아요?|좋습니다|그래요?|그렇게\\s*(해|하자|해\\s*줘|해\\s*주세요)|바꿔\\s*(줘|주세요)?|ㅇㅇ|ok|오케이)[\\s.!~]*$");
+    /**
+     * "어 거기에 넣어줘", "응 그걸로 바꿔줘", "그렇게 해 주세요"처럼 대기 중인 변경을 하라는 말.
+     * 10-11: "어 거기에 넣어줘"를 AI가 같은 추가 요청으로 다시 읽어서 같은 질문을 되풀이했다
+     */
+    private static final Pattern DO_IT = Pattern.compile(
+            "^(네|넵|예|응|어|그래|좋아|좋아요|오케이|ok)?[\\s,.!~]*((거기|그곳|그거|그걸|이거|이걸|그쪽)(로|으로|에|에다)?\\s*)?"
+                    + "(그렇게\\s*)?(넣어|바꿔|빼|옮겨|해)\\s*(줘|주세요|줄래|줄래요|요|봐|봐요)?[\\s.!~]*$");
     private static final Pattern NO = Pattern.compile(
             "^(아니(요|오)?|아뇨|취소|됐어(요)?|괜찮아(요)?|그대로(\\s*둬(요|주세요)?)?|하지\\s*마(세요)?)[\\s.!~]*$");
     private static final Pattern NUMBER = Pattern.compile("^\\s*([1-9])\\s*(번|번째)?\\s*(으로|로|요|이요)?[\\s.!~]*$");
@@ -137,7 +144,7 @@ public class ItineraryChatEditService {
             }
             return null;
         }
-        return YES.matcher(text).matches() ? EditCommand.of("CONFIRM") : null;
+        return YES.matcher(text).matches() || DO_IT.matcher(text).matches() ? EditCommand.of("CONFIRM") : null;
     }
 
     private EditCommand askAi(Snapshot snapshot, String content) {
@@ -209,19 +216,26 @@ public class ItineraryChatEditService {
             kind = PendingEdit.REPLACE_ATTRACTION;
             AttractionCandidatesResponseDto found = attractionEditService.candidates(userId, tripId, stop.stopId());
             for (var c : found.candidates()) {
-                String name = display(c.nameKo(), c.name());
-                options.add(new Scored(new PendingEdit.Option(c.id(), name + attractionDetail(c.labels(), c.travel(), c.fitsInDay())),
-                        matchesPlace(target, c.name(), c.nameKo(), c.labels())));
+                options.add(new Scored(c.id(), false, c.name(), c.nameKo(),
+                        attractionDetail(c.labels(), c.travel(), c.fitsInDay()),
+                        matchesPlace(target, c.name(), c.nameKo(), c.labels(), true)));
             }
         } else {
             kind = PendingEdit.REPLACE_MEAL;
-            StopCandidatesResponseDto found = editService.candidates(userId, tripId, stop.stopId());
             Set<String> genres = target == null ? Set.of() : foodDictionary.findGenres(target, FoodPreferenceType.PREFER);
+            // 원하는 음식이 있으면 그 장르만 넓게(1.5km, 예산 조금 넘는 곳까지) 먼저 찾는다.
+            // 10-11 여행 8: "둘째날 스시" → 보통 후보(500m, 예산 안)에는 스시집이 없어 이탈리안·소바만 나왔다
+            StopCandidatesResponseDto found = genres.isEmpty() ? null
+                    : editService.candidates(userId, tripId, stop.stopId(), genres);
+            if (found == null || found.candidates().isEmpty()) {
+                found = editService.candidates(userId, tripId, stop.stopId());
+            }
             for (var c : found.candidates()) {
-                String name = display(c.nameKo(), c.name());
+                // 식당은 사용자 말 안에 장르 이름이 들어 있는 것("장어덮밥" 안의 "덮밥")은 맞는 것으로 보지 않는다 (10-11)
                 boolean match = target != null && (!Collections.disjoint(genresOf(c.genre()), genres)
-                        || matchesPlace(target, c.name(), c.nameKo(), c.genreLabels()));
-                options.add(new Scored(new PendingEdit.Option(c.id(), name + mealDetail(c.genre(), c.rating(), c.travel())), match));
+                        || matchesPlace(target, c.name(), c.nameKo(), c.genreLabels(), false));
+                options.add(new Scored(c.id(), true, c.name(), c.nameKo(),
+                        mealDetail(c.genre(), c.rating(), c.travel(), c.budgetRelaxed()), match));
             }
         }
         return propose(snapshot, kind, stop.stopId(), stop.day(), null, where, stop.name(), target, options);
@@ -240,9 +254,9 @@ public class ItineraryChatEditService {
         var found = stopEditService.addCandidates(userId, tripId, day, position);
         List<Scored> options = new ArrayList<>();
         for (var c : found.candidates()) {
-            options.add(new Scored(new PendingEdit.Option(c.id(),
-                    display(c.nameKo(), c.name()) + attractionDetail(c.labels(), c.travel(), c.fitsInDay())),
-                    matchesPlace(target, c.name(), c.nameKo(), c.labels())));
+            options.add(new Scored(c.id(), false, c.name(), c.nameKo(),
+                    attractionDetail(c.labels(), c.travel(), c.fitsInDay()),
+                    matchesPlace(target, c.name(), c.nameKo(), c.labels(), true)));
         }
         return propose(snapshot, PendingEdit.ADD, null, day, position, "DAY" + day + "에 넣을 곳", null, target, options);
     }
@@ -256,19 +270,18 @@ public class ItineraryChatEditService {
         if (scored.isEmpty()) {
             return Outcome.reply("고를 수 있는 후보가 없어요. 다른 날이나 다른 항목을 말씀해 주세요.");
         }
-        List<PendingEdit.Option> matched = scored.stream().filter(Scored::matches).map(Scored::option).toList();
+        List<Scored> matched = scored.stream().filter(Scored::matches).toList();
         boolean exact = target != null && !matched.isEmpty();
-        List<PendingEdit.Option> options = (exact ? matched : scored.stream().map(Scored::option).toList())
-                .stream().limit(MAX_OPTIONS).toList();
+        List<PendingEdit.Option> options = withKoreanNames((exact ? matched : scored).stream().limit(MAX_OPTIONS).toList());
         PendingEdit pending = new PendingEdit(kind, snapshot.version(), stopId, day, position, null, options, before);
 
         StringBuilder sb = new StringBuilder();
         if (target != null && !exact) {
-            sb.append("근처 후보 중에는 '").append(target).append("'에 맞는 곳이 없어요. 대신 이런 곳이 있어요.\n");
+            sb.append(where).append(" 근처에는 '").append(target).append("'에 맞는 곳이 없어요. 대신 이런 곳이 있어요.\n");
         }
         if (options.size() == 1 && exact) {
             sb.append(where).append(": ").append(before == null ? "" : before + " → ").append(options.get(0).label())
-                    .append("\n이렇게 바꿀까요?");
+                    .append(before == null ? "\n여기에 넣을까요?" : "\n이렇게 바꿀까요?");
             return Outcome.reply(sb.toString(), pending);
         }
         if (sb.isEmpty()) sb.append(where).append(before == null ? "" : " (지금: " + before + ")").append('\n');
@@ -446,12 +459,16 @@ public class ItineraryChatEditService {
     }
 
     /** 원하는 말이 이름(한국어·원래)이나 종류·장르 이름에 들어 있는지 (띄어쓰기 무시) */
-    static boolean matchesPlace(String target, String name, String nameKo, List<String> labels) {
+    /**
+     * @param labelInTarget true면 사용자 말 안에 종류 이름이 들어 있어도 맞는 것으로 본다 ("조용한 정원" ⊃ "정원", 관광지용)
+     */
+    static boolean matchesPlace(String target, String name, String nameKo, List<String> labels, boolean labelInTarget) {
         if (target == null) return false;
         String t = squeeze(target);
         if (t.isEmpty()) return false;
         if (contains(name, t) || contains(nameKo, t)) return true;
-        return labels != null && labels.stream().anyMatch(l -> contains(l, t) || (l != null && t.contains(squeeze(l))));
+        return labels != null && labels.stream().anyMatch(l -> contains(l, t)
+                || (labelInTarget && l != null && squeeze(l).length() >= 2 && t.contains(squeeze(l))));
     }
 
     private static boolean contains(String text, String part) {
@@ -469,12 +486,14 @@ public class ItineraryChatEditService {
         return result;
     }
 
-    private static String mealDetail(String genre, Double rating, ItineraryResponseDto.TravelDto travel) {
+    private static String mealDetail(String genre, Double rating, ItineraryResponseDto.TravelDto travel,
+                                     boolean overBudget) {
         List<String> parts = new ArrayList<>();
         String g = GenreLabels.joined(genre);
         if (g != null) parts.add(g);
         if (rating != null) parts.add("타베로그 " + String.format(Locale.ROOT, "%.2f", rating));
         if (travel != null) parts.add(moveLabel(travel));
+        if (overBudget) parts.add("예산 조금 넘음");
         return parts.isEmpty() ? "" : " (" + String.join(" · ", parts) + ")";
     }
 
@@ -541,7 +560,24 @@ public class ItineraryChatEditService {
         }
     }
 
-    private record Scored(PendingEdit.Option option, boolean matches) {
+    /** 후보 하나 (이름표는 한국어 이름을 채운 뒤에 만든다) */
+    private record Scored(Long id, boolean restaurant, String name, String nameKo, String detail, boolean matches) {
+    }
+
+    /** 보여줄 후보의 한국어 이름이 없으면 만들어서(저장됨) 이름표를 만든다. 실패하면 원래 이름 */
+    private List<PendingEdit.Option> withKoreanNames(List<Scored> shown) {
+        Map<Long, String> attractions = new LinkedHashMap<>();
+        Map<Long, String> restaurants = new LinkedHashMap<>();
+        shown.stream().filter(c -> c.nameKo() == null || c.nameKo().isBlank())
+                .forEach(c -> (c.restaurant() ? restaurants : attractions).put(c.id(), c.name()));
+        KoreanNameService.Names made = attractions.isEmpty() && restaurants.isEmpty()
+                ? new KoreanNameService.Names(Map.of(), Map.of())
+                : koreanNames.namesFor(attractions, restaurants);
+        return shown.stream().map(c -> {
+            String ko = c.nameKo() != null && !c.nameKo().isBlank() ? c.nameKo()
+                    : (c.restaurant() ? made.restaurants() : made.attractions()).get(c.id());
+            return new PendingEdit.Option(c.id(), display(ko, c.name()) + c.detail());
+        }).toList();
     }
 
     record Outcome(String reply, PendingEdit pending, ItineraryResponseDto itinerary) {

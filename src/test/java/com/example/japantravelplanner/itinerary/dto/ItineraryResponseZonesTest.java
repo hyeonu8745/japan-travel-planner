@@ -42,4 +42,14 @@ class ItineraryResponseZonesTest {
                 .containsExactly(TripZone.ASAKUSA_UENO, TripZone.AKIHABARA_KANDA);
         assertThat(TripZone.labelOf(ItineraryResponseDto.zonesOf(day))).isEqualTo("아사쿠사·우에노 + 아키하바라·간다");
     }
+
+    @Test
+    void 중심_지역에_관광지가_없으면_실제로_간_지역만_보인다() {
+        // 10-11 여행 8 v12 3일차: 중심은 롯폰기였지만 롯폰기 관광지는 2일차가 다 써서 시부야만 돌았다
+        assertThat(TripZone.visited(TripZone.ROPPONGI_TOWER, List.of(TripZone.SHIBUYA_HARAJUKU, TripZone.SHIBUYA_HARAJUKU)))
+                .containsExactly(TripZone.SHIBUYA_HARAJUKU);
+        assertThat(TripZone.visited(TripZone.GINZA_TOKYO, List.of(TripZone.ROPPONGI_TOWER, TripZone.GINZA_TOKYO)))
+                .containsExactly(TripZone.GINZA_TOKYO, TripZone.ROPPONGI_TOWER);
+        assertThat(TripZone.visited(TripZone.ASAKUSA_UENO, List.of())).containsExactly(TripZone.ASAKUSA_UENO);
+    }
 }

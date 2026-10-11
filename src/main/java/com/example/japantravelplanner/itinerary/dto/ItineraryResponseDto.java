@@ -196,16 +196,15 @@ public record ItineraryResponseDto(
                 List.copyOf(day.getWarnings()), zonesOf(day), TripZone.labelOf(zonesOf(day)));
     }
 
-    /** 그날 도는 지역: 저장된 중심 지역 + 관광지 위치의 지역 (방문 순서대로, 중복 없이) */
+    /** 그날 도는 지역: 관광지 위치의 지역 (중심 지역에 관광지가 있으면 맨 앞, 관광지가 없으면 중심 지역) */
     static List<TripZone> zonesOf(ItineraryDay day) {
-        Set<TripZone> zones = new LinkedHashSet<>();
-        if (day.getZone() != null) zones.add(day.getZone());
+        List<TripZone> stopZones = new java.util.ArrayList<>();
         day.getStops().stream()
                 .filter(stop -> stop.getType() == StopType.ATTRACTION && stop.getAttraction() != null
                         && stop.getAttraction().getLocation() != null)
                 .forEach(stop -> TripZone.nearest(stop.getAttraction().getLocation().getY(),
-                        stop.getAttraction().getLocation().getX()).ifPresent(zones::add));
-        return List.copyOf(zones);
+                        stop.getAttraction().getLocation().getX()).ifPresent(stopZones::add));
+        return TripZone.visited(day.getZone(), stopZones);
     }
 
     private static StopDto toStop(ItineraryStop stop, LocalDate date, Function<String, List<String>> typeLabels,

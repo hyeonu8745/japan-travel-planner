@@ -39,6 +39,25 @@ public enum TripZone {
                 .filter(zone -> zone.distanceTo(lat, lng) <= MAX_DISTANCE_M);
     }
 
+    /**
+     * 그날 실제로 도는 지역: 관광지가 있는 지역만, 중심 지역에 관광지가 있으면 맨 앞에.
+     * 관광지가 하나도 없으면(첫날 저녁만 있는 날 등) 중심 지역.
+     * 10-11: 3일차 중심이 롯폰기였지만 롯폰기 관광지는 2일차가 다 써서 시부야만 돌았는데 "롯폰기 + 시부야"로 보였다
+     * @param stopZones 관광지 지역 (방문 순서대로, 중복 가능)
+     */
+    public static java.util.List<TripZone> visited(TripZone primary, java.util.Collection<TripZone> stopZones) {
+        java.util.LinkedHashSet<TripZone> zones = new java.util.LinkedHashSet<>(stopZones);
+        zones.remove(null);
+        if (zones.isEmpty()) return primary == null ? java.util.List.of() : java.util.List.of(primary);
+        if (zones.remove(primary)) {
+            java.util.List<TripZone> ordered = new java.util.ArrayList<>();
+            ordered.add(primary);
+            ordered.addAll(zones);
+            return java.util.List.copyOf(ordered);
+        }
+        return java.util.List.copyOf(zones);
+    }
+
     /** 여러 지역을 화면·설명용 한 줄로 ("아사쿠사·우에노 + 아키하바라·간다") */
     public static String labelOf(java.util.Collection<TripZone> zones) {
         return zones.stream().map(TripZone::getLabel).collect(java.util.stream.Collectors.joining(" + "));

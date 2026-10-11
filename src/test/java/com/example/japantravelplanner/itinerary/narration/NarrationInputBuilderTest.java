@@ -171,4 +171,13 @@ class NarrationInputBuilderTest {
         ScheduledDay day = day(5, List.of(attraction("新宿御苑", "park", "10:00")), List.of());
         assertThat(build(day)).contains("- 관광지 新宿御苑");
     }
-}
+
+    @Test
+    void 식당_장르는_대표_두_개까지만_넘긴다() {
+        // 10-11 v12: "카레·인도 카레·태국 카레"를 그대로 받아 설명에 나열했다
+        ScheduledDay day = day(1, List.of(meal(StopType.LUNCH, "ロダン", "カレーライス,インドカレー,タイカレー", "11:35")),
+                List.of());
+
+        assertThat(build(day)).contains("(장르: 카레·인도 카레)").doesNotContain("태국 카레");
+    }
+}

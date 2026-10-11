@@ -67,11 +67,11 @@ public final class NarrationInputBuilder {
 
     /** 그날 도는 지역 (하루에 두 지역이면 "아사쿠사·우에노 + 아키하바라·간다") */
     static String zonesLabel(ScheduledDay day) {
-        java.util.Set<com.example.japantravelplanner.itinerary.zone.TripZone> zones = new java.util.LinkedHashSet<>();
-        zones.add(day.zone());
-        day.stops().stream().filter(stop -> stop.attraction() != null && stop.attraction().zone() != null)
-                .forEach(stop -> zones.add(stop.attraction().zone()));
-        return com.example.japantravelplanner.itinerary.zone.TripZone.labelOf(zones);
+        List<com.example.japantravelplanner.itinerary.zone.TripZone> stopZones = day.stops().stream()
+                .filter(stop -> stop.attraction() != null)
+                .map(stop -> stop.attraction().zone()).toList();
+        return com.example.japantravelplanner.itinerary.zone.TripZone.labelOf(
+                com.example.japantravelplanner.itinerary.zone.TripZone.visited(day.zone(), stopZones));
     }
 
     /**
@@ -134,8 +134,9 @@ public final class NarrationInputBuilder {
 
     /** 장르는 서버의 한국어 이름표로 (화면 칩과 같은 이름. AI가 그때그때 옮기면 "돈카쓰"처럼 어색했다) */
     private static String genreOf(ScheduledStop stop) {
-        String genre = GenreLabels.joined(stop.meal().chosen().restaurant().getGenre());
-        return genre == null ? "정보 없음" : genre;
+        // 대표 장르 두 개까지 ("카레·인도 카레·태국 카레"처럼 셋을 다 주면 설명에 그대로 나열했다, 10-11 v12)
+        List<String> labels = GenreLabels.of(stop.meal().chosen().restaurant().getGenre());
+        return labels.isEmpty() ? "정보 없음" : String.join("·", labels.subList(0, Math.min(2, labels.size())));
     }
 
     /** 사용자가 쓴 글에서 온 값이라 줄바꿈과 구분자를 없애고 길이를 제한한다 */

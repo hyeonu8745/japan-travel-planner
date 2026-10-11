@@ -60,11 +60,12 @@ app:
     page-size: 3                 # 검색 결과 몇 개를 비교할지
     verify-rounds: 2             # 폐업 의심 식당을 빼고 다시 계산하는 최대 횟수
 
-  korean-name:                   # 장소·식당 한국어 이름 (일정에 처음 쓰일 때 gpt-4o-mini로 한 번 만들어 저장, 10-11)
+  korean-name:                   # 장소·식당 한국어 이름 (일정에 처음 쓰일 때 AI로 한 번 만들어 저장, 10-11)
     enabled: true
-    timeout-seconds: 15          # 넘으면 원래 이름으로 진행
-    max-per-call: 60             # 한 번에 보내는 이름 수
+    timeout-seconds: 40          # 넘으면 원래 이름으로 진행 (고급 모델은 이름 30개에 수십 초)
+    max-per-call: 30             # 한 번에 보내는 이름 수
     retry-after-minutes: 30      # 실패한 이름은 이 시간 동안 다시 묻지 않는다
+    use-advanced-model: true     # gpt-5.6-terra로 만든다 (10-11: 기본 모델이 増上寺 → "조우장사", Chopsticks → "초밥"). 이름마다 한 번만 만들어 저장
 
   review-insight:                # 식당 상세의 Google 리뷰를 AI(gpt-4o-mini)로 읽고 차별·불친절·위생·좋은 점 표시 (저장 안 함)
     enabled: true

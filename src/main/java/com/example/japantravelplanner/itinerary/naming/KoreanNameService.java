@@ -108,6 +108,28 @@ public class KoreanNameService {
         return response.withKoreanNames(attractionNames, restaurantNames);
     }
 
+    /**
+     * 후보 몇 곳의 한국어 이름 (채팅 수정에서 "이렇게 바꿀까요?"를 묻기 전, 10-11).
+     * 후보 목록 API는 이름을 만들지 않아서 迎賓館赤坂離宮처럼 원래 이름으로 물어봤다. 만든 이름은 저장된다
+     * @param attractions 관광지 id → 원래 이름 (이름이 이미 있는 곳은 넘기지 않는다)
+     * @param restaurants 식당 id → 원래 이름
+     * @return "a12"·"r34" 키 대신 종류별 id → 한국어 이름 (만들지 못한 곳은 빠진다)
+     */
+    public Names namesFor(Map<Long, String> attractions, Map<Long, String> restaurants) {
+        Map<String, String> missing = new LinkedHashMap<>();
+        attractions.forEach((id, name) -> missing.put(key('a', id), name));
+        restaurants.forEach((id, name) -> missing.put(key('r', id), name));
+        Map<Long, String> a = new HashMap<>();
+        Map<Long, String> r = new HashMap<>();
+        translateAndSave(missing).forEach((k, name) ->
+                (k.charAt(0) == 'a' ? a : r).put(Long.parseLong(k.substring(1)), name));
+        return new Names(a, r);
+    }
+
+    /** 종류별 id → 한국어 이름 */
+    public record Names(Map<Long, String> attractions, Map<Long, String> restaurants) {
+    }
+
     /** 최근에 실패한 키는 빼고 AI에 묻고, 받은 이름을 저장한다. 받지 못한 키는 실패로 기록 */
     private Map<String, String> translateAndSave(Map<String, String> missing) {
         if (!props.isEnabled() || missing.isEmpty()) return Map.of();

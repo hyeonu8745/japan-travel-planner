@@ -65,6 +65,34 @@ public class RestaurantFinder {
         return List.of();
     }
 
+    /**
+     * 원하는 장르만 찾는다 (채팅 수정 "2일차 저녁을 스시로", 10-11).
+     * 보통 검색은 가까운 곳이 3곳 이상이면 500m에서 멈추고 예산을 넘는 곳은 빼서, 스시처럼 비싸거나 드문 장르는
+     * 1km 안에 있어도 후보에 들어오지 않았다. 그래서 예산 안에서 가장 넓은 반경까지 → 그래도 없으면 예산을 올려서 찾는다.
+     * 다른 조건(피할 음식, 흡연, 폐업 의심, 간식·술 위주 제외)은 보통 검색과 같다.
+     */
+    public List<RestaurantCandidate> findWanted(double lat, double lng, Meal meal, int maxYen, FoodFilter filter,
+                                                Set<Long> excludeIds, int limit, Set<String> wanted) {
+        if (wanted == null || wanted.isEmpty()) return List.of();
+        List<Double> factors = new ArrayList<>();
+        factors.add(1.0);
+        factors.addAll(props.getBudgetRelaxSteps());
+        for (double factor : factors) {
+            for (int radius : props.getSearchRadii()) {
+                List<RestaurantCandidate> found = search(lat, lng, radius, meal, (int) (maxYen * factor), filter,
+                        excludeIds, null, factor > 1.0).stream()
+                        .filter(c -> !Collections.disjoint(genresOf(c.restaurant().getGenre()), wanted))
+                        .limit(limit).toList();
+                if (!found.isEmpty()) {
+                    log.info("[Meal] {} 원하는 장르 {} 반경 {}m, 상한 {}엔 → {}곳", meal, wanted, radius,
+                            (int) (maxYen * factor), found.size());
+                    return found;
+                }
+            }
+        }
+        return List.of();
+    }
+
     private List<RestaurantCandidate> search(double lat, double lng, int radius, Meal meal, int maxYen,
                                              FoodFilter filter, Set<Long> excludeIds, LocalDate visitDate,
                                              boolean relaxed) {
@@ -192,4 +220,4 @@ public class RestaurantFinder {
         }
         return result;
     }
-}
+}

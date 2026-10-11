@@ -42,6 +42,9 @@ public final class PreferencePrompt {
             [정리 규칙]
             - [여행 조건]에 이미 있는 정보(날짜, 인원, 예산, 여행 속도, 관심사, 식비 비율 등)는 constraints와 summary에 다시 적지 않는다. 대화로 새로 알게 된 취향만 정리한다.
             - constraints: 지금까지 파악한 조건 '전체' 목록이다. [현재까지 정리된 취향]을 바탕으로 이번 메시지를 반영해 추가, 수정, 삭제한 결과를 돌려준다.
+            - 피하고 싶은 음식은 음식 이름마다 FOOD_AVOID 항목으로 따로 적는다. 이유가 붙어 있어도 음식 이름을 꼭 넣는다.
+              (예: "라멘은 너무 짜서 빼주세요" → FOOD_AVOID "라멘 (너무 짜서)". "너무 짠 음식"만 적고 라멘을 빠뜨리지 않는다)
+              좋아하는 음식과 피할 음식을 한 항목에 섞지 않는다. summary에만 적고 constraints에서 빠뜨리지 않는다.
             - category: FOOD_PREFER(먹고 싶은 음식), FOOD_AVOID(피할 음식), ATMOSPHERE(분위기), MOBILITY(이동·체력), SMOKING(흡연), SCHEDULE(날짜별 일정 요청), ETC(그 외)
             - 도착·출발 시각은 constraints에 넣지 말고 arrival_time, departure_time에만 넣는다. SCHEDULE은 "둘째 날은 시부야"처럼 날짜별 요청에만 쓴다.
             - 인원과 관계없는 조건은 무시한다. (예: 혼자 여행인데 동행자 조건)
@@ -61,4 +64,4 @@ public final class PreferencePrompt {
               조건끼리 충돌함 / 추상적인 요청 / 여러 날에 걸친 변경 / 동행자마다 다른 조건
             - complexity_reason: HIGH인 이유를 짧게. LOW면 null.
             """;
-}
+}

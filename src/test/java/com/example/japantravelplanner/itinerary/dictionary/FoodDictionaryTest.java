@@ -46,4 +46,11 @@ class FoodDictionaryTest {
         assertThat(dictionary.findGenres("아무거나 괜찮아요", FoodPreferenceType.PREFER)).isEmpty();
         assertThat(dictionary.findGenres(null, FoodPreferenceType.PREFER)).isEmpty();
     }
+
+    @Test
+    void 장어덮밥은_덮밥_전체가_아니라_장어만() {
+        // 10-11 채팅 수정: "장어덮밥"이 "장어" + "덮밥"으로 나뉘어 모든 덮밥집이 후보가 됐다
+        assertThat(new FoodDictionary().findGenres("장어덮밥", FoodPreferenceType.PREFER))
+                .containsExactly("うなぎ");
+    }
 }

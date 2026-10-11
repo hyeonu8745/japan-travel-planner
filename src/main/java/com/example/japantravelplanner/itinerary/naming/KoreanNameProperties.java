@@ -23,4 +23,10 @@ public class KoreanNameProperties {
 
     /** 실패한 이름은 이 시간 동안 다시 묻지 않는다 (일정 조회마다 AI를 부르지 않게) */
     private int retryAfterMinutes = 30;
+
+    /**
+     * true면 고급 모델(gpt-5.6-terra)로 만든다. 한자 읽기가 더 정확하지만 느리고 비싸다 (이름마다 한 번만 만들어서 저장).
+     * 10-11 여행 8: 기본 모델이 増上寺를 "조우장사"(한국 한자음), Chopsticks를 "초밥"(뜻 번역)으로 만들었다
+     */
+    private boolean useAdvancedModel = false;
 }

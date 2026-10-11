@@ -65,6 +65,10 @@ korean_keyword,genres,type,note
 게,かに|魚介料理・海鮮料理,PREFER,
 복어,ふぐ,PREFER,
 장어,うなぎ|あなご,PREFER,
+장어덮밥,うなぎ,PREFER,"덮밥"까지 걸려 모든 덮밥집이 나오지 않게 (10-11 채팅 수정)
+우나동,うなぎ,PREFER,
+우나쥬,うなぎ,PREFER,
+장어구이,うなぎ,PREFER,
 우나기,うなぎ,PREFER,
 아나고,あなご,PREFER,
 고기,焼肉|ステーキ|牛料理|鳥料理|豚料理|その他肉料理|鉄板焼き,PREFER,

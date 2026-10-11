@@ -100,4 +100,13 @@ class DayZonePlannerTest {
         // 종류를 모르는 곳(OTHER)끼리는 종류 감점이 없다 (긴자와 마루노우치는 약 900m라 가까움 감점도 없음)
         assertThat(planner.adjustedScore(marunouchi, List.of(ginza))).isEqualTo(4.50, org.assertj.core.data.Offset.offset(1e-9));
     }
+
+    @Test
+    void 띄어쓰기_없이_지역이_붙은_지점도_같은_가게로_본다() {
+        // 10-11 여행 8 v12: 忍者体験カフェ原宿가 3·5·6일차, 浅草 지점까지 후보에 있었다
+        assertThat(BrandKey.of("忍者体験カフェ原宿")).isEqualTo(BrandKey.of("忍者体験カフェ浅草"));
+        assertThat(BrandKey.of("新宿御苑")).isEqualTo("新宿御苑");
+        assertThat(BrandKey.of("西新宿")).isEqualTo("西新宿");   // 앞부분이 짧으면 지역 이름 자체
+        assertThat(BrandKey.of("浅草寺")).isEqualTo("浅草寺");
+    }
 }

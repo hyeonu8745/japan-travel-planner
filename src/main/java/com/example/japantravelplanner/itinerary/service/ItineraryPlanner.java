@@ -2,6 +2,7 @@ package com.example.japantravelplanner.itinerary.service;
 
 import com.example.japantravelplanner.attraction.repository.AttractionRepository;
 import com.example.japantravelplanner.itinerary.candidate.AttractionScorer;
+import com.example.japantravelplanner.itinerary.candidate.BrandKey;
 import com.example.japantravelplanner.itinerary.candidate.DayZone;
 import com.example.japantravelplanner.itinerary.candidate.DayZonePlanner;
 import com.example.japantravelplanner.itinerary.candidate.NightSpotPlanner;
@@ -89,16 +90,38 @@ public class ItineraryPlanner {
         nights.values().forEach(n -> nightIds.add(n.attraction().getId()));
 
         List<ScheduledDay> scheduledDays = new ArrayList<>();
+        Set<Long> usedIds = new HashSet<>();      // 앞 날짜에 실제로 들어간 관광지
+        Set<String> usedBrands = new HashSet<>(); // 그 관광지의 가게 이름 (다른 지점도 빼려고, BrandKey)
         for (int i = 0; i < zones.size(); i++) {
-            DayZone day = zones.get(i);
+            // 앞 날짜에 이미 들어간 관광지는 후보에서 뺀다.
+            // 10-11: 하루 두 지역이 되면서 어떤 날의 예비 후보(이웃 지역)가 다른 날의 후보와 겹쳐,
+            // 예비로 채워진 忍者体験カフェ原宿가 3·5·6일차에 모두 들어갔다 (여행 8 v12)
+            DayZone day = withoutUsed(zones.get(i), usedIds, usedBrands);
             DayWindow window = windows.get(i);
             DayRoute route = routeOptimizer.optimize(day, hotelPoint, trip.getTravelPace(), options,
                     nights.get(day.dayNumber()), nightIds);
             DayMeals meals = mealPlanner.plan(route, hotelPoint, window, budget, filter, history);
-            scheduledDays.add(dayScheduler.schedule(route, meals, window, hotelPoint, options,
-                    trip.getTravelPace().getStayMultiplier()));
+            ScheduledDay scheduled = dayScheduler.schedule(route, meals, window, hotelPoint, options,
+                    trip.getTravelPace().getStayMultiplier());
+            scheduled.stops().stream().filter(stop -> stop.attraction() != null)
+                    .forEach(stop -> {
+                        usedIds.add(stop.attraction().attraction().getId());
+                        usedBrands.add(BrandKey.of(stop.attraction().attraction().getName()));
+                    });
+            scheduledDays.add(scheduled);
         }
         return new Result(options, nightView, budget, scheduledDays, windows);
+    }
+
+    /** 앞 날짜에 들어간 관광지와 같은 가게의 다른 지점(忍者体験カフェ原宿 ↔ 浅草)을 후보에서 뺀다 */
+    static DayZone withoutUsed(DayZone day, Set<Long> usedIds, Set<String> usedBrands) {
+        if (usedIds.isEmpty()) return day;
+        return new DayZone(day.dayNumber(), day.date(), day.zone(),
+                day.candidates().stream()
+                        .filter(c -> !usedIds.contains(c.attraction().getId()))
+                        .filter(c -> !usedBrands.contains(BrandKey.of(c.attraction().getName())))
+                        .toList(),
+                day.partner());
     }
 
     /** 날짜별 지역과 관광지 후보 (②③ 단계) */

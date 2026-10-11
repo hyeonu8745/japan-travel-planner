@@ -56,4 +56,11 @@ class ChatOpeningTest {
 
         assertThat(ReplyFlow.keepGoing(reply, false, false)).isEqualTo(reply);
     }
+
+    @Test
+    void 피할_음식은_음식_이름마다_따로_적게_한다() {
+        // 10-11 여행 9: "라멘은 너무 짜서 빼주세요"가 FOOD_AVOID "너무 짠 음식"으로만 저장돼 라멘이 점심으로 나왔다
+        assertThat(com.example.japantravelplanner.chat.ai.PreferencePrompt.INSTRUCTIONS)
+                .contains("FOOD_AVOID \"라멘 (너무 짜서)\"");
+    }
 }
