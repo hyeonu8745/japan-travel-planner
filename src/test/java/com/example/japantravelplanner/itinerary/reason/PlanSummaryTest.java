@@ -23,7 +23,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PlanSummaryTest {
 
     private static Itinerary itinerary(List<ItineraryStop> stops, List<DroppedPlace> dropped) {
-        Itinerary itinerary = Itinerary.create(Trip.builder().id(1L).build(), 3, 9.5);
+        return itinerary(stops, dropped, 3);
+    }
+
+    private static Itinerary itinerary(List<ItineraryStop> stops, List<DroppedPlace> dropped, int version) {
+        Itinerary itinerary = Itinerary.create(Trip.builder().id(1L).build(), version, 9.5);
         ItineraryDay day = ItineraryDay.create(1, LocalDate.of(2026, 10, 20), TripZone.SHINJUKU,
                 null, null, null, dropped, List.of());
         stops.forEach(day::addStop);
@@ -38,6 +42,19 @@ class PlanSummaryTest {
                 mealStop(3, StopType.LUNCH, restaurant("麺屋", "ラーメン", 3.7), false, false),
                 attractionStop(4, attraction("東京タワー", "observation_deck,landmark", 4.6, 80_000), LegMode.TRANSIT, 20),
                 mealStop(5, StopType.DINNER, restaurant("焼肉屋", "焼肉", 3.6), true, true));
+    }
+
+    @Test
+    void 여행의_첫_일정에만_사용법과_주의사항을_붙이고_다시_만들면_한_줄만() {
+        // 10-11 사용자 요청: 채팅에 사용법·주의사항 안내. 다시 만들 때마다 요약이 쌓여서 첫 일정에만 자세히
+        ReasonContext ctx = context(List.of(), Set.of(), Set.of(), false);
+
+        String first = PlanSummary.write(itinerary(stops(), List.of(), 1), ctx);
+        String again = PlanSummary.write(itinerary(stops(), List.of(), 2), ctx);
+
+        assertThat(first).endsWith("장소마다 고른 이유도 함께 표시해 두었어요.\n\n" + PlanSummary.GUIDE)
+                .contains("[이렇게 써 보세요]").contains("[참고해 주세요]").contains("임시 휴업");
+        assertThat(again).endsWith(PlanSummary.EDIT_HINT).doesNotContain("[참고해 주세요]");
     }
 
     @Test

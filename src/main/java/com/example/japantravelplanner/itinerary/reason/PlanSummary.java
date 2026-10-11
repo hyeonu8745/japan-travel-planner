@@ -25,6 +25,21 @@ public final class PlanSummary {
     /** 일정을 만든 뒤에는 채팅으로 고칠 수 있다고 알려준다 (10-11) */
     static final String EDIT_HINT = "바꾸고 싶은 곳이 있으면 \"2일차 저녁을 스시로 바꿔줘\"처럼 여기에 말씀해 주세요.";
 
+    /**
+     * 여행의 첫 일정(버전 1)에만 붙이는 사용법·주의사항 (10-11 사용자 요청).
+     * 다시 만들 때마다 요약이 쌓이므로 그 뒤에는 EDIT_HINT 한 줄만 붙인다
+     */
+    static final String GUIDE = """
+            [이렇게 써 보세요]
+            - "2일차 저녁을 스시로 바꿔줘", "3일차에 정원 하나 넣어줘", "닌자 카페 빼줘"처럼 말하면 바꿔 드려요.
+            - 식당이나 관광지를 누르면 사진·영업시간·리뷰를 볼 수 있어요.
+
+            [참고해 주세요]
+            - 이동 시간은 거리로 계산한 예상치예요. 실제 열차 시간은 Google 지도 길찾기에서 확인해 주세요.
+            - 정기 휴일은 표시하지만, 임시 휴업이나 공휴일은 반영되지 않을 수 있어요. 방문 전에 영업 여부를 확인해 주세요.
+            - 식당 상세에서 한국인 리뷰 중 주의할 내용이 보이면 알려 드려요. 리뷰 몇 개를 바탕으로 한 것이라 참고만 해 주세요. 마음에 들지 않으면 바로 다른 곳으로 바꿀 수 있어요.
+            - 예산은 기준 환율로 계산한 대략적인 금액이에요.""";
+
     private PlanSummary() {
     }
 
@@ -85,7 +100,7 @@ public final class PlanSummary {
         StringBuilder sb = new StringBuilder("일정을 이렇게 짰어요.\n");
         lines.forEach(line -> sb.append("- ").append(line).append('\n'));
         sb.append("장소마다 고른 이유도 함께 표시해 두었어요.\n");
-        sb.append(EDIT_HINT);
+        sb.append(itinerary.getVersionNo() == 1 ? "\n" + GUIDE : EDIT_HINT);
         return sb.toString();
     }
 
