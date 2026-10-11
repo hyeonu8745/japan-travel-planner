@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.itinerary.service;
 
+import com.example.japantravelplanner.attraction.entity.Attraction;
 import com.example.japantravelplanner.attraction.repository.AttractionRepository;
 import com.example.japantravelplanner.global.exception.ConflictException;
 import com.example.japantravelplanner.global.exception.NotFoundException;
@@ -10,6 +11,7 @@ import com.example.japantravelplanner.itinerary.entity.Itinerary;
 import com.example.japantravelplanner.itinerary.meal.MealProperties;
 import com.example.japantravelplanner.itinerary.narration.ItineraryNarrator;
 import com.example.japantravelplanner.itinerary.narration.TripBrief;
+import com.example.japantravelplanner.itinerary.naming.KoreanNameService;
 import com.example.japantravelplanner.itinerary.planner.ScheduledDay;
 import com.example.japantravelplanner.itinerary.planner.ScheduledStop;
 import com.example.japantravelplanner.itinerary.repository.ItineraryRepository;
@@ -83,6 +85,7 @@ public class ItineraryGenerationService {
     private final RestaurantMatchService restaurantMatchService;
     private final ReasonContextLoader reasonContextLoader;
     private final ChatMessageRepository chatMessageRepository;
+    private final KoreanNameService koreanNames;
     private final TransactionTemplate readTransaction;
     private final TransactionTemplate writeTransaction;
 
@@ -100,6 +103,7 @@ public class ItineraryGenerationService {
                                       RestaurantMatchService restaurantMatchService,
                                       ReasonContextLoader reasonContextLoader,
                                       ChatMessageRepository chatMessageRepository,
+                                      KoreanNameService koreanNames,
                                       PlatformTransactionManager transactionManager) {
         this.tripRepository = tripRepository;
         this.preferenceRepository = preferenceRepository;
@@ -115,6 +119,7 @@ public class ItineraryGenerationService {
         this.restaurantMatchService = restaurantMatchService;
         this.reasonContextLoader = reasonContextLoader;
         this.chatMessageRepository = chatMessageRepository;
+        this.koreanNames = koreanNames;
         this.readTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction.setReadOnly(true);
         this.writeTransaction = new TransactionTemplate(transactionManager);
@@ -138,6 +143,9 @@ public class ItineraryGenerationService {
                 log.info("[Itinerary] 폐업 의심 식당 {}곳을 빼고 다시 계산 tripId={}", excluded, tripId);
                 planned = writeTransaction.execute(status -> plan(userId, tripId));
             }
+
+            // ①-2 한국어 이름: 처음 쓰는 장소·식당만 AI로 만들어 저장 (트랜잭션 밖). 설명 AI가 같은 이름을 쓰게 설명보다 먼저
+            koreanNames.ensure(attractionsOf(planned.result()), restaurantsOf(planned.result()));
 
             // ② 설명: 트랜잭션 밖에서
             Planned finalPlan = planned;
@@ -247,7 +255,26 @@ public class ItineraryGenerationService {
         return ids;
     }
 
+    static List<Attraction> attractionsOf(ItineraryPlanner.Result result) {
+        return result.days().stream().flatMap(day -> day.stops().stream())
+                .filter(stop -> stop.attraction() != null)
+                .map(stop -> stop.attraction().attraction()).toList();
+    }
+
+    /** 고른 식당과 다음 후보 (화면에 둘 다 이름이 보인다) */
+    static List<Restaurant> restaurantsOf(ItineraryPlanner.Result result) {
+        List<Restaurant> restaurants = new java.util.ArrayList<>();
+        for (ScheduledDay day : result.days()) {
+            for (ScheduledStop stop : day.stops()) {
+                if (stop.meal() == null || !stop.meal().found()) continue;
+                restaurants.add(stop.meal().chosen().restaurant());
+                stop.meal().alternatives().forEach(c -> restaurants.add(c.restaurant()));
+            }
+        }
+        return restaurants;
+    }
+
     /** ① 단계 결과: 계산된 일정과 설명을 쓸 때 필요한 여행 정보 */
     private record Planned(ItineraryPlanner.Result result, TripBrief brief) {
     }
-}
+}

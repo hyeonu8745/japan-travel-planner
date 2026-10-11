@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.itinerary.narration;
 
+import com.example.japantravelplanner.itinerary.naming.GenreLabels;
 import com.example.japantravelplanner.itinerary.planner.ScheduledDay;
 import com.example.japantravelplanner.itinerary.planner.ScheduledStop;
 import com.example.japantravelplanner.itinerary.planner.StopType;
@@ -16,7 +17,7 @@ import java.util.stream.Collectors;
  * AI에게 보낼 입력 글을 만든다.
  * 시각은 보내지 않고, 서버가 계산한 시간대("점심 전", "점심 후", "저녁 전", "저녁 후")를 붙인다.
  * (시각을 주면 AI가 12:11 도착을 "오전"이라고 쓰는 식으로 시간대를 잘못 말했다)
- * 장소 이름은 DB 값 그대로 넣고, 사용자가 쓴 글에서 온 취향은 구분자(<<< >>>) 안에 넣어 "데이터"로만 쓰게 한다.
+ * 장소 이름은 DB에 저장된 한국어 이름(없으면 원래 이름), 식당 장르는 서버의 한국어 이름표로 넣고, 사용자가 쓴 글에서 온 취향은 구분자(<<< >>>) 안에 넣어 "데이터"로만 쓰게 한다.
  * 빠진 장소, 경고, 가격, 이동 시간은 보내지 않는다. (설명에 섞이면 사실과 어긋나기 쉬워서)
  */
 public final class NarrationInputBuilder {
@@ -113,19 +114,28 @@ public final class NarrationInputBuilder {
 
     private static String describe(ScheduledStop stop, String dayPart, Function<String, List<String>> typeLabels) {
         return switch (stop.type()) {
-            case LUNCH -> "점심 식당 " + stop.name() + " (장르: " + genreOf(stop) + ")";
-            case DINNER -> "저녁 식당 " + stop.name() + " (장르: " + genreOf(stop) + ")";
+            case LUNCH -> "점심 식당 " + nameOf(stop) + " (장르: " + genreOf(stop) + ")";
+            case DINNER -> "저녁 식당 " + nameOf(stop) + " (장르: " + genreOf(stop) + ")";
             case ATTRACTION -> {
                 String labels = String.join(", ", typeLabels.apply(stop.attraction().attraction().getTypes()));
                 String kind = dayPart.isEmpty() ? "관광지" : dayPart + " 관광지";
-                yield labels.isBlank() ? kind + " " + stop.name() : kind + " " + stop.name() + " (" + labels + ")";
+                yield labels.isBlank() ? kind + " " + nameOf(stop) : kind + " " + nameOf(stop) + " (" + labels + ")";
             }
         };
     }
 
+    /** 한국어 이름이 있으면 그것을 (화면 일정표와 같은 이름, 10-11). 없으면 원래 이름 */
+    static String nameOf(ScheduledStop stop) {
+        String nameKo = stop.type() == StopType.ATTRACTION
+                ? stop.attraction().attraction().getNameKo()
+                : stop.meal().chosen().restaurant().getNameKo();
+        return nameKo == null || nameKo.isBlank() ? stop.name() : nameKo;
+    }
+
+    /** 장르는 서버의 한국어 이름표로 (화면 칩과 같은 이름. AI가 그때그때 옮기면 "돈카쓰"처럼 어색했다) */
     private static String genreOf(ScheduledStop stop) {
-        String genre = stop.meal().chosen().restaurant().getGenre();
-        return genre == null || genre.isBlank() ? "정보 없음" : genre;
+        String genre = GenreLabels.joined(stop.meal().chosen().restaurant().getGenre());
+        return genre == null ? "정보 없음" : genre;
     }
 
     /** 사용자가 쓴 글에서 온 값이라 줄바꿈과 구분자를 없애고 길이를 제한한다 */

@@ -37,7 +37,7 @@ public final class PlanSummary {
         for (ItineraryStop stop : stops) {
             if (stop.getType() != StopType.ATTRACTION) continue;
             for (Interest interest : StopReasons.matchedInterests(stop.getAttraction(), ctx)) {
-                byInterest.get(interest).add(stop.getAttraction().getName());
+                byInterest.get(interest).add(displayName(stop));
             }
         }
         byInterest.forEach((interest, names) -> lines.add(names.isEmpty()
@@ -50,7 +50,7 @@ public final class PlanSummary {
         for (ItineraryStop stop : stops) {
             if (stop.getType() != StopType.ATTRACTION) continue;
             for (Wish wish : StopReasons.matchedWishes(stop.getAttraction(), ctx)) {
-                byWish.get(wish).add(stop.getAttraction().getName());
+                byWish.get(wish).add(displayName(stop));
             }
         }
         byWish.forEach((wish, names) -> lines.add(names.isEmpty()
@@ -84,6 +84,12 @@ public final class PlanSummary {
         lines.forEach(line -> sb.append("- ").append(line).append('\n'));
         sb.append("장소마다 고른 이유도 함께 표시해 두었어요.");
         return sb.toString();
+    }
+
+    /** 한국어 이름이 있으면 그것을 (화면 일정표와 같은 이름) */
+    private static String displayName(ItineraryStop stop) {
+        String nameKo = stop.getAttraction().getNameKo();
+        return nameKo == null || nameKo.isBlank() ? stop.getAttraction().getName() : nameKo;
     }
 
     private static String names(Set<String> names) {

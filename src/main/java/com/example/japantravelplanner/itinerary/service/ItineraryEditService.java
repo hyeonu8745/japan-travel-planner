@@ -46,6 +46,7 @@ import com.example.japantravelplanner.itinerary.reason.ReasonContextLoader;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import com.example.japantravelplanner.itinerary.meal.RegularHoliday;
+import com.example.japantravelplanner.itinerary.naming.GenreLabels;
 import com.example.japantravelplanner.itinerary.dto.ItineraryVersionDto;
 import java.time.LocalDate;
 
@@ -262,7 +263,8 @@ public class ItineraryEditService {
                     lat(r.getLocation()), lng(r.getLocation()), c.distanceMeters(),
                     new ItineraryResponseDto.TravelDto(leg.mode(), leg.minutes(), leg.distanceMeters(), leg.estimated()),
                     overlaps(previousMeal, r.getGenre()), c.budgetRelaxed(),
-                    r.getHoliday(), RegularHoliday.isClosedOn(r.getHoliday(), visitDate)));
+                    r.getHoliday(), RegularHoliday.isClosedOn(r.getHoliday(), visitDate),
+                    r.getNameKo(), GenreLabels.of(r.getGenre())));
         }
         return new StopCandidatesResponseDto(target.stop().getId(), target.stop().getType(),
                 search.maxYen(), candidates);
@@ -655,4 +657,4 @@ public class ItineraryEditService {
 
     private record Search(Meal meal, int maxYen, TravelPoint previous, List<RestaurantCandidate> found) {
     }
-}
+}

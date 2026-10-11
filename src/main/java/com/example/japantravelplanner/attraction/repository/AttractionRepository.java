@@ -2,6 +2,7 @@ package com.example.japantravelplanner.attraction.repository;
 
 import com.example.japantravelplanner.attraction.entity.Attraction;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -38,4 +39,9 @@ public interface AttractionRepository extends JpaRepository<Attraction, Long>, A
             @Param("lng") double lng,
             @Param("radiusMeters") double radiusMeters
     );
+
+    /** 한국어 이름 저장 (이미 있으면 덮어쓰지 않는다) */
+    @Modifying
+    @Query("update Attraction a set a.nameKo = :nameKo where a.id = :id and a.nameKo is null")
+    int saveNameKo(@Param("id") Long id, @Param("nameKo") String nameKo);
 }

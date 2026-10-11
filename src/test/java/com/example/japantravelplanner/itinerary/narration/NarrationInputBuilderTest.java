@@ -34,12 +34,27 @@ class NarrationInputBuilderTest {
     }
 
     @Test
-    void 장소_이름과_장르는_DB_값_그대로_들어간다() {
+    void 한국어_이름이_없으면_원래_이름_장르는_한국어_이름표로_들어간다() {
         String input = build(day1);
 
         assertThat(input).contains("DAY 1 · 10/20 · 신주쿠");
         assertThat(input).contains("- 저녁 전 관광지 新宿東口の猫 (관광명소)");
-        assertThat(input).contains("- 저녁 식당 つけ麺 五ノ神製作所 (장르: つけ麺)");
+        // 10-10: 설명 AI가 장르를 그때그때 옮겨 とんかつ가 "돈카쓰"가 됐다 → 서버 이름표 (화면 칩과 같은 이름)
+        assertThat(input).contains("- 저녁 식당 つけ麺 五ノ神製作所 (장르: 츠케멘)");
+    }
+
+    @Test
+    void 한국어_이름이_있으면_화면_일정표와_같은_한국어_이름으로_들어간다() {
+        ScheduledDay day = day(1, List.of(
+                attraction("浅草寺", "buddhist_temple", "10:00"),
+                meal(StopType.LUNCH, "とんかつ まい泉", "とんかつ", "12:00")), List.of());
+        day.stops().get(0).attraction().attraction().setNameKo("센소지");
+        day.stops().get(1).meal().chosen().restaurant().setNameKo("돈카츠 마이센");
+
+        String input = build(day);
+
+        assertThat(input).contains("관광지 센소지").contains("점심 식당 돈카츠 마이센 (장르: 돈카츠)")
+                .doesNotContain("浅草寺").doesNotContain("まい泉");
     }
 
     @Test
@@ -156,4 +171,4 @@ class NarrationInputBuilderTest {
         ScheduledDay day = day(5, List.of(attraction("新宿御苑", "park", "10:00")), List.of());
         assertThat(build(day)).contains("- 관광지 新宿御苑");
     }
-}
+}

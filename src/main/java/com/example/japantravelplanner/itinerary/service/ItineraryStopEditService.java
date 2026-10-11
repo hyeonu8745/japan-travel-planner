@@ -248,7 +248,7 @@ public class ItineraryStopEditService {
                         lat(a.getLocation()), lng(a.getLocation()), stay,
                         new ItineraryResponseDto.TravelDto(leg.mode(), leg.minutes(), leg.distanceMeters(), leg.estimated()),
                         lastDepartureMinutes(retimed) - baselineEnd, retimed.warnings().isEmpty(),
-                        found.get(i).zone() == day.getZone()));
+                        found.get(i).zone() == day.getZone(), a.getNameKo()));
             }
             boolean broadened = candidates.stream().anyMatch(c -> !c.sameZone());
             return new AddAttractionCandidatesResponseDto(dayNumber, position, broadened, candidates);

@@ -41,7 +41,8 @@ public record AttractionCandidatesResponseDto(
             ItineraryResponseDto.TravelDto travel,
             int shiftMinutes,
             boolean fitsInDay,
-            boolean sameZone
+            boolean sameZone,
+            String nameKo               // 10-11 추가: 저장된 한국어 이름 (아직 없으면 null, 후보 목록에서는 새로 만들지 않는다)
     ) {
     }
-}
+}

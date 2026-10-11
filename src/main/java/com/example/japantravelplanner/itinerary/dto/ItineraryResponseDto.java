@@ -13,6 +13,7 @@ import com.example.japantravelplanner.restaurant.entity.Restaurant;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.itinerary.entity.ItinerarySource;
 import com.example.japantravelplanner.itinerary.meal.RegularHoliday;
+import com.example.japantravelplanner.itinerary.naming.GenreLabels;
 import com.example.japantravelplanner.itinerary.reason.ReasonContext;
 import com.example.japantravelplanner.itinerary.reason.StopReason;
 import com.example.japantravelplanner.itinerary.reason.StopReasons;
@@ -78,8 +79,19 @@ public record ItineraryResponseDto(
             AttractionDto attraction,
             RestaurantDto restaurant,
             List<AlternativeDto> alternatives,
-            List<StopReason> reasons
+            List<StopReason> reasons,
+            String nameKo             // 10-11 추가: 한국어 이름 (없으면 null → 화면은 name). 화면은 "한국어 + 작게 원래 이름"
     ) {
+
+        StopDto withNameKo(String value) {
+            return new StopDto(id, order, type, name, arrival, departure, stayMinutes, waitMinutes, travel, lat, lng,
+                    attraction, restaurant, alternatives, reasons, value);
+        }
+
+        StopDto withAlternatives(List<AlternativeDto> value) {
+            return new StopDto(id, order, type, name, arrival, departure, stayMinutes, waitMinutes, travel, lat, lng,
+                    attraction, restaurant, value, reasons, nameKo);
+        }
     }
 
     public record TravelDto(LegMode mode, int minutes, int distanceMeters, boolean estimated) {
@@ -96,15 +108,47 @@ public record ItineraryResponseDto(
     public record RestaurantDto(Long id, String genre, Double rating, String budget, String address,
                                 boolean budgetRelaxed, boolean genreRepeated,
                                 Integer reviewCount, String nearestStation, Integer nearestDistance, String holiday,
-                                boolean closedOnVisitDay) {
+                                boolean closedOnVisitDay,
+                                List<String> genreLabels) {   // 10-11 추가: 장르 한국어 이름 (GenreLabels, 예: [츠케멘, 라멘])
     }
 
     /** 고른 식당 대신 선택할 수 있는 다음 후보 (식당 항목에만 있고, 관광지 항목은 빈 목록) */
     public record AlternativeDto(Long id, String name, String genre, Double rating, String budget, String address,
-                                 Double lat, Double lng, String holiday, boolean closedOnVisitDay) {
+                                 Double lat, Double lng, String holiday, boolean closedOnVisitDay,
+                                 String nameKo, List<String> genreLabels) {   // 10-11 추가
+
+        AlternativeDto withNameKo(String value) {
+            return new AlternativeDto(id, name, genre, rating, budget, address, lat, lng, holiday, closedOnVisitDay,
+                    value, genreLabels);
+        }
     }
 
     public record DroppedDto(String name, DropReason reason, String reasonLabel) {
+    }
+
+    /**
+     * 한국어 이름이 비어 있던 항목에 새로 만든 이름을 채운 복사본 (KoreanNameService.fill).
+     * 이미 이름이 있는 항목은 그대로 둔다
+     * @param attractionNames 관광지 id → 한국어 이름
+     * @param restaurantNames 식당 id → 한국어 이름 (고른 식당과 다음 후보 모두)
+     */
+    public ItineraryResponseDto withKoreanNames(Map<Long, String> attractionNames, Map<Long, String> restaurantNames) {
+        List<DayDto> newDays = days.stream().map(day -> new DayDto(day.dayNumber(), day.date(), day.zone(),
+                day.zoneLabel(), day.windowStart(), day.windowEnd(), day.description(),
+                day.stops().stream().map(stop -> {
+                    StopDto s = stop;
+                    if (s.nameKo() == null) {
+                        String found = s.attraction() != null ? attractionNames.get(s.attraction().id())
+                                : s.restaurant() != null ? restaurantNames.get(s.restaurant().id()) : null;
+                        if (found != null) s = s.withNameKo(found);
+                    }
+                    return s.withAlternatives(s.alternatives().stream()
+                            .map(alt -> alt.nameKo() == null && restaurantNames.containsKey(alt.id())
+                                    ? alt.withNameKo(restaurantNames.get(alt.id())) : alt)
+                            .toList());
+                }).toList(),
+                day.dropped(), day.warnings(), day.zones(), day.zonesLabel())).toList();
+        return new ItineraryResponseDto(id, tripId, version, source, changeNote, krwPerYen, createdAt, accommodation, newDays);
     }
 
     /** 식당 대안 후보를 조회하지 않는 형태 (대안은 빈 목록) */
@@ -176,7 +220,7 @@ public record ItineraryResponseDto(
                     travel, lat(a.getLocation()), lng(a.getLocation()),
                     new AttractionDto(a.getId(), typeLabels.apply(a.getTypes()), a.getRating(), a.getReviewCnt(),
                             a.getAddress(), a.getWard(), a.getPlaceId()),
-                    null, List.of(), StopReasons.of(stop, reasons));
+                    null, List.of(), StopReasons.of(stop, reasons), a.getNameKo());
         }
 
         Restaurant r = stop.getRestaurant();
@@ -187,8 +231,8 @@ public record ItineraryResponseDto(
                 new RestaurantDto(r.getId(), r.getGenre(), r.getRatingVal(), budgetOf(r, stop.getType()), r.getAddress(),
                         stop.isBudgetRelaxed(), stop.isGenreRepeated(),
                         r.getReviewCnt(), r.getNearestStation(), r.getNearestDistance(), r.getHoliday(),
-                        RegularHoliday.isClosedOn(r.getHoliday(), date)),
-                toAlternatives(stop, date, alternatives), StopReasons.of(stop, reasons));
+                        RegularHoliday.isClosedOn(r.getHoliday(), date), GenreLabels.of(r.getGenre())),
+                toAlternatives(stop, date, alternatives), StopReasons.of(stop, reasons), r.getNameKo());
     }
 
     // 저장된 순서(점수 높은 순)를 지키고, 그 사이에 사라진 식당은 건너뛴다
@@ -198,7 +242,8 @@ public record ItineraryResponseDto(
                 .filter(java.util.Objects::nonNull)
                 .map(r -> new AlternativeDto(r.getId(), r.getName(), r.getGenre(), r.getRatingVal(),
                         budgetOf(r, stop.getType()), r.getAddress(), lat(r.getLocation()), lng(r.getLocation()),
-                        r.getHoliday(), RegularHoliday.isClosedOn(r.getHoliday(), date)))
+                        r.getHoliday(), RegularHoliday.isClosedOn(r.getHoliday(), date),
+                        r.getNameKo(), GenreLabels.of(r.getGenre())))
                 .toList();
     }
 

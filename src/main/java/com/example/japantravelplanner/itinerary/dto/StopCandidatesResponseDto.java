@@ -41,7 +41,9 @@ public record StopCandidatesResponseDto(
             boolean genreRepeated,
             boolean budgetRelaxed,
             String holiday,
-            boolean closedOnVisitDay
+            boolean closedOnVisitDay,
+            String nameKo,              // 10-11 추가: 저장된 한국어 이름 (아직 없으면 null, 후보 목록에서는 새로 만들지 않는다)
+            List<String> genreLabels    // 10-11 추가: 장르 한국어 이름
     ) {
     }
-}
+}

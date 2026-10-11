@@ -2,6 +2,7 @@ package com.example.japantravelplanner.restaurant.repository;
 
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -59,4 +60,9 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, Long>, R
 
     // 예산 파싱이 이미 실행됐는지 확인 (마이그레이션 Runner 중복 실행 방지용)
     boolean existsByBudgetDinnerMinIsNotNull();
+
+    /** 한국어 이름 저장 (이미 있으면 덮어쓰지 않는다) */
+    @Modifying
+    @Query("update Restaurant r set r.nameKo = :nameKo where r.id = :id and r.nameKo is null")
+    int saveNameKo(@Param("id") Long id, @Param("nameKo") String nameKo);
 }

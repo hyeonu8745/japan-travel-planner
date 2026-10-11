@@ -165,7 +165,7 @@ public class ItineraryAttractionEditService {
                     lat(a.getLocation()), lng(a.getLocation()), stay,
                     new ItineraryResponseDto.TravelDto(leg.mode(), leg.minutes(), leg.distanceMeters(), leg.estimated()),
                     lastDepartureMinutes(retimed) - baselineEnd, retimed.warnings().isEmpty(),
-                    found.get(i).zone() == target.day().getZone()));
+                    found.get(i).zone() == target.day().getZone(), a.getNameKo()));
         }
         boolean broadened = candidates.stream().anyMatch(c -> !c.sameZone());
         return new AttractionCandidatesResponseDto(target.stop().getId(), target.night(), broadened, candidates);
@@ -473,4 +473,4 @@ public class ItineraryAttractionEditService {
     private record Target(Trip trip, Itinerary latest, ItineraryDay day, ItineraryStop stop, boolean night,
                           TravelOptions options, TravelPoint hotel, TravelPoint previous) {
     }
-}
+}

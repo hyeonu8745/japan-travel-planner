@@ -9,6 +9,7 @@ import com.example.japantravelplanner.itinerary.dto.ReplaceAttractionRequestDto;
 import com.example.japantravelplanner.itinerary.dto.ReorderStopsRequestDto;
 import com.example.japantravelplanner.itinerary.dto.ReplaceStopRequestDto;
 import com.example.japantravelplanner.itinerary.dto.StopCandidatesResponseDto;
+import com.example.japantravelplanner.itinerary.naming.KoreanNameService;
 import com.example.japantravelplanner.itinerary.service.ItineraryAttractionEditService;
 import com.example.japantravelplanner.itinerary.service.ItineraryEditService;
 import com.example.japantravelplanner.itinerary.service.ItineraryGenerationService;
@@ -31,19 +32,21 @@ public class ItineraryController {
     private final ItineraryEditService editService;
     private final ItineraryAttractionEditService attractionEditService;
     private final ItineraryStopEditService stopEditService;
+    // 일정 응답에 한국어 이름이 비어 있으면 채운다 (예전 일정, 교체·추가로 새로 들어온 곳). 서비스 트랜잭션이 끝난 뒤라 AI 호출이 트랜잭션 밖
+    private final KoreanNameService koreanNames;
 
     /** 일정 만들기 (다시 호출하면 새 버전). Terra 호출이 있어 수 초~수십 초 걸릴 수 있다 */
     @PostMapping
     public ResponseEntity<ItineraryResponseDto> generate(@AuthenticationPrincipal Long userId,
                                                          @PathVariable Long tripId) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(generationService.generate(userId, tripId));
+        return ResponseEntity.status(HttpStatus.CREATED).body(koreanNames.fill(generationService.generate(userId, tripId)));
     }
 
     /** 가장 최근 버전의 일정 */
     @GetMapping
     public ItineraryResponseDto getLatest(@AuthenticationPrincipal Long userId,
                                           @PathVariable Long tripId) {
-        return generationService.getLatest(userId, tripId);
+        return koreanNames.fill(generationService.getLatest(userId, tripId));
     }
 
     /** 식당(점심·저녁) 항목 하나를 바꿀 때 고를 수 있는 후보 */
@@ -60,7 +63,7 @@ public class ItineraryController {
                                         @PathVariable Long tripId,
                                         @PathVariable Long stopId,
                                         @Valid @RequestBody ReplaceStopRequestDto request) {
-        return editService.replace(userId, tripId, stopId, request.restaurantId());
+        return koreanNames.fill(editService.replace(userId, tripId, stopId, request.restaurantId()));
     }
 
     /** 관광지 항목(낮 관광지 또는 저녁 뒤 야경 장소) 하나를 바꿀 때 고를 수 있는 후보 */
@@ -77,7 +80,7 @@ public class ItineraryController {
                                                   @PathVariable Long tripId,
                                                   @PathVariable Long stopId,
                                                   @Valid @RequestBody ReplaceAttractionRequestDto request) {
-        return attractionEditService.replace(userId, tripId, stopId, request.attractionId());
+        return koreanNames.fill(attractionEditService.replace(userId, tripId, stopId, request.attractionId()));
     }
 
     /** 항목 하나(관광지·점심·저녁) 삭제. 새 버전(EDITED)으로 저장하고 전체 일정을 돌려준다 */
@@ -85,7 +88,7 @@ public class ItineraryController {
     public ItineraryResponseDto deleteStop(@AuthenticationPrincipal Long userId,
                                            @PathVariable Long tripId,
                                            @PathVariable Long stopId) {
-        return stopEditService.deleteStop(userId, tripId, stopId);
+        return koreanNames.fill(stopEditService.deleteStop(userId, tripId, stopId));
     }
 
     /** 같은 날 안에서 항목 순서 바꾸기 (그날의 모든 항목 id를 원하는 순서대로). 새 버전(EDITED)으로 저장 */
@@ -94,7 +97,7 @@ public class ItineraryController {
                                         @PathVariable Long tripId,
                                         @PathVariable int dayNumber,
                                         @Valid @RequestBody ReorderStopsRequestDto request) {
-        return stopEditService.reorder(userId, tripId, dayNumber, request.stopIds(), request.version());
+        return koreanNames.fill(stopEditService.reorder(userId, tripId, dayNumber, request.stopIds(), request.version()));
     }
 
     /** 그날 position 자리(0이면 맨 앞)에 넣을 수 있는 관광지 후보 */
@@ -112,8 +115,8 @@ public class ItineraryController {
                                               @PathVariable Long tripId,
                                               @PathVariable int dayNumber,
                                               @Valid @RequestBody AddAttractionRequestDto request) {
-        return stopEditService.addAttraction(userId, tripId, dayNumber, request.attractionId(),
-                request.position(), request.version());
+        return koreanNames.fill(stopEditService.addAttraction(userId, tripId, dayNumber, request.attractionId(),
+                request.position(), request.version()));
     }
 
     /** 변경 이력: 이 여행의 모든 버전 (최신이 먼저) */
@@ -127,7 +130,7 @@ public class ItineraryController {
     public ItineraryResponseDto version(@AuthenticationPrincipal Long userId,
                                         @PathVariable Long tripId,
                                         @PathVariable int versionNo) {
-        return editService.version(userId, tripId, versionNo);
+        return koreanNames.fill(editService.version(userId, tripId, versionNo));
     }
 
     /** 이 버전으로 되돌리기. 새 버전(RESTORED)으로 저장하고 전체 일정을 돌려준다 */
@@ -135,6 +138,6 @@ public class ItineraryController {
     public ItineraryResponseDto restore(@AuthenticationPrincipal Long userId,
                                         @PathVariable Long tripId,
                                         @PathVariable int versionNo) {
-        return editService.restore(userId, tripId, versionNo);
+        return koreanNames.fill(editService.restore(userId, tripId, versionNo));
     }
-}
+}

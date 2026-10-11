@@ -75,6 +75,8 @@ class ItineraryGenerationServiceTest {
     private final RestaurantMatchService matchService = mock(RestaurantMatchService.class);
     private final ReasonContextLoader reasonContextLoader = mock(ReasonContextLoader.class);
     private final ChatMessageRepository chatMessageRepository = mock(ChatMessageRepository.class);
+    private final com.example.japantravelplanner.itinerary.naming.KoreanNameService koreanNames =
+            mock(com.example.japantravelplanner.itinerary.naming.KoreanNameService.class);
 
     // 트랜잭션이 열려 있는 동안 true (AI 호출이 트랜잭션 밖인지 확인하는 용도)
     private final boolean[] transactionActive = {false};
@@ -112,7 +114,7 @@ class ItineraryGenerationServiceTest {
         service = new ItineraryGenerationService(tripRepository, preferenceRepository, itineraryRepository,
                 attractionRepository, restaurantRepository, locator, planner, narrator, typeLabels,
                 new MealProperties(), lock, matchService, reasonContextLoader, chatMessageRepository,
-                transactionManager);
+                koreanNames, transactionManager);
     }
 
     private ItineraryPlanner.Result plannedResult() {
@@ -261,6 +263,22 @@ class ItineraryGenerationServiceTest {
 
         assertThat(activeDuringNarration[0]).isFalse();
         verify(transactionManager, times(2)).getTransaction(any());   // 계산 + 저장, 설명은 사이
+    }
+
+    @Test
+    void 한국어_이름은_설명보다_먼저_트랜잭션_밖에서_만든다() {
+        boolean[] activeDuringNaming = {true};
+        org.mockito.Mockito.doAnswer(inv -> {
+            activeDuringNaming[0] = transactionActive[0];
+            return null;
+        }).when(koreanNames).ensure(any(), any());
+
+        generate();
+
+        assertThat(activeDuringNaming[0]).isFalse();
+        var order = org.mockito.Mockito.inOrder(koreanNames, narrator);
+        order.verify(koreanNames).ensure(any(), any());
+        order.verify(narrator).narrate(any(), any(), any());
     }
 
     // ── 거절 ──

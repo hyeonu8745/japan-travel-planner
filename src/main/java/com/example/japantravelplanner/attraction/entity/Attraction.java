@@ -42,6 +42,11 @@ public class Attraction {
     @Column(columnDefinition = "geometry(Point,4326)")
     private Point location;
 
+    // 한국어 이름 (일정에 처음 쓰일 때 AI로 한 번 만들어 저장, 10-11). null = 아직 없음 → 화면은 원래 이름.
+    // Google 한국어 이름은 약관상 저장할 수 없어서 쓰지 않는다
+    @Column(name = "name_ko", length = 200)
+    private String nameKo;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -58,4 +63,4 @@ public class Attraction {
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
-}
+}
