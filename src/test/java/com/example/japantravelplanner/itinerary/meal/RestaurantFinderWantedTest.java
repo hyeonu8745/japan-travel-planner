@@ -90,6 +90,22 @@ class RestaurantFinderWantedTest {
     }
 
     @Test
+    void 고른_식당_하나만_따라가서_더_가까운_같은_장르가_있어도_찾는다() {
+        // 여행 9: 채팅에서 고른 おひつ膳 田んぼ(和食・おにぎり・うなぎ, 약 1.8km)를 교체 검증할 때
+        // 그 장르로 다시 찾으니 1km 안의 다른 일식집이 먼저 나와서 "넣을 수 없는 식당"이 됐다
+        Restaurant washoku = restaurant(15, "가까운 일식집", "和食（その他）", 3000);
+        Restaurant tanbo = restaurant(16, "田んぼ", "和食（その他）,おにぎり,うなぎ", 2000);
+        when(repository.findWithinRadius(anyDouble(), anyDouble(), eq(1000.0))).thenReturn(List.of(washoku));
+        when(repository.findWithinRadius(anyDouble(), anyDouble(), eq(2000.0))).thenReturn(List.of(washoku, tanbo));
+        Set<String> genres = RestaurantFinder.genresOf(tanbo.getGenre());
+
+        assertThat(finder.findWantedOne(35.663, 139.745, Meal.DINNER, 5700, NO_FILTER, Set.of(), genres, 16L))
+                .get().extracting(c -> c.restaurant().getName()).isEqualTo("田んぼ");
+        assertThat(finder.findWantedOne(35.663, 139.745, Meal.DINNER, 5700, NO_FILTER, Set.of(), genres, 99L))
+                .isEmpty();
+    }
+
+    @Test
     void 원하는_장르가_없거나_비어_있으면_빈_목록() {
         when(repository.findWithinRadius(anyDouble(), anyDouble(), anyDouble())).thenReturn(List.of(pizza, soba));
 

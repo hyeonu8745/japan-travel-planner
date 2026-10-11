@@ -76,18 +76,38 @@ public class RestaurantFinder {
         if (wanted == null || wanted.isEmpty()) return List.of();
         // ① 보통 반경(1.5km까지) × 예산 단계 → ② 그래도 없으면 더 넓은 반경(2·3km) × 예산 단계 (10-11 여행 9:
         //    "5일차 점심 장어덮밥" → 진구마에 근처 1.5km 안에 장어집이 없어 카레집만 나왔다)
-        List<RestaurantCandidate> found = findWanted(lat, lng, meal, maxYen, filter, excludeIds, limit, wanted,
-                props.getSearchRadii());
-        if (found.isEmpty() && props.getWantedExtraRadii() != null && !props.getWantedExtraRadii().isEmpty()) {
-            found = findWanted(lat, lng, meal, maxYen, filter, excludeIds, limit, wanted, props.getWantedExtraRadii());
-        }
+        List<RestaurantCandidate> found = findWanted(lat, lng, meal, maxYen, filter, excludeIds, limit, wanted, c -> true);
         if (found.isEmpty()) log.info("[Meal] {} 원하는 장르 {} 후보 없음", meal, wanted);
+        return found;
+    }
+
+    /**
+     * 채팅에서 고른 식당이 "원하는 장르 넓게 찾기"의 후보가 될 수 있는 곳인지 (교체 검증용, 10-11).
+     * 그 식당의 장르로 다시 찾으면 같은 장르의 더 가까운 곳(일식 등)이 먼저 나와 1.8km 떨어진 고른 곳까지 가지 않았다.
+     * 그래서 같은 반경·예산 단계를 그 식당 하나만 놓고 따라간다
+     */
+    public Optional<RestaurantCandidate> findWantedOne(double lat, double lng, Meal meal, int maxYen, FoodFilter filter,
+                                                       Set<Long> excludeIds, Set<String> wanted, Long restaurantId) {
+        if (wanted == null || wanted.isEmpty() || restaurantId == null) return Optional.empty();
+        return findWanted(lat, lng, meal, maxYen, filter, excludeIds, 1, wanted,
+                c -> restaurantId.equals(c.restaurant().getId())).stream().findFirst();
+    }
+
+    private List<RestaurantCandidate> findWanted(double lat, double lng, Meal meal, int maxYen, FoodFilter filter,
+                                                 Set<Long> excludeIds, int limit, Set<String> wanted,
+                                                 java.util.function.Predicate<RestaurantCandidate> only) {
+        List<RestaurantCandidate> found = findWanted(lat, lng, meal, maxYen, filter, excludeIds, limit, wanted,
+                props.getSearchRadii(), only);
+        if (found.isEmpty() && props.getWantedExtraRadii() != null && !props.getWantedExtraRadii().isEmpty()) {
+            found = findWanted(lat, lng, meal, maxYen, filter, excludeIds, limit, wanted, props.getWantedExtraRadii(), only);
+        }
         return found;
     }
 
     private List<RestaurantCandidate> findWanted(double lat, double lng, Meal meal, int maxYen, FoodFilter filter,
                                                  Set<Long> excludeIds, int limit, Set<String> wanted,
-                                                 List<Integer> radii) {
+                                                 List<Integer> radii,
+                                                 java.util.function.Predicate<RestaurantCandidate> only) {
         List<Double> factors = new ArrayList<>();
         factors.add(1.0);
         factors.addAll(props.getBudgetRelaxSteps());
@@ -96,6 +116,7 @@ public class RestaurantFinder {
                 List<RestaurantCandidate> found = search(lat, lng, radius, meal, (int) (maxYen * factor), filter,
                         excludeIds, null, factor > 1.0).stream()
                         .filter(c -> !Collections.disjoint(genresOf(c.restaurant().getGenre()), wanted))
+                        .filter(only)
                         .limit(limit).toList();
                 if (!found.isEmpty()) {
                     log.info("[Meal] {} 원하는 장르 {} 반경 {}m, 상한 {}엔 → {}곳", meal, wanted, radius,

@@ -343,10 +343,7 @@ public class ItineraryEditService {
         // 원하는 장르로 넓혀 찾은 후보(채팅 수정)도 같은 규칙으로 다시 찾아서 인정한다
         Restaurant requested = restaurantRepository.findById(restaurantId).orElse(null);
         if (requested != null) {
-            RestaurantCandidate wanted = search(target, VERIFY_LIMIT, RestaurantFinder.genresOf(requested.getGenre()))
-                    .found().stream()
-                    .filter(c -> Objects.equals(c.restaurant().getId(), restaurantId))
-                    .findFirst().orElse(null);
+            RestaurantCandidate wanted = searchOne(target, RestaurantFinder.genresOf(requested.getGenre()), restaurantId);
             if (wanted != null) {
                 return wanted;
             }
@@ -541,6 +538,27 @@ public class ItineraryEditService {
 
     private Search search(Target target, int limit) {
         return search(target, limit, Set.of());
+    }
+
+    /** 고른 식당 하나가 원하는 장르 넓게 찾기의 후보가 되는지 (없으면 null) */
+    private RestaurantCandidate searchOne(Target target, Set<String> wantedGenres, Long restaurantId) {
+        Meal meal = target.stop().getType() == StopType.LUNCH ? Meal.LUNCH : Meal.DINNER;
+        TravelPoint anchor = anchorOf(target);
+        return restaurantFinder.findWantedOne(anchor.lat(), anchor.lng(), meal, target.budget().of(meal),
+                target.filter(), usedRestaurantIds(target.latest()), wantedGenres, restaurantId).orElse(null);
+    }
+
+    /** 끼니를 찾는 기준점: 일정을 만들 때처럼 앞뒤 장소의 중간. 앞뒤가 없으면 있는 쪽, 둘 다 없으면 지금 식당 */
+    private TravelPoint anchorOf(Target target) {
+        List<ItineraryStop> stops = target.day().getStops();
+        TravelPoint before = target.index() > 0 ? pointOf(stops.get(target.index() - 1)) : null;
+        TravelPoint after = target.index() + 1 < stops.size() ? pointOf(stops.get(target.index() + 1)) : null;
+        if (before != null && after != null) {
+            return new TravelPoint("끼니 기준(중간)", (before.lat() + after.lat()) / 2, (before.lng() + after.lng()) / 2);
+        }
+        if (before != null) return before;
+        if (after != null) return after;
+        return pointOf(target.stop());
     }
 
     private Search search(Target target, int limit, Set<String> wantedGenres) {
