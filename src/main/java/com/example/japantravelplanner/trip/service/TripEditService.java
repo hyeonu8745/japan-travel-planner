@@ -12,6 +12,9 @@ import com.example.japantravelplanner.itinerary.repository.ItineraryRepository;
 import com.example.japantravelplanner.itinerary.service.GenerationLock;
 import com.example.japantravelplanner.itinerary.service.ItineraryEditService;
 import com.example.japantravelplanner.itinerary.service.ItineraryGenerationService;
+import com.example.japantravelplanner.poster.PosterStorage;
+import com.example.japantravelplanner.poster.TripPoster;
+import com.example.japantravelplanner.poster.TripPosterRepository;
 import com.example.japantravelplanner.trip.dto.TripRequestDto;
 import com.example.japantravelplanner.trip.dto.TripResponseDto;
 import com.example.japantravelplanner.trip.dto.TripUpdateResponseDto;
@@ -51,6 +54,8 @@ public class TripEditService {
     private final ItineraryGenerationService generationService;
     private final ItineraryEditService editService;
     private final GenerationLock lock;
+    private final TripPosterRepository posterRepository;
+    private final PosterStorage posterStorage;
     private final TransactionTemplate readTransaction;
     private final TransactionTemplate writeTransaction;
 
@@ -61,6 +66,8 @@ public class TripEditService {
                            ItineraryGenerationService generationService,
                            ItineraryEditService editService,
                            GenerationLock lock,
+                           TripPosterRepository posterRepository,
+                           PosterStorage posterStorage,
                            PlatformTransactionManager transactionManager) {
         this.tripRepository = tripRepository;
         this.preferenceRepository = preferenceRepository;
@@ -69,6 +76,8 @@ public class TripEditService {
         this.generationService = generationService;
         this.editService = editService;
         this.lock = lock;
+        this.posterRepository = posterRepository;
+        this.posterStorage = posterStorage;
         this.readTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction.setReadOnly(true);
         this.writeTransaction = new TransactionTemplate(transactionManager);
@@ -172,8 +181,13 @@ public class TripEditService {
             throw new ConflictException("일정을 만들거나 고치는 중이에요. 끝난 뒤에 다시 시도해주세요.");
         }
         try {
+            List<String> posterFiles = new ArrayList<>();
             writeTransaction.executeWithoutResult(status -> {
                 Trip trip = findTrip(userId, tripId);
+                // 포스터(10-12)도 함께. 파일은 DB 삭제가 끝난 뒤 지운다
+                List<TripPoster> posters = posterRepository.findByTripId(tripId);
+                posters.forEach(p -> p.getPages().forEach(page -> posterFiles.add(page.getFilePath())));
+                posterRepository.deleteAll(posters);
                 List<Itinerary> versions = itineraryRepository.findByTripIdOrderByVersionNoDesc(tripId);
                 itineraryRepository.deleteAll(versions);   // 날짜·항목·대안·빠진 장소까지 함께 지워진다
                 chatMessageRepository.deleteByTripId(tripId);
@@ -181,6 +195,7 @@ public class TripEditService {
                 tripRepository.delete(trip);
                 log.info("[Trip] 여행 삭제 tripId={} (일정 {}개 버전 포함)", tripId, versions.size());
             });
+            posterFiles.forEach(posterStorage::deleteQuietly);
         } finally {
             lock.release(tripId);
         }

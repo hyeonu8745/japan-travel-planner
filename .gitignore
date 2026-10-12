@@ -67,3 +67,6 @@ data/processed/*.csv
 ### Python ###
 __pycache__/
 *.pyc
+
+### 포스터 그림 (10-12)
+storage/

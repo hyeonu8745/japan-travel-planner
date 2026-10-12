@@ -99,6 +99,21 @@ app:
     partner-distance-penalty-per-km: 0.15   # 이웃 지역 고를 때 중심 사이 1km당 감점
     partner-reuse-penalty: 0.5               # 다른 날의 중심 지역이거나 이미 함께 돈 지역이면 감점
 
+  poster:                        # 여행 포스터 (10-12): 1장 지도 포스터 + 상세 일정표 (모두 이미지 AI)
+    enabled: true
+    model: gpt-image-2           # gpt-image-2 계열만 긴 크기(long-cover-size)를 받는다. 더 새 모델: gpt-image-2.5-flare
+    quality: medium              # low / medium / high
+    cover-size: 1024x1536        # 4일 이하
+    long-cover-size: 1152x2048   # 5일 이상 (16의 배수)
+    detail-size: 1024x1536
+    days-per-detail-page: 2      # 상세 일정표 한 장에 넣을 날 수
+    cover-items-per-day: 4       # 지도 포스터에서 하루에 보여줄 장소 수
+    daily-limit: 3               # 여행당 24시간 동안 포스터 묶음 수
+    timeout-seconds: 240
+    parallel: 2                  # 동시에 그리는 장 수
+    stale-minutes: 20            # 이보다 오래 GENERATING이면 실패로 본다 (서버 재시작 등)
+    storage-dir: storage/posters # 그림 파일 폴더 (.gitignore)
+
   exchange-rate:                 # 엔화 환율 (10-12). 오늘 받은 값 → 수출입은행 → Frankfurter → 마지막 저장값 → meal.krw-per-yen
     enabled: true
     koreaexim-api-key: ${KOREAEXIM_API_KEY:}   # .env (없으면 Frankfurter부터)

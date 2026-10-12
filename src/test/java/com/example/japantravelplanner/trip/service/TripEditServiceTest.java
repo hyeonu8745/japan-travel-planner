@@ -10,6 +10,8 @@ import com.example.japantravelplanner.itinerary.repository.ItineraryRepository;
 import com.example.japantravelplanner.itinerary.service.GenerationLock;
 import com.example.japantravelplanner.itinerary.service.ItineraryEditService;
 import com.example.japantravelplanner.itinerary.service.ItineraryGenerationService;
+import com.example.japantravelplanner.poster.PosterStorage;
+import com.example.japantravelplanner.poster.TripPosterRepository;
 import com.example.japantravelplanner.trip.dto.TripRequestDto;
 import com.example.japantravelplanner.trip.dto.TripUpdateResponseDto;
 import com.example.japantravelplanner.trip.dto.TripUpdateResponseDto.Result;
@@ -57,6 +59,8 @@ class TripEditServiceTest {
     private final ItineraryEditService editService = mock(ItineraryEditService.class);
     private final PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
     private final GenerationLock lock = new GenerationLock();
+    private final TripPosterRepository posterRepository = mock(TripPosterRepository.class);
+    private final PosterStorage posterStorage = mock(PosterStorage.class);
 
     private final Trip trip = TripChangeTest.trip();
     private final Itinerary latest = mock(Itinerary.class);
@@ -73,7 +77,7 @@ class TripEditServiceTest {
         trip.setAccommodationLocation(GF.createPoint(new Coordinate(139.70, 35.69)));
 
         service = new TripEditService(tripRepository, preferenceRepository, chatMessageRepository,
-                itineraryRepository, generationService, editService, lock, transactionManager);
+                itineraryRepository, generationService, editService, lock, posterRepository, posterStorage, transactionManager);
     }
 
     // ── 수정: 바뀐 항목에 따라 ──
@@ -267,6 +271,7 @@ class TripEditServiceTest {
         order.verify(chatMessageRepository).deleteByTripId(TRIP_ID);
         order.verify(preferenceRepository).deleteByTripId(TRIP_ID);
         order.verify(tripRepository).delete(trip);   // 여행을 가리키는 것들을 먼저 지우고 마지막에 여행
+        verify(posterRepository).deleteAll(any());   // 포스터도 (10-12)
     }
 
     @Test
