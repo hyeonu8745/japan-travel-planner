@@ -42,6 +42,6 @@ public record BudgetSummaryDto(Long tripId, int version, int travelers, double k
     public record MealDto(StopType type, String name, String nameKo, String budgetText, Integer minYen, Integer maxYen) {
     }
 
-    public static final String NOTE = "교통비·숙박비·관광지 입장료·쇼핑은 포함하지 않았어요. "
-            + "식비는 식당의 1인 예산 범위(타베로그)로 계산한 대략적인 금액이에요.";
+    public static final String NOTE = "교통비·숙박비·관광지 입장료·쇼핑과 일정에 없는 아침·간식은 포함하지 않았어요. "
+            + "식비는 일정에 들어간 점심·저녁 식당의 1인 예산 범위(타베로그)로 계산한 대략적인 금액이에요.";
 }

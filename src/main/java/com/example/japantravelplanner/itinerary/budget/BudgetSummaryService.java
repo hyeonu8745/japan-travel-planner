@@ -92,10 +92,12 @@ public class BudgetSummaryService {
     }
 
     /**
-     * 타베로그 예산 범위 → [최소, 최대] (1인, 엔). "～￥999"처럼 한쪽만 있으면 그 값을 양쪽에 쓴다.
-     * 둘 다 없으면(점심 "-" 등) null
+     * 타베로그 예산 범위 → [최소, 최대] (1인, 엔). "～￥999"처럼 한쪽만 있으면(최소가 0으로 저장된 경우 포함)
+     * 그 값을 양쪽에 쓴다. 0엔부터로 잡으면 식비가 실제보다 너무 적게 나온다. 둘 다 없으면(점심 "-" 등) null
      */
     static Integer[] range(Integer min, Integer max) {
+        if (min != null && min <= 0) min = null;
+        if (max != null && max <= 0) max = null;
         if (min == null && max == null) return null;
         int low = min != null ? min : max;
         int high = max != null ? max : min;

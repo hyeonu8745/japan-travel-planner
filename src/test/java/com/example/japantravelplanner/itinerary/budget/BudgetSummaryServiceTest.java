@@ -69,7 +69,7 @@ class BudgetSummaryServiceTest {
         assertThat(dto.days().get(1).meals().get(0).budgetText()).isEqualTo("￥null");
         assertThat(dto.foodBudgetKrw()).isEqualTo(400_000);
         assertThat(dto.verdict()).isEqualTo("WITHIN");
-        assertThat(dto.note()).contains("교통비");
+        assertThat(dto.note()).contains("교통비").contains("아침");
         assertThat(dto.exchangeRateSourceLabel()).isEqualTo("고정 환율");
     }
 
@@ -105,6 +105,8 @@ class BudgetSummaryServiceTest {
     @Test
     void 범위_한쪽만_있으면_그_값을_쓴다() {
         assertThat(BudgetSummaryService.range(null, 999)).containsExactly(999, 999);
+        assertThat(BudgetSummaryService.range(0, 999)).containsExactly(999, 999);   // "～￥999"가 0으로 저장된 경우
+        assertThat(BudgetSummaryService.range(0, 0)).isNull();
         assertThat(BudgetSummaryService.range(3000, null)).containsExactly(3000, 3000);
         assertThat(BudgetSummaryService.range(4000, 3000)).containsExactly(3000, 4000);
         assertThat(BudgetSummaryService.range(null, null)).isNull();
