@@ -202,7 +202,7 @@ public class ItineraryEditService {
         }
 
         saveNewVersion(next);
-        trip.setStatus(TripStatus.EDITING);
+        trip.markEdited();   // 확인 대기(완성 전)면 그대로
 
         log.info("[Itinerary] 버전 복원 tripId={} 버전 {} → 새 버전 {}", tripId, old.getVersionNo(), next.getVersionNo());
         return toResponse(next);
@@ -324,7 +324,7 @@ public class ItineraryEditService {
         }
 
         saveNewVersion(next);
-        target.trip().setStatus(TripStatus.EDITING);
+        target.trip().markEdited();
 
         log.info("[Itinerary] 식당 교체 tripId={} version={} DAY{} {} → {}", tripId, next.getVersionNo(),
                 target.day().getDayNumber(), stop.getRestaurant().getName(), replacement.getName());
@@ -375,17 +375,24 @@ public class ItineraryEditService {
      * @return 새 버전 일정. 아직 만든 일정이 없으면 빈 값
      */
     public Optional<ItineraryResponseDto> retimeForConditions(Long userId, Long tripId, String changeNote) {
+        return retimeForConditions(userId, tripId, changeNote, false);
+    }
+
+    /** @param keepAwaiting 조건을 바꾸기 전 여행이 확인 대기(완성 전)였으면 true → 다시 확인 대기로 둔다 */
+    public Optional<ItineraryResponseDto> retimeForConditions(Long userId, Long tripId, String changeNote,
+                                                              boolean keepAwaiting) {
         if (!lock.tryAcquire(tripId)) {
             throw new ConflictException("이미 일정을 만들거나 고치고 있어요. 잠시만 기다려주세요.");
         }
         try {
-            return writeTransaction.execute(status -> doRetimeForConditions(userId, tripId, changeNote));
+            return writeTransaction.execute(status -> doRetimeForConditions(userId, tripId, changeNote, keepAwaiting));
         } finally {
             lock.release(tripId);
         }
     }
 
-    private Optional<ItineraryResponseDto> doRetimeForConditions(Long userId, Long tripId, String changeNote) {
+    private Optional<ItineraryResponseDto> doRetimeForConditions(Long userId, Long tripId, String changeNote,
+                                                                  boolean keepAwaiting) {
         Trip trip = findTrip(userId, tripId);
         Itinerary latest = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId).orElse(null);
         if (latest == null) {
@@ -403,7 +410,8 @@ public class ItineraryEditService {
         }
 
         saveNewVersion(next);
-        trip.setStatus(TripStatus.EDITING);
+        // 조건 저장 때 READY_TO_GENERATE로 바꿔 두었다. 원래 확인 대기(완성 전)였으면 다시 확인 대기로 (10-12)
+        trip.setStatus(keepAwaiting ? TripStatus.AWAITING_CONFIRMATION : TripStatus.EDITING);
 
         log.info("[Itinerary] 여행 조건 변경으로 시각 재계산 tripId={} 새 버전 {} ({})",
                 tripId, next.getVersionNo(), changeNote);

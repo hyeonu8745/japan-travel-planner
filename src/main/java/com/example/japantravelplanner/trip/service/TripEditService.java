@@ -100,6 +100,7 @@ public class TripEditService {
         Trip trip = findTrip(userId, tripId);
         TripChange change = TripChange.between(trip, request);
         boolean hasItinerary = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId).isPresent();
+        boolean wasAwaiting = trip.isAwaitingConfirmation();   // 완성 전이었는지 (시각만 다시 계산하면 그대로 둔다)
 
         if (change.changed("startDate") || change.changed("endDate")) {
             trip.setTitle(TripService.defaultTitle(request.getStartDate(), request.getEndDate()));
@@ -125,7 +126,7 @@ public class TripEditService {
         }
 
         log.info("[Trip] 조건 수정 tripId={} 바뀐 항목={} 영향={}", tripId, change.fields(), change.impact());
-        return new Saved(change, hasItinerary);
+        return new Saved(change, hasItinerary, wasAwaiting);
     }
 
     private ItineraryUpdate syncItinerary(Long userId, Long tripId, Saved saved) {
@@ -141,7 +142,7 @@ public class TripEditService {
         try {
             if (change.impact() == TripChange.Impact.RETIME) {
                 String note = "여행 조건 변경(" + change.labels() + "): 장소는 그대로, 시각 다시 계산";
-                ItineraryResponseDto itinerary = editService.retimeForConditions(userId, tripId, note).orElse(null);
+                ItineraryResponseDto itinerary = editService.retimeForConditions(userId, tripId, note, saved.wasAwaiting()).orElse(null);
                 return new ItineraryUpdate(Result.RETIMED,
                         "장소는 그대로 두고 이동 시간과 시각을 다시 계산했어요.", itinerary);
             }
@@ -191,6 +192,6 @@ public class TripEditService {
     }
 
     /** ① 단계 결과 */
-    private record Saved(TripChange change, boolean hasItinerary) {
+    private record Saved(TripChange change, boolean hasItinerary, boolean wasAwaiting) {
     }
 }

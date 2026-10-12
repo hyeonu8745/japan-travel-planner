@@ -44,7 +44,8 @@ public class ChatService {
     private static final List<TripStatus> CHAT_ALLOWED_STATUSES = List.of(
             TripStatus.CONDITIONS_SET, TripStatus.PREFERENCE_GATHERING, TripStatus.READY_TO_GENERATE);
     /** 일정이 만들어진 뒤에는 같은 채팅이 일정 수정 대화가 된다 (10-11, 예전에는 409로 막았다) */
-    private static final List<TripStatus> EDIT_STATUSES = List.of(TripStatus.GENERATED, TripStatus.EDITING);
+    private static final List<TripStatus> EDIT_STATUSES = List.of(
+            TripStatus.AWAITING_CONFIRMATION, TripStatus.GENERATED, TripStatus.EDITING);
 
     private final TripRepository tripRepository;
     private final TripPreferenceRepository tripPreferenceRepository;

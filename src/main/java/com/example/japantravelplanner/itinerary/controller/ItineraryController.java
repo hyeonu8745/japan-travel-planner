@@ -3,6 +3,7 @@ package com.example.japantravelplanner.itinerary.controller;
 import com.example.japantravelplanner.itinerary.dto.AddAttractionCandidatesResponseDto;
 import com.example.japantravelplanner.itinerary.dto.AddAttractionRequestDto;
 import com.example.japantravelplanner.itinerary.dto.AttractionCandidatesResponseDto;
+import com.example.japantravelplanner.itinerary.dto.ItineraryConfirmResponseDto;
 import com.example.japantravelplanner.itinerary.dto.ItineraryResponseDto;
 import com.example.japantravelplanner.itinerary.dto.ItineraryVersionDto;
 import com.example.japantravelplanner.itinerary.dto.ReplaceAttractionRequestDto;
@@ -47,6 +48,16 @@ public class ItineraryController {
     public ItineraryResponseDto getLatest(@AuthenticationPrincipal Long userId,
                                           @PathVariable Long tripId) {
         return koreanNames.fill(generationService.getLatest(userId, tripId));
+    }
+
+    /**
+     * 일정 [완성] (10-12). 확인 대기(AWAITING_CONFIRMATION)면 GENERATED로 바꾼다. 여러 번 불러도 같은 결과.
+     * 일정이 없거나 조건이 바뀌어 다시 만들어야 하는 상태면 409
+     */
+    @PostMapping("/confirm")
+    public ItineraryConfirmResponseDto confirm(@AuthenticationPrincipal Long userId, @PathVariable Long tripId) {
+        ItineraryConfirmResponseDto confirmed = generationService.confirm(userId, tripId);
+        return confirmed.withItinerary(koreanNames.fill(confirmed.itinerary()));
     }
 
     /** 식당(점심·저녁) 항목 하나를 바꿀 때 고를 수 있는 후보 */

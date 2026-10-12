@@ -76,6 +76,20 @@ public class Trip {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    /**
+     * 일정을 고쳤을 때의 상태. 확인 대기(완성 전)면 그대로 두고, 그 밖에는 EDITING (10-12 사용자 결정:
+     * 완성 전에 고쳐도 확인 대기 유지 → 다 고친 뒤 [완성])
+     */
+    public void markEdited() {
+        if (status != TripStatus.AWAITING_CONFIRMATION) {
+            status = TripStatus.EDITING;
+        }
+    }
+
+    public boolean isAwaitingConfirmation() {
+        return status == TripStatus.AWAITING_CONFIRMATION;
+    }
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -86,4 +100,4 @@ public class Trip {
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
-}
+}

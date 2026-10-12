@@ -6,6 +6,7 @@ import com.example.japantravelplanner.global.exception.ConflictException;
 import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.global.exception.TooManyRequestsException;
 import com.example.japantravelplanner.itinerary.dictionary.PlaceTypeLabels;
+import com.example.japantravelplanner.itinerary.dto.ItineraryConfirmResponseDto;
 import com.example.japantravelplanner.itinerary.dto.ItineraryResponseDto;
 import com.example.japantravelplanner.itinerary.entity.Itinerary;
 import com.example.japantravelplanner.itinerary.meal.MealProperties;
@@ -203,7 +204,8 @@ public class ItineraryGenerationService {
             log.error("[Itinerary] 일정 저장이 DB에서 거절됨 (동시성 문제가 아님): {}", message);
             throw e;
         }
-        trip.setStatus(TripStatus.GENERATED);
+        // AI로 새로 만든 일정은 사용자가 [완성]을 누를 때까지 확인 대기 (10-12, 프론트 요청)
+        trip.setStatus(TripStatus.AWAITING_CONFIRMATION);
 
         // 어떻게 짰는지 채팅에 남긴다 (일정이 만들어진 뒤에는 채팅 입력이 막혀 있어서 기록으로만 보인다)
         ReasonContext reasons = reasonContextLoader.load(trip);
@@ -226,6 +228,36 @@ public class ItineraryGenerationService {
             return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels, Map.of(),
                     reasonContextLoader.load(itinerary.getTrip()));
         });
+    }
+
+    // ===================== 완성 확인 =====================
+
+    /**
+     * 사용자가 [완성]을 눌렀다 (10-12, 프론트 요청). 확인 대기(AWAITING_CONFIRMATION)면 GENERATED로 바꾸고 가장 최근 일정을 돌려준다.
+     * 이미 GENERATED·EDITING이면 바꾸지 않고 같은 응답 (여러 번 눌러도 같은 결과).
+     * 일정이 없거나, 조건을 바꾼 뒤 일정을 다시 맞추지 못한 상태(READY_TO_GENERATE 등)면 409
+     */
+    public ItineraryConfirmResponseDto confirm(Long userId, Long tripId) {
+        if (!lock.tryAcquire(tripId)) {
+            throw new ConflictException("일정을 만들거나 고치는 중이에요. 끝난 뒤에 다시 눌러 주세요.");
+        }
+        try {
+            return writeTransaction.execute(status -> {
+                Trip trip = findTrip(userId, tripId);
+                Itinerary latest = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
+                        .orElseThrow(() -> new ConflictException("아직 만들어진 일정이 없어요. 일정을 먼저 만들어 주세요."));
+                if (trip.isAwaitingConfirmation()) {
+                    trip.setStatus(TripStatus.GENERATED);
+                    log.info("[Itinerary] 완성 확인 tripId={} version={}", tripId, latest.getVersionNo());
+                } else if (trip.getStatus() != TripStatus.GENERATED && trip.getStatus() != TripStatus.EDITING) {
+                    throw new ConflictException("여행 조건이 바뀌어 일정을 다시 만들어야 해요. 일정을 다시 만든 뒤 완성해 주세요.");
+                }
+                return new ItineraryConfirmResponseDto(tripId, trip.getStatus(),
+                        toResponse(latest, reasonContextLoader.load(trip)));
+            });
+        } finally {
+            lock.release(tripId);
+        }
     }
 
     // 식당 대안 후보는 id만 저장되어 있어서, 일정 전체의 대안을 한 번에 조회해서 풀어준다

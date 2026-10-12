@@ -6,6 +6,7 @@ import com.example.japantravelplanner.global.exception.ConflictException;
 import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.global.exception.TooManyRequestsException;
 import com.example.japantravelplanner.itinerary.dictionary.PlaceTypeLabels;
+import com.example.japantravelplanner.itinerary.dto.ItineraryConfirmResponseDto;
 import com.example.japantravelplanner.itinerary.dto.ItineraryResponseDto;
 import com.example.japantravelplanner.itinerary.entity.Itinerary;
 import com.example.japantravelplanner.itinerary.entity.ItinerarySource;
@@ -190,7 +191,7 @@ class ItineraryGenerationServiceTest {
     // ── 정상 흐름 ──
 
     @Test
-    void 일정을_저장하고_여행_상태를_생성됨으로_바꾼다() {
+    void 일정을_저장하고_여행_상태를_확인_대기로_바꾼다() {
         trip.setStatus(TripStatus.READY_TO_GENERATE);
 
         ItineraryResponseDto response = service.generate(USER_ID, TRIP_ID);
@@ -199,7 +200,7 @@ class ItineraryGenerationServiceTest {
         assertThat(response.days()).hasSize(1);
         assertThat(response.days().get(0).description()).isEqualTo("신주쿠의 하루예요.");
         assertThat(response.days().get(0).stops()).hasSize(2);
-        assertThat(trip.getStatus()).isEqualTo(TripStatus.GENERATED);
+        assertThat(trip.getStatus()).isEqualTo(TripStatus.AWAITING_CONFIRMATION);   // 10-12: [완성]을 누를 때까지
         verify(itineraryRepository, times(1)).saveAndFlush(any());
     }
 
@@ -223,7 +224,7 @@ class ItineraryGenerationServiceTest {
         ItineraryResponseDto response = service.generate(USER_ID, TRIP_ID);
 
         assertThat(response.version()).isEqualTo(3);
-        assertThat(trip.getStatus()).isEqualTo(TripStatus.GENERATED);
+        assertThat(trip.getStatus()).isEqualTo(TripStatus.AWAITING_CONFIRMATION);   // AI로 새로 만들면 다시 확인 대기
         verify(itineraryRepository, never()).delete(any());
     }
 
@@ -389,6 +390,61 @@ class ItineraryGenerationServiceTest {
     void 남의_여행_일정은_조회할_수_없다() {
         assertThatThrownBy(() -> service.getLatest(99L, TRIP_ID)).isInstanceOf(NotFoundException.class);
         verify(itineraryRepository, never()).findFirstByTripIdOrderByVersionNoDesc(anyLong());
+    }
+
+    // ── 완성 확인 (10-12) ──
+
+    private Itinerary savedLatest() {
+        Itinerary latest = ItineraryMapper.toEntity(trip, 2, 9.0, plannedResult().days(), plannedResult().windows(),
+                Map.of(), id -> cat, id -> ramen);
+        when(itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(TRIP_ID)).thenReturn(Optional.of(latest));
+        return latest;
+    }
+
+    @Test
+    void 완성을_누르면_확인_대기에서_GENERATED로_바꾸고_일정을_돌려준다() {
+        savedLatest();
+        trip.setStatus(TripStatus.AWAITING_CONFIRMATION);
+
+        ItineraryConfirmResponseDto response = service.confirm(USER_ID, TRIP_ID);
+
+        assertThat(trip.getStatus()).isEqualTo(TripStatus.GENERATED);
+        assertThat(response.status()).isEqualTo(TripStatus.GENERATED);
+        assertThat(response.tripId()).isEqualTo(TRIP_ID);
+        assertThat(response.itinerary().version()).isEqualTo(2);
+        assertThat(lock.tryAcquire(TRIP_ID)).isTrue();   // 잠금은 풀린다
+    }
+
+    @Test
+    void 완성을_여러_번_눌러도_같은_결과이고_고친_뒤면_EDITING을_유지한다() {
+        savedLatest();
+        trip.setStatus(TripStatus.AWAITING_CONFIRMATION);
+        service.confirm(USER_ID, TRIP_ID);
+
+        assertThat(service.confirm(USER_ID, TRIP_ID).status()).isEqualTo(TripStatus.GENERATED);
+
+        trip.setStatus(TripStatus.EDITING);
+        assertThat(service.confirm(USER_ID, TRIP_ID).status()).isEqualTo(TripStatus.EDITING);
+    }
+
+    @Test
+    void 일정이_없거나_다시_만들어야_하는_상태면_완성할_수_없다() {
+        trip.setStatus(TripStatus.READY_TO_GENERATE);
+        assertThatThrownBy(() -> service.confirm(USER_ID, TRIP_ID))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("아직 만들어진 일정이 없어요");
+
+        savedLatest();   // 조건을 바꾼 뒤 일정을 맞추지 못한 경우
+        assertThatThrownBy(() -> service.confirm(USER_ID, TRIP_ID))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("다시 만들어야");
+        assertThat(trip.getStatus()).isEqualTo(TripStatus.READY_TO_GENERATE);
+    }
+
+    @Test
+    void 남의_여행은_완성할_수_없고_만드는_중이면_409() {
+        assertThatThrownBy(() -> service.confirm(99L, TRIP_ID)).isInstanceOf(NotFoundException.class);
+
+        lock.tryAcquire(TRIP_ID);
+        assertThatThrownBy(() -> service.confirm(USER_ID, TRIP_ID)).isInstanceOf(ConflictException.class);
     }
 
     // ── 고른 이유, "이렇게 짰어요" ──

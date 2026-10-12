@@ -35,6 +35,7 @@ import static com.example.japantravelplanner.trip.service.TripChangeTest.sameAs;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
@@ -89,14 +90,14 @@ class TripEditServiceTest {
         assertThat(response.changedFields()).containsExactly("budget");
         assertThat(response.itineraryUpdate().result()).isEqualTo(Result.REGENERATED);
         assertThat(response.itineraryUpdate().itinerary()).isSameAs(newVersion);
-        verify(editService, never()).retimeForConditions(anyLong(), anyLong(), anyString());
+        verify(editService, never()).retimeForConditions(anyLong(), anyLong(), anyString(), anyBoolean());
     }
 
     @Test
     void 숙소_주소가_바뀌면_좌표를_비우고_장소는_그대로_시각만_다시_계산한다() {
         TripRequestDto request = sameAs(trip);
         request.setAccommodationAddress("東京都港区芝公園4-2-8");
-        when(editService.retimeForConditions(eq(USER_ID), eq(TRIP_ID), anyString())).thenReturn(Optional.of(newVersion));
+        when(editService.retimeForConditions(eq(USER_ID), eq(TRIP_ID), anyString(), eq(false))).thenReturn(Optional.of(newVersion));
 
         TripUpdateResponseDto response = service.update(USER_ID, TRIP_ID, request);
 
@@ -104,22 +105,36 @@ class TripEditServiceTest {
         assertThat(trip.getAccommodationAddress()).isEqualTo("東京都港区芝公園4-2-8");
         assertThat(response.itineraryUpdate().result()).isEqualTo(Result.RETIMED);
         assertThat(response.itineraryUpdate().itinerary()).isSameAs(newVersion);
-        verify(editService).retimeForConditions(eq(USER_ID), eq(TRIP_ID), contains("숙소 주소"));
+        verify(editService).retimeForConditions(eq(USER_ID), eq(TRIP_ID), contains("숙소 주소"), eq(false));
         verify(generationService, never()).generate(anyLong(), anyLong());   // AI도, 생성 횟수도 쓰지 않는다
+    }
+
+    @Test
+    void 완성_전_확인_대기에서_시각만_다시_계산하면_확인_대기를_유지하라고_넘긴다() {
+        // 10-12 사용자 결정: AI로 새로 만들 때만 다시 확인 대기, 시각 재계산은 지금 상태 유지
+        trip.setStatus(TripStatus.AWAITING_CONFIRMATION);
+        TripRequestDto request = sameAs(trip);
+        request.setTransportMode(TransportMode.RENTAL_CAR);
+        when(editService.retimeForConditions(eq(USER_ID), eq(TRIP_ID), anyString(), eq(true))).thenReturn(Optional.of(newVersion));
+
+        TripUpdateResponseDto response = service.update(USER_ID, TRIP_ID, request);
+
+        assertThat(response.itineraryUpdate().result()).isEqualTo(Result.RETIMED);
+        verify(editService).retimeForConditions(eq(USER_ID), eq(TRIP_ID), anyString(), eq(true));
     }
 
     @Test
     void 이동수단만_바꾸면_좌표는_그대로_두고_시각만_다시_계산한다() {
         TripRequestDto request = sameAs(trip);
         request.setTransportMode(TransportMode.RENTAL_CAR);
-        when(editService.retimeForConditions(eq(USER_ID), eq(TRIP_ID), anyString())).thenReturn(Optional.of(newVersion));
+        when(editService.retimeForConditions(eq(USER_ID), eq(TRIP_ID), anyString(), eq(false))).thenReturn(Optional.of(newVersion));
 
         TripUpdateResponseDto response = service.update(USER_ID, TRIP_ID, request);
 
         assertThat(trip.getAccommodationLocation()).isNotNull();
         assertThat(trip.getTransportMode()).isEqualTo(TransportMode.RENTAL_CAR);
         assertThat(response.itineraryUpdate().result()).isEqualTo(Result.RETIMED);
-        verify(editService).retimeForConditions(eq(USER_ID), eq(TRIP_ID), contains("이동수단"));
+        verify(editService).retimeForConditions(eq(USER_ID), eq(TRIP_ID), contains("이동수단"), eq(false));
     }
 
     @Test
@@ -184,7 +199,7 @@ class TripEditServiceTest {
     void 새_숙소_주소를_못_찾으면_조건은_저장하고_FAILED로_알린다() {
         TripRequestDto request = sameAs(trip);
         request.setAccommodationAddress("없는 주소");
-        when(editService.retimeForConditions(eq(USER_ID), eq(TRIP_ID), anyString()))
+        when(editService.retimeForConditions(eq(USER_ID), eq(TRIP_ID), anyString(), eq(false)))
                 .thenThrow(new IllegalArgumentException("숙소 주소를 찾지 못했어요. 여행 조건에서 숙소 이름이나 주소를 확인해주세요."));
 
         TripUpdateResponseDto response = service.update(USER_ID, TRIP_ID, request);

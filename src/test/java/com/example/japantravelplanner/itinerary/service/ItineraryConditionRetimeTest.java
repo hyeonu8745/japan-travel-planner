@@ -140,6 +140,16 @@ class ItineraryConditionRetimeTest {
     }
 
     @Test
+    void 완성_전이었던_여행은_시각을_다시_계산해도_확인_대기로_둔다() {
+        latest(1);
+        trip.setStatus(TripStatus.READY_TO_GENERATE);   // 조건 저장 때 바뀐 상태
+
+        service.retimeForConditions(USER_ID, TRIP_ID, NOTE, true);
+
+        assertThat(trip.getStatus()).isEqualTo(TripStatus.AWAITING_CONFIRMATION);
+    }
+
+    @Test
     void 장소가_그대로라_AI_설명과_정기_휴일_안내는_남긴다() {
         latest(1);
         trip.setTransportMode(TransportMode.RENTAL_CAR);

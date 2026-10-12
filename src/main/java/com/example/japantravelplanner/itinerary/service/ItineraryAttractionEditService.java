@@ -207,7 +207,7 @@ public class ItineraryAttractionEditService {
         }
 
         saveNewVersion(next);
-        target.trip().setStatus(TripStatus.EDITING);
+        target.trip().markEdited();
 
         log.info("[Itinerary] 관광지 교체 tripId={} version={} DAY{} {} → {}", tripId, next.getVersionNo(),
                 target.day().getDayNumber(), stop.getAttraction().getName(), replacement.getName());

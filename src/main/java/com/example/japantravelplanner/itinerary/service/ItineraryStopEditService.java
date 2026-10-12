@@ -363,7 +363,7 @@ public class ItineraryStopEditService {
         }
 
         saveNewVersion(next);
-        ctx.trip().setStatus(TripStatus.EDITING);
+        ctx.trip().markEdited();
         return toResponse(next);
     }
 

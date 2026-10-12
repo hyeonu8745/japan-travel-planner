@@ -146,4 +146,15 @@ class ChatServiceTest {
         verify(editChat).handle(USER_ID, TRIP_ID, "2일차 저녁을 스시로 바꿔줘");
         verifyNoInteractions(openAiClient);
     }
+
+    @Test
+    void 완성_전_확인_대기_여행도_일정_수정_대화로_넘긴다() {
+        // 10-12: 확인 대기 중에도 고칠 수 있다 (사용자 결정)
+        trip.setStatus(TripStatus.AWAITING_CONFIRMATION);
+
+        service.sendMessage(USER_ID, TRIP_ID, "닌자 카페 빼줘");
+
+        verify(editChat).handle(USER_ID, TRIP_ID, "닌자 카페 빼줘");
+        verifyNoInteractions(openAiClient);
+    }
 }
