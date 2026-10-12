@@ -22,6 +22,14 @@ public class MealHistory {
     private final Map<String, Integer> groupCounts = new HashMap<>();
     private Set<String> lastGenres = Set.of();
 
+    public MealHistory() {
+    }
+
+    /** @param excluded 처음부터 고르지 않을 식당 (사용자가 이 여행에서 바꾼 식당, 10-12) */
+    public MealHistory(Set<Long> excluded) {
+        if (excluded != null) usedIds.addAll(excluded);
+    }
+
     public void record(RestaurantCandidate chosen) {
         usedIds.add(chosen.restaurant().getId());
         lastGenres = RestaurantFinder.mainGenres(chosen.restaurant().getGenre());
@@ -46,4 +54,4 @@ public class MealHistory {
     public Set<String> lastGenres() {
         return lastGenres;
     }
-}
+}

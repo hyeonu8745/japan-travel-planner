@@ -7,7 +7,9 @@ import org.locationtech.jts.geom.Point;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name = "trips")
@@ -49,6 +51,16 @@ public class Trip {
     @Column(name = "interest")
     private List<Interest> interests;
 
+    /**
+     * 사용자가 이 여행에서 다른 곳으로 바꾼 식당 (10-12). 교체 후보·다시 만드는 일정에 다시 넣지 않는다.
+     * 리뷰가 마음에 안 들어 바꾼 식당이 다음 후보로 또 나오지 않게 (Google 리뷰가 아니라 사용자 선택이라 저장해도 된다)
+     */
+    @ElementCollection
+    @CollectionTable(name = "trip_excluded_restaurants", joinColumns = @JoinColumn(name = "trip_id"))
+    @Column(name = "restaurant_id")
+    @Builder.Default
+    private Set<Long> excludedRestaurantIds = new HashSet<>();
+
     @Column(length = 500)
     private String allergies;
 
@@ -84,6 +96,21 @@ public class Trip {
         if (status != TripStatus.AWAITING_CONFIRMATION) {
             status = TripStatus.EDITING;
         }
+    }
+
+    public void excludeRestaurant(Long restaurantId) {
+        if (restaurantId == null) return;
+        if (excludedRestaurantIds == null) excludedRestaurantIds = new HashSet<>();
+        excludedRestaurantIds.add(restaurantId);
+    }
+
+    /** 사용자가 "다시 추천해도 돼요"를 고르면 */
+    public boolean allowRestaurant(Long restaurantId) {
+        return excludedRestaurantIds != null && excludedRestaurantIds.remove(restaurantId);
+    }
+
+    public Set<Long> excludedRestaurants() {
+        return excludedRestaurantIds == null ? Set.of() : excludedRestaurantIds;
     }
 
     public boolean isAwaitingConfirmation() {

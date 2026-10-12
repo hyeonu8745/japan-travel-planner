@@ -29,4 +29,23 @@ class TripStatusTest {
         assertThat(editing.getStatus()).isEqualTo(TripStatus.EDITING);
         assertThat(generated.isAwaitingConfirmation()).isFalse();
     }
+
+    @Test
+    void 바꾼_식당을_기억하고_다시_추천해도_되면_푼다() {
+        Trip trip = Trip.builder().build();
+
+        trip.excludeRestaurant(21L);
+        trip.excludeRestaurant(null);
+
+        assertThat(trip.excludedRestaurants()).containsExactly(21L);
+        assertThat(trip.allowRestaurant(21L)).isTrue();
+        assertThat(trip.allowRestaurant(21L)).isFalse();
+        assertThat(trip.excludedRestaurants()).isEmpty();
+    }
+
+    @Test
+    void 일정을_만들_때_바꾼_식당은_처음부터_고르지_않는다() {
+        var history = new com.example.japantravelplanner.itinerary.planner.MealHistory(java.util.Set.of(21L));
+        assertThat(history.usedIds()).containsExactly(21L);
+    }
 }

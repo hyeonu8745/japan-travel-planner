@@ -79,7 +79,7 @@ public class ItineraryPlanner {
                 ? mealBudgetCalculator.calculate(trip.getBudget(), trip.getTravelers(), days, foodRatio)
                 : mealBudgetCalculator.calculate(trip.getBudget(), trip.getTravelers(), days, foodRatio, krwPerYen);
         FoodFilter filter = foodFilterResolver.resolve(constraints, trip.getAllergies());
-        MealHistory history = new MealHistory();
+        MealHistory history = new MealHistory(trip.excludedRestaurants());   // 사용자가 바꾼 식당은 다시 넣지 않는다
 
         List<ScoredAttraction> scored = scoredAttractions(trip, constraints);
         List<DayZone> zones = planZones(trip, constraints, hotel, scored, options.compact());

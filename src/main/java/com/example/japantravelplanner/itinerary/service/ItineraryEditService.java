@@ -324,6 +324,8 @@ public class ItineraryEditService {
         }
 
         saveNewVersion(next);
+        target.trip().allowRestaurant(replacement.getId());   // 예전에 뺐던 곳을 다시 고르면(대안 목록 등) 빼기 해제
+        target.trip().excludeRestaurant(stop.getRestaurant().getId());   // 바꾼 식당은 이 여행에서 다시 추천하지 않는다
         target.trip().markEdited();
 
         log.info("[Itinerary] 식당 교체 tripId={} version={} DAY{} {} → {}", tripId, next.getVersionNo(),
@@ -553,7 +555,7 @@ public class ItineraryEditService {
         Meal meal = target.stop().getType() == StopType.LUNCH ? Meal.LUNCH : Meal.DINNER;
         TravelPoint anchor = anchorOf(target);
         return restaurantFinder.findWantedOne(anchor.lat(), anchor.lng(), meal, target.budget().of(meal),
-                target.filter(), usedRestaurantIds(target.latest()), wantedGenres, restaurantId).orElse(null);
+                target.filter(), excludedIds(target), wantedGenres, restaurantId).orElse(null);
     }
 
     /** 끼니를 찾는 기준점: 일정을 만들 때처럼 앞뒤 장소의 중간. 앞뒤가 없으면 있는 쪽, 둘 다 없으면 지금 식당 */
@@ -592,10 +594,17 @@ public class ItineraryEditService {
 
         List<RestaurantCandidate> found = wantedGenres == null || wantedGenres.isEmpty()
                 ? restaurantFinder.find(anchor.lat(), anchor.lng(), meal, maxYen,
-                        target.filter(), usedRestaurantIds(target.latest()), limit)
+                        target.filter(), excludedIds(target), limit)
                 : restaurantFinder.findWanted(anchor.lat(), anchor.lng(), meal, maxYen,
-                        target.filter(), usedRestaurantIds(target.latest()), limit, wantedGenres);
+                        target.filter(), excludedIds(target), limit, wantedGenres);
         return new Search(meal, maxYen, previous, found);
+    }
+
+    /** 후보에서 뺄 식당: 일정에 이미 있는 곳 + 사용자가 이 여행에서 바꾼 곳 (10-12) */
+    private static Set<Long> excludedIds(Target target) {
+        Set<Long> ids = new java.util.HashSet<>(usedRestaurantIds(target.latest()));
+        ids.addAll(target.trip().excludedRestaurants());
+        return ids;
     }
 
     private static Set<Long> usedRestaurantIds(Itinerary itinerary) {

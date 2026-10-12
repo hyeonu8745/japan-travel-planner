@@ -201,6 +201,21 @@ class ItineraryEditServiceTest {
     }
 
     @Test
+    void 사용자가_이_여행에서_바꾼_식당은_후보에서_뺀다() {
+        // 10-12: 리뷰가 마음에 안 들어 바꾼 식당이 다음 후보로 또 나오지 않게
+        trip.excludeRestaurant(99L);
+        finderReturns();
+
+        service.candidates(USER_ID, TRIP_ID, 1L);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Set<Long>> excluded = ArgumentCaptor.forClass(Set.class);
+        verify(finder).find(anyDouble(), anyDouble(), any(Meal.class), anyInt(), any(FoodFilter.class),
+                excluded.capture(), anyInt());
+        assertThat(excluded.getValue()).contains(99L, 21L);
+    }
+
+    @Test
     void 저녁_후보는_점심과_같은_음식이면_표시한다() {
         Restaurant sameGenre = restaurant(42, "라멘 후보", "ラーメン,つけ麺");
         Restaurant otherGenre = restaurant(43, "초밥 후보", "寿司");
@@ -314,6 +329,7 @@ class ItineraryEditServiceTest {
         assertThat(response.version()).isEqualTo(2);
         assertThat(response.source()).isEqualTo(ItinerarySource.EDITED);
         assertThat(trip.getStatus()).isEqualTo(TripStatus.EDITING);
+        assertThat(trip.excludedRestaurants()).containsExactly(21L);   // 바꾼 식당은 다시 추천하지 않는다 (10-12)
     }
 
     @Test
