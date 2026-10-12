@@ -47,7 +47,8 @@ class PosterPromptBuilderTest {
                 .contains("- \"덴푸라\"  draw: a dish of ラーメン")
                 .contains("exactly as given").contains("Do not add other famous landmarks")
                 .contains("autumn")                                  // 10월
-                .contains("not any existing character");             // 캐릭터 저작권
+                .contains("not any existing character")              // 캐릭터 저작권
+                .contains("red beret");                              // 모든 장에 같은 캐릭터
     }
 
     @Test

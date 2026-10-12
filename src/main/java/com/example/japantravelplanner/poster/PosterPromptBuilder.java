@@ -72,7 +72,7 @@ public final class PosterPromptBuilder {
         sb.append("A winding path runs from top to bottom through the poster, connecting one illustrated section per day. ");
         sb.append("In each section, draw small illustrations of the listed places in order, connected by arrows, with a rounded white label under each illustration. ");
         sb.append("If a day has more than 4 places, use two rows for that day. Keep every label large enough to read when printed. ");
-        sb.append("An original cute round mascot character with a small backpack walks along the path (an original design, not any existing character or brand mascot).\n\n");
+        sb.append(MASCOT).append(" walks along the path.\n\n");
         sb.append(TEXT_RULES);
         sb.append("\nTitle at the top, large and bold: \"").append(heading).append("\"\n\n");
         for (DayDto day : days) {
@@ -138,7 +138,8 @@ public final class PosterPromptBuilder {
         sb.append("A vertical printable travel itinerary page, clean and simple, in the same hand-drawn watercolor style as a Tokyo travel poster. ");
         sb.append("Mostly white or cream background so the text is easy to read. Season accents: ").append(season).append(".\n");
         sb.append("Layout: a small header ribbon at the top, then one rounded card per day. Inside each card, a timetable with three columns: time in a small pill, place name in bold, a short note in lighter text. ");
-        sb.append("Only small decorative illustrations at the edges (no large pictures). The same original cute round mascot may appear once, small.\n\n");
+        sb.append("Only small decorative illustrations at the edges (no large pictures). ");
+        sb.append(MASCOT).append(" may appear once, small, in a corner.\n\n");
         sb.append(TEXT_RULES);
         sb.append("\nHeader: \"").append(title).append(" · 상세 일정\"\n\n");
         for (DayDto day : days) {
@@ -172,6 +173,14 @@ public final class PosterPromptBuilder {
     }
 
     // ===================== 공통 =====================
+
+    /**
+     * 모든 장에 같은 캐릭터 (10-12 두 번째 포스터: 지도 두 장의 캐릭터 색·모양이 서로 달랐다).
+     * 기존 캐릭터를 닮지 않은 우리만의 모습으로 구체적으로 정해 둔다
+     */
+    static final String MASCOT = "The same original mascot on every page: a small round cream-yellow chick with a red beret, "
+            + "a red scarf and a green backpack, drawn in the same soft watercolor style "
+            + "(an original design, not any existing character or brand mascot)";
 
     static final String TEXT_RULES = """
             TEXT RULES (very important):
