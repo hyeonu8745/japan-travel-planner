@@ -109,7 +109,7 @@ app:
     detail-size: 1024x1536
     days-per-detail-page: 2      # 상세 일정표 한 장에 넣을 날 수
     cover-items-per-day: 8       # 지도에서 하루에 보여줄 장소 수 (넘으면 식당 1곳만, 그다음 관광지를 줄임)
-    daily-limit: 10              # 여행당 24시간 동안 포스터 묶음 수
+    daily-limit: 3               # 여행당 24시간 동안 포스터 묶음 수
     timeout-seconds: 240
     parallel: 2                  # 동시에 그리는 장 수
     stale-minutes: 20            # 이보다 오래 GENERATING이면 실패로 본다 (서버 재시작 등)
