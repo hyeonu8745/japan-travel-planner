@@ -112,10 +112,10 @@ class PosterServiceTest {
 
     @Test
     void 하루_한도를_넘으면_429_그리는_중이면_409() {
-        when(posterRepository.countByTripIdAndCreatedAtAfter(eq(TRIP_ID), any())).thenReturn(3L);
+        when(posterRepository.countUsed(eq(TRIP_ID), any())).thenReturn(3L);
         assertThatThrownBy(() -> service.start(USER_ID, TRIP_ID)).isInstanceOf(TooManyRequestsException.class);
 
-        when(posterRepository.countByTripIdAndCreatedAtAfter(eq(TRIP_ID), any())).thenReturn(0L);
+        when(posterRepository.countUsed(eq(TRIP_ID), any())).thenReturn(0L);
         saved.set(TripPoster.start(trip, 3, "gpt-image-2", LocalDateTime.now()));
         assertThatThrownBy(() -> service.start(USER_ID, TRIP_ID)).isInstanceOf(ConflictException.class);
         verifyNoInteractions(imageClient);
@@ -132,6 +132,20 @@ class PosterServiceTest {
 
         saved.set(TripPoster.start(trip, 4, "gpt-image-2", LocalDateTime.now().minusMinutes(30)));
         assertThat(service.get(USER_ID, TRIP_ID).status()).isEqualTo(PosterStatus.FAILED);
+    }
+
+    @Test
+    void 서버가_다시_시작되면_그리던_묶음을_바로_실패로_정리한다() {
+        // 10-12: 그리는 도중 재시작 → 작업은 사라지고 GENERATING으로 남아 20분 동안 새로 만들 수 없었다
+        TripPoster stuck = TripPoster.start(trip, 3, "gpt-image-2", LocalDateTime.now());
+        stuck.addPage(TripPosterPage.of(1, PosterPageKind.COVER, "1024x1536", "p"));
+        when(posterRepository.findByStatus(PosterStatus.GENERATING)).thenReturn(java.util.List.of(stuck));
+
+        service.failInterrupted();
+
+        assertThat(stuck.getStatus()).isEqualTo(PosterStatus.FAILED);
+        assertThat(stuck.getErrorMessage()).contains("다시 시작");
+        assertThat(stuck.getPages()).allMatch(page -> page.getStatus() == PosterStatus.FAILED);
     }
 
     @Test

@@ -31,34 +31,50 @@ public final class PosterPromptBuilder {
     public static List<PageSpec> build(ItineraryResponseDto itinerary, String title, LocalDate startDate,
                                        PosterProperties props) {
         List<DayDto> days = itinerary.days().stream().filter(d -> !d.stops().isEmpty()).toList();
-        int detailPages = (days.size() + props.getDaysPerDetailPage() - 1) / Math.max(1, props.getDaysPerDetailPage());
-        int total = 1 + detailPages;
+        List<List<DayDto>> covers = chunks(days, props.getCoverDaysPerPage());
+        List<List<DayDto>> details = chunks(days, props.getDaysPerDetailPage());
         String season = season(startDate);
 
         List<PageSpec> pages = new ArrayList<>();
-        String coverSize = days.size() >= 5 && supportsCustomSize(props.getModel()) ? props.getLongCoverSize() : props.getCoverSize();
-        pages.add(new PageSpec(1, PosterPageKind.COVER, coverSize, cover(days, title, season, total, props)));
-        for (int i = 0; i < detailPages; i++) {
-            int from = i * props.getDaysPerDetailPage();
-            List<DayDto> chunk = days.subList(from, Math.min(days.size(), from + props.getDaysPerDetailPage()));
-            boolean last = i == detailPages - 1;
-            pages.add(new PageSpec(i + 2, PosterPageKind.DETAIL, props.getDetailSize(),
-                    detail(chunk, title, season, i + 2, total, last)));
+        int pageNo = 1;
+        for (int i = 0; i < covers.size(); i++) {
+            List<DayDto> chunk = covers.get(i);
+            boolean crowded = chunk.size() > 2 || chunk.stream().anyMatch(d -> coverStops(d, props.getCoverItemsPerDay()).size() > 4);
+            String size = crowded && supportsCustomSize(props.getModel()) ? props.getLongCoverSize() : props.getCoverSize();
+            String heading = covers.size() == 1 ? title + " 여행 지도" : title + " 여행 지도 (" + (i + 1) + "/" + covers.size() + ")";
+            pages.add(new PageSpec(pageNo, PosterPageKind.COVER, size, cover(chunk, heading, season, pageNo, props)));
+            pageNo++;
+        }
+        for (int i = 0; i < details.size(); i++) {
+            boolean last = i == details.size() - 1;
+            pages.add(new PageSpec(pageNo, PosterPageKind.DETAIL, props.getDetailSize(),
+                    detail(details.get(i), title, season, pageNo, details.size(), last)));
+            pageNo++;
         }
         return pages;
     }
 
+    private static List<List<DayDto>> chunks(List<DayDto> days, int size) {
+        int n = Math.max(1, size);
+        List<List<DayDto>> result = new ArrayList<>();
+        for (int from = 0; from < days.size(); from += n) {
+            result.add(days.subList(from, Math.min(days.size(), from + n)));
+        }
+        return result;
+    }
+
     // ===================== 1장: 지도 포스터 =====================
 
-    static String cover(List<DayDto> days, String title, String season, int total, PosterProperties props) {
+    static String cover(List<DayDto> days, String heading, String season, int pageNo, PosterProperties props) {
         StringBuilder sb = new StringBuilder();
         sb.append("A vertical illustrated travel map poster of Tokyo, Japan, in a hand-drawn watercolor and ink style.\n");
         sb.append("Season and mood: ").append(season).append(".\n");
         sb.append("A winding path runs from top to bottom through the poster, connecting one illustrated section per day. ");
         sb.append("In each section, draw small illustrations of the listed places in order, connected by arrows, with a rounded white label under each illustration. ");
+        sb.append("If a day has more than 4 places, use two rows for that day. Keep every label large enough to read when printed. ");
         sb.append("An original cute round mascot character with a small backpack walks along the path (an original design, not any existing character or brand mascot).\n\n");
         sb.append(TEXT_RULES);
-        sb.append("\nTitle at the top, large and bold: \"").append(title).append(" 여행 지도\"\n\n");
+        sb.append("\nTitle at the top, large and bold: \"").append(heading).append("\"\n\n");
         for (DayDto day : days) {
             sb.append("Section: \"DAY ").append(day.dayNumber()).append(" · ").append(areaLabel(day)).append("\"\n");
             sb.append("  Places in order (label text exactly; the part after 'draw:' is only a hint for the picture, never write it):\n");
@@ -68,14 +84,14 @@ public final class PosterPromptBuilder {
             String moves = moves(day);
             if (moves != null) sb.append("  Small transport badge: \"이동 · ").append(moves).append("\"\n");
         }
-        sb.append("\nFooter, small: \"TabiMate · 실제 운영 정보는 방문 전 확인 · 01\"\n");
+        sb.append(String.format("%nFooter, small: \"TabiMate · 실제 운영 정보는 방문 전 확인 · %02d\"%n", pageNo));
         sb.append(DRAWING_RULES);
         return sb.toString();
     }
 
     /**
-     * 하루의 대표 장소 (일정 순서 그대로): 식당은 한 곳만(저녁 우선, 음식 종류로), 그래도 많으면
-     * 마지막 장소(야경 등)는 남기고 뒤쪽 관광지부터 뺀다
+     * 지도에 넣을 하루 장소 (일정 순서 그대로, 식당은 음식 종류로). max를 넘을 때만 줄인다:
+     * 식당은 한 곳(저녁 우선)만 남기고, 그래도 많으면 마지막 장소(야경 등)는 남기고 뒤쪽 관광지부터 뺀다
      */
     static List<String> coverItems(DayDto day, int max) {
         Set<String> labels = new LinkedHashSet<>();
@@ -86,7 +102,7 @@ public final class PosterPromptBuilder {
     static List<StopDto> coverStops(DayDto day, int max) {
         List<StopDto> list = new ArrayList<>(day.stops());
         List<StopDto> meals = list.stream().filter(s -> s.type() != StopType.ATTRACTION).toList();
-        if (meals.size() > 1) {
+        if (list.size() > max && meals.size() > 1) {
             StopDto keep = meals.stream().filter(s -> s.type() == StopType.DINNER).findFirst().orElse(meals.get(0));
             list.removeIf(s -> s.type() != StopType.ATTRACTION && s != keep);
         }
@@ -117,7 +133,7 @@ public final class PosterPromptBuilder {
 
     // ===================== 2장~: 상세 일정표 =====================
 
-    static String detail(List<DayDto> days, String title, String season, int pageNo, int total, boolean last) {
+    static String detail(List<DayDto> days, String title, String season, int pageNo, int detailPages, boolean last) {
         StringBuilder sb = new StringBuilder();
         sb.append("A vertical printable travel itinerary page, clean and simple, in the same hand-drawn watercolor style as a Tokyo travel poster. ");
         sb.append("Mostly white or cream background so the text is easy to read. Season accents: ").append(season).append(".\n");

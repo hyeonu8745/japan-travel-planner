@@ -15,16 +15,24 @@ class PosterPromptBuilderTest {
     private final PosterProperties props = new PosterProperties();
 
     @Test
-    void 지도_포스터_1장과_이틀씩_묶은_상세_일정표를_만든다() {
+    void 지도는_사흘씩_나눠_일정_전체를_넣고_상세_일정표는_이틀씩() {
+        // 10-12: 첫 포스터는 하루 4곳만 넣어 빠지는 곳이 많았다 → 지도를 여러 장으로 나누고 전부 넣기
         List<PosterPromptBuilder.PageSpec> pages = PosterPromptBuilder.build(itinerary(6), "도쿄 5박 6일",
                 LocalDate.of(2026, 10, 25), props);
 
         assertThat(pages).extracting(PosterPromptBuilder.PageSpec::kind).containsExactly(
-                PosterPageKind.COVER, PosterPageKind.DETAIL, PosterPageKind.DETAIL, PosterPageKind.DETAIL);
-        assertThat(pages.get(0).size()).isEqualTo("1152x2048");   // 5일 이상은 긴 포스터
-        assertThat(pages.get(1).size()).isEqualTo("1024x1536");
-        assertThat(pages.get(1).prompt()).contains("DAY 1 · 10/25 (일)").contains("DAY 2 ·").doesNotContain("DAY 3 ·");
-        assertThat(pages.get(3).prompt()).contains("방문 전 확인해 주세요").contains("· 04\"");   // 마지막 장 안내
+                PosterPageKind.COVER, PosterPageKind.COVER,
+                PosterPageKind.DETAIL, PosterPageKind.DETAIL, PosterPageKind.DETAIL);
+        assertThat(pages.get(0).size()).isEqualTo("1152x2048");
+        assertThat(pages.get(0).prompt()).contains("\"도쿄 5박 6일 여행 지도 (1/2)\"")
+                .contains("\"DAY 3 ·").doesNotContain("\"DAY 4 ·")
+                .contains("\"라멘\"").contains("\"덴푸라\"").contains("\"우에노 공원\"")   // 하루 일정 전부
+                .contains("two rows");
+        assertThat(pages.get(1).prompt()).contains("(2/2)").contains("\"DAY 4 ·").contains("· 02\"");
+        assertThat(pages.get(2).size()).isEqualTo("1024x1536");
+        assertThat(pages.get(2).prompt()).contains("DAY 1 · 10/25 (일)").contains("DAY 2 ·").doesNotContain("DAY 3 ·")
+                .contains("· 03\"");
+        assertThat(pages.get(4).prompt()).contains("방문 전 확인해 주세요").contains("· 05\"");   // 마지막 장 안내
     }
 
     @Test
@@ -32,7 +40,7 @@ class PosterPromptBuilderTest {
         String cover = PosterPromptBuilder.build(itinerary(3), "도쿄 2박 3일", LocalDate.of(2026, 10, 25), props)
                 .get(0).prompt();
 
-        assertThat(cover).contains("\"도쿄 2박 3일 여행 지도\"")
+        assertThat(cover).contains("\"도쿄 2박 3일 여행 지도\"")   // 사흘 이하는 지도 한 장
                 .contains("\"DAY 1 · 아사쿠사·우에노 + 아키하바라·간다\"")
                 .contains("\"이동 · 대중교통, 도보\"")
                 .contains("- \"센소지\"  draw: 原名 (사찰)")                // 그림은 원래 이름·종류로
@@ -60,8 +68,10 @@ class PosterPromptBuilderTest {
     }
 
     @Test
-    void 짧은_여행은_보통_크기_gpt_image_2가_아니면_긴_크기를_쓰지_않는다() {
-        assertThat(PosterPromptBuilder.build(itinerary(3), "t", LocalDate.of(2026, 1, 1), props).get(0).size())
+    void 이틀_이하에_하루_4곳_이하면_보통_크기_gpt_image_2가_아니면_긴_크기를_쓰지_않는다() {
+        props.setCoverItemsPerDay(4);
+        props.setCoverDaysPerPage(2);
+        assertThat(PosterPromptBuilder.build(itinerary(2), "t", LocalDate.of(2026, 1, 1), props).get(0).size())
                 .isEqualTo("1024x1536");
         props.setModel("gpt-image-1.5");
         assertThat(PosterPromptBuilder.build(itinerary(6), "t", LocalDate.of(2026, 1, 1), props).get(0).size())

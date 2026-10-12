@@ -12,6 +12,8 @@ import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.trip.repository.TripRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -141,6 +143,24 @@ public class PosterService {
         }));
     }
 
+    /**
+     * 서버가 시작될 때 GENERATING으로 남은 묶음(그리던 중 재시작)을 실패로 정리한다 (10-12).
+     * 그림은 서버 안에서 그리므로 재시작하면 작업이 사라지고, 정리하지 않으면 20분 동안 새로 만들 수 없었다.
+     * 서버가 한 대일 때의 처리 (여러 대가 되면 다른 서버가 그리는 중인 묶음까지 지우지 않게 바꿔야 한다)
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void failInterrupted() {
+        writeTransaction.executeWithoutResult(status -> {
+            List<TripPoster> stuck = posterRepository.findByStatus(PosterStatus.GENERATING);
+            for (TripPoster p : stuck) {
+                p.getPages().stream().filter(page -> page.getStatus() == PosterStatus.GENERATING)
+                        .forEach(TripPosterPage::failed);
+                p.finish(PosterStatus.FAILED, "서버가 다시 시작되어 중단됐어요. 다시 만들어 주세요.", LocalDateTime.now());
+            }
+            if (!stuck.isEmpty()) log.info("[Poster] 서버 시작: 중단된 포스터 {}개를 실패로 정리", stuck.size());
+        });
+    }
+
     // ===================== 조회 =====================
 
     /** 가장 최근 포스터 (그리는 중이면 장마다 상태) */
@@ -189,7 +209,7 @@ public class PosterService {
     }
 
     private int remaining(Long tripId) {
-        long used = posterRepository.countByTripIdAndCreatedAtAfter(tripId, LocalDateTime.now().minusHours(24));
+        long used = posterRepository.countUsed(tripId, LocalDateTime.now().minusHours(24));
         return (int) Math.max(0, props.getDailyLimit() - used);
     }
 
