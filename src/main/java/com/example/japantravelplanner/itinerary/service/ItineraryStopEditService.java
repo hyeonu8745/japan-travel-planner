@@ -357,7 +357,7 @@ public class ItineraryStopEditService {
 
         Itinerary latest = ctx.latest();
         Itinerary next = Itinerary.create(ctx.trip(), latest.getVersionNo() + 1, latest.getKrwPerYen(),
-                ItinerarySource.EDITED, note);
+                ItinerarySource.EDITED, note).copyExchangeRateFrom(latest);
         for (ItineraryDay d : latest.getDays()) {
             next.addDay(d == day ? editedDay(day, slots, retimed, warnings, dropped, repeated) : copyDay(d, repeated));
         }

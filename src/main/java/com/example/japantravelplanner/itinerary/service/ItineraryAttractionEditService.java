@@ -200,7 +200,7 @@ public class ItineraryAttractionEditService {
 
         Itinerary latest = target.latest();
         Itinerary next = Itinerary.create(target.trip(), latest.getVersionNo() + 1, latest.getKrwPerYen(),
-                ItinerarySource.EDITED, replaceNote(target, replacement));
+                ItinerarySource.EDITED, replaceNote(target, replacement)).copyExchangeRateFrom(latest);
         for (ItineraryDay day : latest.getDays()) {
             boolean edited = day.getDayNumber() == target.day().getDayNumber();
             next.addDay(edited ? retimedDay(target, replacement, stay) : copyDay(day));

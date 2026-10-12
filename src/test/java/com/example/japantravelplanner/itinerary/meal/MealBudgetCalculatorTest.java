@@ -29,4 +29,13 @@ class MealBudgetCalculatorTest {
         MealBudget foodie = calculator.calculate(1_600_000, 2, 4, 0.55);
         assertThat(foodie.dinnerMaxYen()).isGreaterThan(normal.dinnerMaxYen());
     }
+
+    @Test
+    void 환율을_넘기면_그_환율로_엔화를_계산한다() {
+        // 10-12: 환율 API. 1엔 10원이면 8만 원 → 8,000엔
+        MealBudget budget = calculator.calculate(1_600_000, 2, 4, 0.4, 10.0);
+        assertThat(budget.lunchMaxYen()).isEqualTo(2800);    // 8,000 × 35%
+        assertThat(budget.dinnerMaxYen()).isEqualTo(5200);   // 8,000 × 65%
+        assertThat(calculator.calculate(1_600_000, 2, 4, 0.4, 0)).isEqualTo(calculator.calculate(1_600_000, 2, 4, 0.4));
+    }
 }

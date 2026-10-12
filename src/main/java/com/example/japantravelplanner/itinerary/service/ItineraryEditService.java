@@ -196,7 +196,7 @@ public class ItineraryEditService {
         }
 
         Itinerary next = Itinerary.create(trip, latest.getVersionNo() + 1, old.getKrwPerYen(),
-                ItinerarySource.RESTORED, "버전 " + old.getVersionNo() + "(으)로 되돌렸어요");
+                ItinerarySource.RESTORED, "버전 " + old.getVersionNo() + "(으)로 되돌렸어요").copyExchangeRateFrom(old);
         for (ItineraryDay day : old.getDays()) {
             next.addDay(copyDay(day, Map.of()));   // 같은 음식 표시도 그 버전의 값 그대로
         }
@@ -314,7 +314,7 @@ public class ItineraryEditService {
 
         Itinerary latest = target.latest();
         Itinerary next = Itinerary.create(target.trip(), latest.getVersionNo() + 1, latest.getKrwPerYen(),
-                ItinerarySource.EDITED, replaceNote(target.day(), stop, replacement));
+                ItinerarySource.EDITED, replaceNote(target.day(), stop, replacement)).copyExchangeRateFrom(latest);
         TravelPoint hotel = hotelPoint(target.trip());
         for (ItineraryDay day : latest.getDays()) {
             boolean edited = day.getDayNumber() == target.day().getDayNumber();
@@ -404,7 +404,7 @@ public class ItineraryEditService {
         TravelPoint hotel = hotelPoint(trip);
 
         Itinerary next = Itinerary.create(trip, latest.getVersionNo() + 1, latest.getKrwPerYen(),
-                ItinerarySource.EDITED, changeNote);
+                ItinerarySource.EDITED, changeNote).copyExchangeRateFrom(latest);
         for (ItineraryDay day : latest.getDays()) {
             next.addDay(retimedDay(day, null, null, Map.of(), hotel, options));
         }
@@ -651,8 +651,9 @@ public class ItineraryEditService {
         var constraints = ItineraryPlanner.constraintsOf(preference);
         TravelOptions options = TravelOptions.of(trip, constraints, travelProperties);
         double foodRatio = preference == null ? DEFAULT_FOOD_RATIO : preference.getFoodBudgetRatio();
+        // 교체 후보의 예산은 그 일정을 만들 때 쓴 환율로 (10-12: 환율이 날마다 바뀌어도 같은 일정 안에서는 같게)
         MealBudget budget = mealBudgetCalculator.calculate(trip.getBudget(), trip.getTravelers(),
-                ItineraryPlanner.daysOf(trip), foodRatio);
+                ItineraryPlanner.daysOf(trip), foodRatio, latest.getKrwPerYen());
         FoodFilter filter = foodFilterResolver.resolve(constraints, trip.getAllergies());
 
         return new Target(trip, latest, day, stop, day.getStops().indexOf(stop), options, filter, budget);

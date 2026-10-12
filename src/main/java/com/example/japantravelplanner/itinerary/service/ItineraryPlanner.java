@@ -61,6 +61,11 @@ public class ItineraryPlanner {
     }
 
     public Result plan(Trip trip, TripPreference preference, Point hotel) {
+        return plan(trip, preference, hotel, null);
+    }
+
+    /** @param krwPerYen 이번 생성에 쓸 환율 (null이면 설정 고정값) */
+    public Result plan(Trip trip, TripPreference preference, Point hotel, Double krwPerYen) {
         List<PreferenceConstraint> constraints = constraintsOf(preference);
         List<Interest> interests = interestsOf(trip);
         boolean nightView = interests.contains(Interest.NIGHT_VIEW);
@@ -70,7 +75,9 @@ public class ItineraryPlanner {
         TravelPoint hotelPoint = new TravelPoint(trip.getAccommodationName(), hotel.getY(), hotel.getX());
 
         double foodRatio = preference == null ? DEFAULT_FOOD_RATIO : preference.getFoodBudgetRatio();
-        MealBudget budget = mealBudgetCalculator.calculate(trip.getBudget(), trip.getTravelers(), days, foodRatio);
+        MealBudget budget = krwPerYen == null
+                ? mealBudgetCalculator.calculate(trip.getBudget(), trip.getTravelers(), days, foodRatio)
+                : mealBudgetCalculator.calculate(trip.getBudget(), trip.getTravelers(), days, foodRatio, krwPerYen);
         FoodFilter filter = foodFilterResolver.resolve(constraints, trip.getAllergies());
         MealHistory history = new MealHistory();
 

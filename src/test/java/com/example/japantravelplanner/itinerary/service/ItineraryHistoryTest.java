@@ -278,7 +278,7 @@ class ItineraryHistoryTest {
         when(labels.toVisibleLabels(any())).thenReturn(List.of());
         TravelTimeService travel = new TravelTimeService(new TravelProperties(), null);
         MealBudgetCalculator budget = mock(MealBudgetCalculator.class);
-        when(budget.calculate(anyInt(), anyInt(), anyInt(), anyDouble())).thenReturn(new MealBudget(3100, 5700));
+        when(budget.calculate(anyInt(), anyInt(), anyInt(), anyDouble(), anyDouble())).thenReturn(new MealBudget(3100, 5700));
         FoodFilterResolver filters = mock(FoodFilterResolver.class);
         when(filters.resolve(any(), any())).thenReturn(new FoodFilter(Set.of(), Set.of(), false));
         AccommodationLocator locator = mock(AccommodationLocator.class);
@@ -301,4 +301,4 @@ class ItineraryHistoryTest {
         assertThat(saved.getSource()).isEqualTo(ItinerarySource.EDITED);
         assertThat(saved.getChangeNote()).isEqualTo("DAY1 점심: 바꾼 점심집 → 새 점심집");
     }
-}
+}

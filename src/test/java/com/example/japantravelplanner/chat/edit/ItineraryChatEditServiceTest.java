@@ -82,7 +82,7 @@ class ItineraryChatEditServiceTest {
         when(chatMessageRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(koreanNames.fill(any())).thenAnswer(inv -> inv.getArgument(0));
         when(koreanNames.namesFor(any(), any())).thenReturn(new KoreanNameService.Names(Map.of(), Map.of()));
-        edited = new ItineraryResponseDto(1L, TRIP_ID, 4, null, null, 9.0, LocalDateTime.now(), null, List.of());
+        edited = new ItineraryResponseDto(1L, TRIP_ID, 4, null, null, 9.0, LocalDateTime.now(), null, List.of(), null);
         service = new ItineraryChatEditService(tripRepository, itineraryRepository, chatMessageRepository, openAiClient,
                 jsonMapper, editService, attractionEditService, stopEditService, new FoodDictionary(),
                 new PlaceTypeLabels(), koreanNames, transactionManager);

@@ -2,6 +2,8 @@ package com.example.japantravelplanner.itinerary.service;
 
 import com.example.japantravelplanner.attraction.entity.Attraction;
 import com.example.japantravelplanner.attraction.repository.AttractionRepository;
+import com.example.japantravelplanner.exchange.ExchangeRate;
+import com.example.japantravelplanner.exchange.ExchangeRateService;
 import com.example.japantravelplanner.global.exception.ConflictException;
 import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.global.exception.TooManyRequestsException;
@@ -87,6 +89,7 @@ public class ItineraryGenerationService {
     private final ReasonContextLoader reasonContextLoader;
     private final ChatMessageRepository chatMessageRepository;
     private final KoreanNameService koreanNames;
+    private final ExchangeRateService exchangeRates;
     private final TransactionTemplate readTransaction;
     private final TransactionTemplate writeTransaction;
 
@@ -105,6 +108,7 @@ public class ItineraryGenerationService {
                                       ReasonContextLoader reasonContextLoader,
                                       ChatMessageRepository chatMessageRepository,
                                       KoreanNameService koreanNames,
+                                      ExchangeRateService exchangeRates,
                                       PlatformTransactionManager transactionManager) {
         this.tripRepository = tripRepository;
         this.preferenceRepository = preferenceRepository;
@@ -121,6 +125,7 @@ public class ItineraryGenerationService {
         this.reasonContextLoader = reasonContextLoader;
         this.chatMessageRepository = chatMessageRepository;
         this.koreanNames = koreanNames;
+        this.exchangeRates = exchangeRates;
         this.readTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction.setReadOnly(true);
         this.writeTransaction = new TransactionTemplate(transactionManager);
@@ -133,8 +138,11 @@ public class ItineraryGenerationService {
             throw new ConflictException("이미 일정을 만들고 있어요. 잠시만 기다려주세요.");
         }
         try {
+            // ⓪ 환율: 오늘 값이 없으면 외부 API (트랜잭션 밖). 실패해도 마지막 값·고정값으로 계속 (10-12)
+            ExchangeRate rate = exchangeRates.current();
+
             // ① 계산 (숙소 좌표를 처음 찾으면 여행에 저장하므로 쓰기 트랜잭션)
-            Planned planned = writeTransaction.execute(status -> plan(userId, tripId));
+            Planned planned = writeTransaction.execute(status -> plan(userId, tripId, rate));
 
             // ①-1 고른 식당을 Google에서 확인 (트랜잭션 밖). 찾지 못함·폐업이 나오면 그 식당은 후보에서 빠지므로 다시 계산한다.
             // 마지막으로 다시 계산해서 새로 고른 식당은 확인 전이라도 통과 (다음 생성 때 확인)
@@ -142,7 +150,7 @@ public class ItineraryGenerationService {
                 int excluded = restaurantMatchService.verify(chosenRestaurantIds(planned.result()));
                 if (excluded == 0) break;
                 log.info("[Itinerary] 폐업 의심 식당 {}곳을 빼고 다시 계산 tripId={}", excluded, tripId);
-                planned = writeTransaction.execute(status -> plan(userId, tripId));
+                planned = writeTransaction.execute(status -> plan(userId, tripId, rate));
             }
 
             // ①-2 한국어 이름: 처음 쓰는 장소·식당만 AI로 만들어 저장 (트랜잭션 밖). 설명 AI가 같은 이름을 쓰게 설명보다 먼저
@@ -154,13 +162,13 @@ public class ItineraryGenerationService {
                     finalPlan.brief(), finalPlan.result().days(), typeLabels::toVisibleLabels);
 
             // ③ 저장
-            return writeTransaction.execute(status -> save(userId, tripId, finalPlan, descriptions));
+            return writeTransaction.execute(status -> save(userId, tripId, finalPlan, descriptions, rate));
         } finally {
             lock.release(tripId);
         }
     }
 
-    private Planned plan(Long userId, Long tripId) {
+    private Planned plan(Long userId, Long tripId, ExchangeRate rate) {
         Trip trip = findTrip(userId, tripId);
 
         long recent = itineraryRepository.countByTripIdAndSourceAndCreatedAtAfter(
@@ -171,7 +179,7 @@ public class ItineraryGenerationService {
 
         TripPreference preference = preferenceRepository.findByTripId(tripId).orElse(null);
         Point hotel = accommodationLocator.locate(trip);
-        ItineraryPlanner.Result result = planner.plan(trip, preference, hotel);
+        ItineraryPlanner.Result result = planner.plan(trip, preference, hotel, rate.krwPerYen());
 
         // 트랜잭션이 끝난 뒤에도 쓸 수 있게 지연 로딩 컬렉션을 복사해둔다
         List<PreferenceConstraint> constraints = List.copyOf(ItineraryPlanner.constraintsOf(preference));
@@ -180,15 +188,17 @@ public class ItineraryGenerationService {
         return new Planned(result, brief);
     }
 
-    private ItineraryResponseDto save(Long userId, Long tripId, Planned planned, Map<Integer, String> descriptions) {
+    private ItineraryResponseDto save(Long userId, Long tripId, Planned planned, Map<Integer, String> descriptions,
+                                      ExchangeRate rate) {
         Trip trip = findTrip(userId, tripId);
         int version = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
                 .map(latest -> latest.getVersionNo() + 1)
                 .orElse(1);
 
-        Itinerary itinerary = ItineraryMapper.toEntity(trip, version, mealProperties.getKrwPerYen(),
+        Itinerary itinerary = ItineraryMapper.toEntity(trip, version, rate.krwPerYen(),
                 planned.result().days(), planned.result().windows(), descriptions,
-                attractionRepository::getReferenceById, restaurantRepository::getReferenceById);
+                attractionRepository::getReferenceById, restaurantRepository::getReferenceById)
+                .withExchangeRate(rate.date(), rate.source());
 
         try {
             itineraryRepository.saveAndFlush(itinerary);

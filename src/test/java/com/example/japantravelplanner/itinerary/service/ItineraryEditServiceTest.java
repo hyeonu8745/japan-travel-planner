@@ -100,7 +100,7 @@ class ItineraryEditServiceTest {
         when(transactionManager.getTransaction(any())).thenReturn(mock(TransactionStatus.class));
         when(tripRepository.findByIdAndUserId(TRIP_ID, USER_ID)).thenReturn(Optional.of(trip));
         when(locator.locate(trip)).thenReturn(GF.createPoint(new Coordinate(139.70, 35.69)));
-        when(budgetCalculator.calculate(anyInt(), anyInt(), anyInt(), anyDouble())).thenReturn(new MealBudget(3100, 5700));
+        when(budgetCalculator.calculate(anyInt(), anyInt(), anyInt(), anyDouble(), anyDouble())).thenReturn(new MealBudget(3100, 5700));
         when(filterResolver.resolve(any(), any())).thenReturn(new FoodFilter(Set.of(), Set.of(), false));
         when(typeLabels.toVisibleLabels(any())).thenReturn(List.of("관광명소"));
         when(itineraryRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -492,4 +492,4 @@ class ItineraryEditServiceTest {
         assertThat(savedItinerary().getDays().get(0).getWarnings()).noneMatch(w -> w.contains("정기 휴일"));
     }
 
-}
+}

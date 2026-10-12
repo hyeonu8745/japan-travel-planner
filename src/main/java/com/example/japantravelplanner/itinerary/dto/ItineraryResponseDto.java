@@ -37,9 +37,28 @@ public record ItineraryResponseDto(
         double krwPerYen,
         LocalDateTime createdAt,
         AccommodationDto accommodation,
-        List<DayDto> days
+        List<DayDto> days,
+        ExchangeRateDto exchangeRate    // 10-12 추가: 이 일정의 환율 기준일·출처 (예전 일정은 date·source가 null)
 
 ) {
+
+    /**
+     * @param krwPerYen   1엔당 원 (위 krwPerYen과 같은 값)
+     * @param date        환율 기준일 (null이면 고정값 또는 예전 일정)
+     * @param source      KOREAEXIM / FRANKFURTER / FIXED, 예전 일정은 null
+     * @param sourceLabel 화면 표시용 ("한국수출입은행", "Frankfurter(유럽중앙은행 등)", "고정 환율")
+     */
+    public record ExchangeRateDto(double krwPerYen, LocalDate date, String source, String sourceLabel) {
+
+        static ExchangeRateDto of(double krwPerYen, LocalDate date, String source) {
+            String label = source == null ? "고정 환율" : switch (source) {
+                case "KOREAEXIM" -> "한국수출입은행";
+                case "FRANKFURTER" -> "Frankfurter(유럽중앙은행 등)";
+                default -> "고정 환율";
+            };
+            return new ExchangeRateDto(krwPerYen, date, source, label);
+        }
+    }
 
     /** 숙소 (지도의 숙소 핀, 하루의 출발점). 좌표는 일정을 만들 때 주소로 찾아 저장한 값 */
     public record AccommodationDto(String name, String address, Double lat, Double lng) {
@@ -148,7 +167,8 @@ public record ItineraryResponseDto(
                             .toList());
                 }).toList(),
                 day.dropped(), day.warnings(), day.zones(), day.zonesLabel())).toList();
-        return new ItineraryResponseDto(id, tripId, version, source, changeNote, krwPerYen, createdAt, accommodation, newDays);
+        return new ItineraryResponseDto(id, tripId, version, source, changeNote, krwPerYen, createdAt, accommodation, newDays,
+                exchangeRate);
     }
 
     /** 식당 대안 후보를 조회하지 않는 형태 (대안은 빈 목록) */
@@ -177,7 +197,8 @@ public record ItineraryResponseDto(
         AccommodationDto accommodation = new AccommodationDto(trip.getAccommodationName(),
                 trip.getAccommodationAddress(), lat(trip.getAccommodationLocation()), lng(trip.getAccommodationLocation()));
         return new ItineraryResponseDto(itinerary.getId(), trip.getId(), itinerary.getVersionNo(), itinerary.getSource(),
-                itinerary.getChangeNote(), itinerary.getKrwPerYen(), itinerary.getCreatedAt(), accommodation, days);
+                itinerary.getChangeNote(), itinerary.getKrwPerYen(), itinerary.getCreatedAt(), accommodation, days,
+                ExchangeRateDto.of(itinerary.getKrwPerYen(), itinerary.getExchangeRateDate(), itinerary.getExchangeRateSource()));
     }
 
     /** 일정 전체에서 대안 후보로 쓰인 식당 id (한 번에 조회하려고 모은다) */

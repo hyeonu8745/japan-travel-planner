@@ -99,8 +99,17 @@ app:
     partner-distance-penalty-per-km: 0.15   # 이웃 지역 고를 때 중심 사이 1km당 감점
     partner-reuse-penalty: 0.5               # 다른 날의 중심 지역이거나 이미 함께 돈 지역이면 감점
 
+  exchange-rate:                 # 엔화 환율 (10-12). 오늘 받은 값 → 수출입은행 → Frankfurter → 마지막 저장값 → meal.krw-per-yen
+    enabled: true
+    koreaexim-api-key: ${KOREAEXIM_API_KEY:}   # .env (없으면 Frankfurter부터)
+    timeout-seconds: 5
+    lookback-days: 7             # 주말·공휴일·오전 11시 전은 값이 없어서 며칠 전까지 거슬러
+    retry-after-minutes: 30      # 모두 실패하면 이 시간 동안 다시 묻지 않음
+    min-krw-per-yen: 5.0         # 이 범위를 벗어나면 단위 오류로 보고 버림
+    max-krw-per-yen: 15.0
+
   meal:
-    krw-per-yen: 9.0             # 환율 고정값 (100엔 = 900원). #6에서 API로 교체 예정
+    krw-per-yen: 9.0             # 환율 API(exchange-rate)를 모두 실패하고 저장값도 없을 때 쓰는 고정값
     lunch-share: 0.35            # 하루 식비 중 점심 비율 (나머지는 저녁)
     min-lunch-yen: 1000          # 예산이 아주 적어도 이 정도는 잡음
     min-dinner-yen: 2000

@@ -6,6 +6,8 @@ import com.example.japantravelplanner.global.exception.ConflictException;
 import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.global.exception.TooManyRequestsException;
 import com.example.japantravelplanner.itinerary.dictionary.PlaceTypeLabels;
+import com.example.japantravelplanner.exchange.ExchangeRate;
+import com.example.japantravelplanner.exchange.ExchangeRateService;
 import com.example.japantravelplanner.itinerary.dto.ItineraryConfirmResponseDto;
 import com.example.japantravelplanner.itinerary.dto.ItineraryResponseDto;
 import com.example.japantravelplanner.itinerary.entity.Itinerary;
@@ -78,6 +80,8 @@ class ItineraryGenerationServiceTest {
     private final ChatMessageRepository chatMessageRepository = mock(ChatMessageRepository.class);
     private final com.example.japantravelplanner.itinerary.naming.KoreanNameService koreanNames =
             mock(com.example.japantravelplanner.itinerary.naming.KoreanNameService.class);
+    private final ExchangeRateService exchangeRates = mock(ExchangeRateService.class);
+    private static final ExchangeRate RATE = new ExchangeRate(9.51, java.time.LocalDate.of(2026, 10, 9), ExchangeRate.KOREAEXIM);
 
     // 트랜잭션이 열려 있는 동안 true (AI 호출이 트랜잭션 밖인지 확인하는 용도)
     private final boolean[] transactionActive = {false};
@@ -105,17 +109,18 @@ class ItineraryGenerationServiceTest {
 
         when(tripRepository.findByIdAndUserId(TRIP_ID, USER_ID)).thenReturn(Optional.of(trip));
         when(locator.locate(trip)).thenReturn(GF.createPoint(new Coordinate(139.70, 35.69)));
-        when(planner.plan(any(), any(), any())).thenReturn(plannedResult());
+        when(planner.plan(any(), any(), any(), any())).thenReturn(plannedResult());
         when(attractionRepository.getReferenceById(11L)).thenReturn(cat);
         when(restaurantRepository.getReferenceById(21L)).thenReturn(ramen);
         when(typeLabels.toVisibleLabels(any())).thenReturn(List.of("관광명소"));
         when(narrator.narrate(any(), any(), any())).thenReturn(Map.of(1, "신주쿠의 하루예요."));
         when(itineraryRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(exchangeRates.current()).thenReturn(RATE);
 
         service = new ItineraryGenerationService(tripRepository, preferenceRepository, itineraryRepository,
                 attractionRepository, restaurantRepository, locator, planner, narrator, typeLabels,
                 new MealProperties(), lock, matchService, reasonContextLoader, chatMessageRepository,
-                koreanNames, transactionManager);
+                koreanNames, exchangeRates, transactionManager);
     }
 
     private ItineraryPlanner.Result plannedResult() {
@@ -140,7 +145,7 @@ class ItineraryGenerationServiceTest {
 
         generate();
 
-        verify(planner, times(2)).plan(any(), any(), any());
+        verify(planner, times(2)).plan(any(), any(), any(), any());
         verify(matchService, times(2)).verify(Set.of(21L));   // 실제로 고른 식당만 확인한다
         verify(itineraryRepository, times(1)).saveAndFlush(any());
     }
@@ -152,7 +157,7 @@ class ItineraryGenerationServiceTest {
 
         generate();
 
-        verify(planner, times(1)).plan(any(), any(), any());
+        verify(planner, times(1)).plan(any(), any(), any(), any());
         verify(matchService, times(1)).verify(Set.of(21L));
     }
 
@@ -164,7 +169,7 @@ class ItineraryGenerationServiceTest {
         generate();
 
         verify(matchService, times(2)).verify(any());
-        verify(planner, times(3)).plan(any(), any(), any());
+        verify(planner, times(3)).plan(any(), any(), any(), any());
         verify(itineraryRepository, times(1)).saveAndFlush(any());
     }
 
@@ -205,13 +210,19 @@ class ItineraryGenerationServiceTest {
     }
 
     @Test
-    void 저장되는_일정은_기본_환율을_함께_담는다() {
+    void 저장되는_일정은_받아온_환율과_기준일_출처를_함께_담고_끼니_예산도_그_환율로_계산한다() {
+        // 10-12: 고정값 9.0 대신 환율 API 값
         ArgumentCaptor<Itinerary> saved = ArgumentCaptor.forClass(Itinerary.class);
 
-        generate();
+        ItineraryResponseDto response = service.generate(USER_ID, TRIP_ID);
 
         verify(itineraryRepository).saveAndFlush(saved.capture());
-        assertThat(saved.getValue().getKrwPerYen()).isEqualTo(new MealProperties().getKrwPerYen());
+        assertThat(saved.getValue().getKrwPerYen()).isEqualTo(9.51);
+        assertThat(saved.getValue().getExchangeRateDate()).isEqualTo(java.time.LocalDate.of(2026, 10, 9));
+        assertThat(saved.getValue().getExchangeRateSource()).isEqualTo(ExchangeRate.KOREAEXIM);
+        assertThat(response.exchangeRate().sourceLabel()).isEqualTo("한국수출입은행");
+        verify(planner).plan(any(), any(), any(), eq(9.51));
+        verify(exchangeRates).current();
         assertThat(saved.getValue().getTrip()).isSameAs(trip);
     }
 
@@ -290,7 +301,7 @@ class ItineraryGenerationServiceTest {
 
         assertThatThrownBy(() -> service.generate(99L, TRIP_ID)).isInstanceOf(NotFoundException.class);
 
-        verify(planner, never()).plan(any(), any(), any());
+        verify(planner, never()).plan(any(), any(), any(), any());
         verify(narrator, never()).narrate(any(), any(), any());
     }
 
@@ -301,7 +312,7 @@ class ItineraryGenerationServiceTest {
 
         assertThatThrownBy(this::generate).isInstanceOf(TooManyRequestsException.class);
 
-        verify(planner, never()).plan(any(), any(), any());
+        verify(planner, never()).plan(any(), any(), any(), any());
         verify(narrator, never()).narrate(any(), any(), any());
         verify(itineraryRepository, never()).saveAndFlush(any());
     }
@@ -324,14 +335,14 @@ class ItineraryGenerationServiceTest {
 
         assertThatThrownBy(this::generate).isInstanceOf(ConflictException.class);
 
-        verify(planner, never()).plan(any(), any(), any());
+        verify(planner, never()).plan(any(), any(), any(), any());
         verify(narrator, never()).narrate(any(), any(), any());
         assertThat(lock.tryAcquire(TRIP_ID)).isFalse();   // 여전히 잠겨 있다
     }
 
     @Test
     void 만들다_실패해도_잠금은_풀린다() {
-        when(planner.plan(any(), any(), any())).thenThrow(new IllegalStateException("계산 실패"));
+        when(planner.plan(any(), any(), any(), any())).thenThrow(new IllegalStateException("계산 실패"));
 
         assertThatThrownBy(this::generate).isInstanceOf(IllegalStateException.class);
 

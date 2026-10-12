@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.ColumnDefault;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +40,13 @@ public class Itinerary {
     @Column(name = "krw_per_yen", nullable = false)
     private double krwPerYen;
 
+    // 환율 기준일과 출처 (10-12, KOREAEXIM / FRANKFURTER / FIXED). 예전 일정은 비어 있다
+    @Column(name = "exchange_rate_date")
+    private LocalDate exchangeRateDate;
+
+    @Column(name = "exchange_rate_source", length = 20)
+    private String exchangeRateSource;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -56,6 +64,18 @@ public class Itinerary {
     @OrderBy("dayNumber ASC")
     @BatchSize(size = 20)
     private List<ItineraryDay> days = new ArrayList<>();
+
+    /** 환율 기준일·출처를 남긴다 (생성 때) */
+    public Itinerary withExchangeRate(LocalDate date, String source) {
+        this.exchangeRateDate = date;
+        this.exchangeRateSource = source;
+        return this;
+    }
+
+    /** 수정·되돌리기로 만든 새 버전은 원래 버전의 환율 정보를 그대로 */
+    public Itinerary copyExchangeRateFrom(Itinerary from) {
+        return withExchangeRate(from.exchangeRateDate, from.exchangeRateSource);
+    }
 
     /** AI로 새로 생성한 일정 */
     public static Itinerary create(Trip trip, int versionNo, double krwPerYen) {
@@ -87,4 +107,4 @@ public class Itinerary {
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
     }
-}
+}
