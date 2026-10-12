@@ -1,5 +1,7 @@
 package com.example.japantravelplanner.itinerary.controller;
 
+import com.example.japantravelplanner.itinerary.budget.BudgetSummaryDto;
+import com.example.japantravelplanner.itinerary.budget.BudgetSummaryService;
 import com.example.japantravelplanner.itinerary.dto.AddAttractionCandidatesResponseDto;
 import com.example.japantravelplanner.itinerary.dto.AddAttractionRequestDto;
 import com.example.japantravelplanner.itinerary.dto.AttractionCandidatesResponseDto;
@@ -35,6 +37,7 @@ public class ItineraryController {
     private final ItineraryStopEditService stopEditService;
     // 일정 응답에 한국어 이름이 비어 있으면 채운다 (예전 일정, 교체·추가로 새로 들어온 곳). 서비스 트랜잭션이 끝난 뒤라 AI 호출이 트랜잭션 밖
     private final KoreanNameService koreanNames;
+    private final BudgetSummaryService budgetSummaryService;
 
     /** 일정 만들기 (다시 호출하면 새 버전). Terra 호출이 있어 수 초~수십 초 걸릴 수 있다 */
     @PostMapping
@@ -58,6 +61,12 @@ public class ItineraryController {
     public ItineraryConfirmResponseDto confirm(@AuthenticationPrincipal Long userId, @PathVariable Long tripId) {
         ItineraryConfirmResponseDto confirmed = generationService.confirm(userId, tripId);
         return confirmed.withItinerary(koreanNames.fill(confirmed.itinerary()));
+    }
+
+    /** 가장 최근 일정의 식비 요약 (10-12). 교통비·숙박비·입장료·쇼핑은 제외 */
+    @GetMapping("/budget")
+    public BudgetSummaryDto budget(@AuthenticationPrincipal Long userId, @PathVariable Long tripId) {
+        return budgetSummaryService.summarize(userId, tripId);
     }
 
     /** 식당(점심·저녁) 항목 하나를 바꿀 때 고를 수 있는 후보 */
