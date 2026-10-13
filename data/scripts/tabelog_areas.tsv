@@ -1,0 +1,31 @@
+# 이름	랭킹 주소(1페이지)	받을 페이지 수
+# 페이지 수 10 = 200곳 (100곳씩 2번 실행). 비어 있는 주소는 건너뛴다.
+osaka_umeda	https://tabelog.com/osaka/A2701/A270101/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+osaka_shinsaibashi	https://tabelog.com/osaka/A2701/A270201/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+osaka_namba	https://tabelog.com/osaka/A2701/A270202/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+osaka_tennoji	https://tabelog.com/osaka/A2701/A270203/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+kyoto_station	https://tabelog.com/kyoto/A2601/A260101/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+kyoto_kawaramachi	https://tabelog.com/kyoto/A2601/A260201/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+fukuoka_hakata	https://tabelog.com/fukuoka/A4001/A400101/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+fukuoka_tenjin	https://tabelog.com/fukuoka/A4001/A400103/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+sapporo_station	https://tabelog.com/hokkaido/A0101/A010101/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+sapporo_odori	https://tabelog.com/hokkaido/A0101/A010102/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+sapporo_susukino	https://tabelog.com/hokkaido/A0101/A010103/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+nagoya_sakae	https://tabelog.com/aichi/A2301/A230103/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+kobe_sannomiya	https://tabelog.com/hyogo/A2801/A280101/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+kobe_motomachi	https://tabelog.com/hyogo/A2801/A280102/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+yokohama_station	https://tabelog.com/kanagawa/A1401/A140101/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+yokohama_kannai	https://tabelog.com/kanagawa/A1401/A140104/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+nara_city	https://tabelog.com/nara/A2901/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+hiroshima_city	https://tabelog.com/hiroshima/A3401/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+naha_city	https://tabelog.com/okinawa/A4701/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+# ↓ 10-12 추가로 찾은 지역 (관광지 중심이라 일부는 5페이지)
+kyoto_gion_higashiyama	https://tabelog.com/kyoto/A2601/A260301/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+kyoto_arashiyama	https://tabelog.com/kyoto/A2601/A260403/rstLst/?SrtT=rt&Srt=D&sort_mode=1	5
+fukuoka_nakasu	https://tabelog.com/fukuoka/A4001/A400102/rstLst/?SrtT=rt&Srt=D&sort_mode=1	5
+nagoya_meieki	https://tabelog.com/aichi/A2301/A230101/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+yokohama_minatomirai	https://tabelog.com/kanagawa/A1401/A140103/rstLst/?SrtT=rt&Srt=D&sort_mode=1	5
+yokohama_chinatown	https://tabelog.com/kanagawa/A1401/A140105/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+osaka_castle	https://tabelog.com/osaka/A2701/A270104/rstLst/?SrtT=rt&Srt=D&sort_mode=1	5
+osaka_shinsekai	https://tabelog.com/osaka/A2701/A270206/rstLst/?SrtT=rt&Srt=D&sort_mode=1	5
+# hiroshima_miyajima: 하쓰카이치시(廿日市)라 히로시마시 페이지에 코드 없음 → 제외 (히로시마시 데이터로 대체)

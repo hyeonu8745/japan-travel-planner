@@ -37,10 +37,6 @@ out/
 .vscode/
 
 
-# ===== 대용량 원본 데이터 (Git에 올리면 안 됨) =====
-data/raw/*.csv
-data/processed/geocode_cache.csv
-
 # ===== 민감 정보 =====
 application-secret.yaml
 application-local.yaml
@@ -60,9 +56,15 @@ build/
 .DS_Store
 Thumbs.db
 
-# ===== 데이터 파일 (Git에 올리면 안 됨) =====
+# ===== 데이터 파일 (Git에 올리면 안 됨: 용량 + 약관상 비공개) =====
+# 원본: 캐글 타베로그 CSV, Apify 타베로그 수집 원본
 data/raw/*.csv
+data/tabelog_raw/
+# 가공 결과: 좌표 캐시(Google·국토지리원), 관광지 CSV, OSM 수집, 정리 결과
 data/processed/*.csv
+data/processed/*.json
+data/processed/*.txt
+# data/scripts/ (스크립트·지역 목록·브랜드 사전·민감 장소 목록)는 커밋한다
 
 ### Python ###
 __pycache__/
