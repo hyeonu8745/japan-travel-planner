@@ -1,5 +1,7 @@
 package com.example.japantravelplanner.itinerary.service;
 
+import com.example.japantravelplanner.attraction.policy.SensitivePlaces;
+
 import com.example.japantravelplanner.global.exception.ConflictException;
 import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.itinerary.dictionary.PlaceTypeLabels;
@@ -185,6 +187,12 @@ public class ItineraryEditService {
         }
     }
 
+    /** 야스쿠니 등 민감 장소(SensitivePlaces)가 들어 있는 버전인지 */
+    static boolean hasSensitivePlace(Itinerary itinerary) {
+        return itinerary.getDays().stream().flatMap(d -> d.getStops().stream())
+                .anyMatch(s -> s.getAttraction() != null && SensitivePlaces.isExcluded(s.getAttraction().getName()));
+    }
+
     private ItineraryResponseDto doRestore(Long userId, Long tripId, int versionNo) {
         Trip trip = findTrip(userId, tripId);
         Itinerary latest = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
@@ -193,6 +201,9 @@ public class ItineraryEditService {
                 .orElseThrow(() -> new NotFoundException("해당 버전의 일정을 찾을 수 없습니다."));
         if (old.getVersionNo() == latest.getVersionNo()) {
             throw new IllegalArgumentException("이미 현재 버전이에요.");
+        }
+        if (hasSensitivePlace(old)) {   // 민감 장소 필터(10-13) 전에 만든 버전이면 되돌리지 않는다
+            throw new ConflictException("이 버전에는 지금은 추천하지 않는 장소가 있어 되돌릴 수 없어요. 일정을 다시 만들어 주세요.");
         }
 
         Itinerary next = Itinerary.create(trip, latest.getVersionNo() + 1, old.getKrwPerYen(),

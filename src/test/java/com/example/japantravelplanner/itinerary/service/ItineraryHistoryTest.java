@@ -224,6 +224,16 @@ class ItineraryHistoryTest {
     }
 
     @Test
+    void 야스쿠니_같은_민감_장소가_든_옛_버전은_되돌리지_않는다() {
+        setField(a1, "name", "靖国神社社殿");   // 필터(10-13) 전에 만든 버전
+
+        assertThatThrownBy(() -> service.restore(USER_ID, TRIP_ID, 1))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("되돌릴 수 없어요");
+        assertThat(ItineraryEditService.hasSensitivePlace(v1)).isTrue();
+    }
+
+    @Test
     void 현재_버전으로_되돌릴_수_없다() {
         assertThatThrownBy(() -> service.restore(USER_ID, TRIP_ID, 2))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("현재 버전");
