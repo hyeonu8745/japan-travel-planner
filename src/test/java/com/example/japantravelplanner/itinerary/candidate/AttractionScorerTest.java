@@ -181,4 +181,12 @@ class AttractionScorerTest {
         assertThat(keptNames(List.of(unknown))).isEmpty();
     }
 
+
+    @Test
+    void 야스쿠니_신사는_평점이_높아도_후보에_넣지_않는다() {
+        List<String> kept = keptNames(List.of(
+                place(1, "靖国神社社殿", 35.6941, 139.7436, 4.5),
+                place(2, "皇居外苑", 35.6800, 139.7570, 4.4)));
+        assertThat(kept).containsExactly("皇居外苑");
+    }
 }

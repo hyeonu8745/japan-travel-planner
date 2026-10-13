@@ -1,5 +1,7 @@
 package com.example.japantravelplanner.itinerary.candidate;
 
+import com.example.japantravelplanner.attraction.policy.SensitivePlaces;
+
 import com.example.japantravelplanner.attraction.entity.Attraction;
 import com.example.japantravelplanner.global.util.GeoUtils;
 import com.example.japantravelplanner.itinerary.zone.ZoneAssigner;
@@ -49,6 +51,7 @@ public class AttractionScorer {
         List<ScoredAttraction> result = new ArrayList<>();
         for (Attraction a : attractions) {
             if (a.getLocation() == null || a.getRating() == null) continue;
+            if (SensitivePlaces.isExcluded(a.getName())) continue;   // 야스쿠니 등 민감 장소는 추천하지 않는다 (10-13)
 
             int reviews = a.getReviewCnt() == null ? 0 : a.getReviewCnt();
             if (reviews < props.getMinReviews()) continue;
