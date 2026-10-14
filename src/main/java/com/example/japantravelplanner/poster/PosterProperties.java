@@ -13,16 +13,15 @@ import org.springframework.stereotype.Component;
 public class PosterProperties {
 
     private boolean enabled = true;
-    /** gpt-image-2 계열만 사용자 지정 크기(긴 포스터)를 받는다 */
     private String model = "gpt-image-2";
     private String quality = "medium";
-    /** 지도 한 장에 이틀 이하이고 하루 4곳 이하일 때 */
-    private String coverSize = "1024x1536";
-    /** 그보다 많으면 세로로 더 긴 크기 (gpt-image-2 계열만, 16의 배수) */
-    private String longCoverSize = "1152x2048";
-    /** 지도 포스터 한 장에 넣을 날 수. 넘으면 지도를 여러 장으로 (10-12: 일정 전체를 지도에 넣기로) */
-    private int coverDaysPerPage = 3;
-    private String detailSize = "1024x1536";
+    /**
+     * 모든 장의 크기 (10-14): A4 세로 비율(1:1.414)에 가깝게, 16의 배수. 인쇄할 때 위아래 여백이 생기지 않게
+     * 지도·상세 모두 같은 크기로 (10-12에는 지도만 1152x2048이라 A4에 넣으면 좌우 여백이 생겼다)
+     */
+    private String pageSize = "1088x1536";
+    /** 지도 포스터 한 장에 넣을 날 수. 넘으면 지도를 여러 장으로 (10-14: A4 한 크기라 3일 → 2일) */
+    private int coverDaysPerPage = 2;
     /** 상세 일정표 한 장에 넣을 날 수 */
     private int daysPerDetailPage = 2;
     /** 지도 포스터에서 하루에 보여줄 장소 수 (일정 전체를 넣으려고 넉넉하게. 넘으면 식당·관광지 순으로 줄인다) */

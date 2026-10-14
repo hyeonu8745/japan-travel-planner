@@ -35,6 +35,15 @@ public class TripPoster {
     @Column(length = 50)
     private String model;
 
+    /** 그림 스타일 (10-14). 그 전에 만든 포스터는 null = 수채화 */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private PosterStyle style;
+
+    /** 사용자가 준 캐릭터 설명 (정리한 값, 50자 이하). null = AI가 자유롭게 */
+    @Column(name = "character_desc", length = 100)
+    private String characterDesc;
+
     @Column(name = "error_message", length = 300)
     private String errorMessage;
 
@@ -49,7 +58,13 @@ public class TripPoster {
     private List<TripPosterPage> pages = new ArrayList<>();
 
     public static TripPoster start(Trip trip, int itineraryVersion, String model, LocalDateTime now) {
+        return start(trip, itineraryVersion, model, PosterOptions.DEFAULT, now);
+    }
+
+    public static TripPoster start(Trip trip, int itineraryVersion, String model, PosterOptions options, LocalDateTime now) {
         TripPoster p = new TripPoster();
+        p.style = options.style();
+        p.characterDesc = options.character();
         p.trip = trip;
         p.itineraryVersion = itineraryVersion;
         p.status = PosterStatus.GENERATING;

@@ -17,8 +17,9 @@ public class PosterController {
     private final PosterService posterService;
 
     @PostMapping
-    public ResponseEntity<PosterResponseDto> start(@AuthenticationPrincipal Long userId, @PathVariable Long tripId) {
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(posterService.start(userId, tripId));
+    public ResponseEntity<PosterResponseDto> start(@AuthenticationPrincipal Long userId, @PathVariable Long tripId,
+                                                   @RequestBody(required = false) PosterRequestDto request) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(posterService.start(userId, tripId, request));
     }
 
     @GetMapping("/latest")

@@ -70,6 +70,12 @@ public class PosterService {
     // ===================== 만들기 =====================
 
     public PosterResponseDto start(Long userId, Long tripId) {
+        return start(userId, tripId, null);
+    }
+
+    /** 10-14: 스타일·캐릭터 옵션. 잘못된 값은 잠금·횟수 확인 전에 400 */
+    public PosterResponseDto start(Long userId, Long tripId, PosterRequestDto request) {
+        PosterOptions options = PosterOptions.from(request);
         if (!props.isEnabled()) throw new ConflictException("지금은 포스터를 만들 수 없어요.");
         if (!lock.tryAcquire(tripId)) {
             throw new ConflictException("일정을 만들거나 고치는 중이에요. 끝난 뒤에 다시 시도해주세요.");
@@ -91,11 +97,11 @@ public class PosterService {
             // 한국어 이름이 비어 있으면 채운다 (AI, 트랜잭션 밖). 일정이 없으면 404
             ItineraryResponseDto itinerary = koreanNames.fill(generationService.getLatest(userId, tripId));
             List<PosterPromptBuilder.PageSpec> specs = PosterPromptBuilder.build(
-                    itinerary, trip.getTitle(), trip.getStartDate(), props);
+                    itinerary, trip.getTitle(), trip.getStartDate(), props, options);
 
             poster = writeTransaction.execute(status -> {
                 TripPoster p = TripPoster.start(findTrip(userId, tripId), itinerary.version(), props.getModel(),
-                        LocalDateTime.now());
+                        options, LocalDateTime.now());
                 specs.forEach(spec -> p.addPage(TripPosterPage.of(spec.pageNo(), spec.kind(), spec.size(), spec.prompt())));
                 return posterRepository.save(p);
             });
@@ -205,7 +211,8 @@ public class PosterService {
                 .toList();
         return new PosterResponseDto(poster.getId(), tripId, poster.getStatus(), poster.getItineraryVersion(),
                 latestVersion != poster.getItineraryVersion(), poster.getErrorMessage(), poster.getCreatedAt(),
-                poster.getFinishedAt(), remaining(tripId), pages);
+                poster.getFinishedAt(), remaining(tripId), pages,
+                poster.getStyle() == null ? PosterStyle.WATERCOLOR : poster.getStyle(), poster.getCharacterDesc());
     }
 
     private int remaining(Long tripId) {

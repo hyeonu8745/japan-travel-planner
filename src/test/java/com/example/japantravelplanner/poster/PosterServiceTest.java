@@ -87,9 +87,12 @@ class PosterServiceTest {
         assertThat(response.itineraryVersion()).isEqualTo(3);
         assertThat(response.stale()).isFalse();
         assertThat(response.pages()).extracting(PosterResponseDto.PageDto::kind)
-                .containsExactly(PosterPageKind.COVER, PosterPageKind.DETAIL, PosterPageKind.DETAIL);   // 3일 → 상세 2장
+                .containsExactly(PosterPageKind.COVER, PosterPageKind.COVER,
+                        PosterPageKind.DETAIL, PosterPageKind.DETAIL);   // 3일 → 지도 2장(이틀씩) + 상세 2장
         assertThat(response.pages().get(0).imageUrl()).isEqualTo("/api/trips/9/posters/5/pages/1/image");
-        verify(imageClient, times(3)).generate(anyString(), anyString());
+        verify(imageClient, times(4)).generate(anyString(), eq("1088x1536"));
+        assertThat(response.style()).isEqualTo(PosterStyle.WATERCOLOR);
+        assertThat(response.character()).isNull();
         assertThat(service.image(USER_ID, TRIP_ID, 5L, 2)).containsExactly(9, 9);
         assertThat(lock.tryAcquire(TRIP_ID)).isTrue();
     }
@@ -106,8 +109,27 @@ class PosterServiceTest {
         assertThat(response.status()).isEqualTo(PosterStatus.FAILED);
         assertThat(response.errorMessage()).contains("일부 장");
         assertThat(response.pages()).extracting(PosterResponseDto.PageDto::status)
-                .containsExactly(PosterStatus.DONE, PosterStatus.FAILED, PosterStatus.DONE);
+                .containsExactly(PosterStatus.DONE, PosterStatus.FAILED, PosterStatus.DONE, PosterStatus.DONE);
         assertThatThrownBy(() -> service.image(USER_ID, TRIP_ID, 5L, 2)).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void 스타일과_캐릭터를_받아_모든_장에_넣고_응답에_돌려준다() {
+        PosterResponseDto response = service.start(USER_ID, TRIP_ID, new PosterRequestDto("sticker", "\"안경 쓴\" 고양이"));
+
+        assertThat(response.style()).isEqualTo(PosterStyle.STICKER);
+        assertThat(response.character()).isEqualTo("안경 쓴 고양이");
+        verify(imageClient, times(4)).generate(org.mockito.ArgumentMatchers.contains("\"안경 쓴 고양이\""), anyString());
+    }
+
+    @Test
+    void 옵션이_잘못되면_잠금_횟수_확인_전에_400() {
+        assertThatThrownBy(() -> service.start(USER_ID, TRIP_ID, new PosterRequestDto("anime", null)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.start(USER_ID, TRIP_ID, new PosterRequestDto(null, "가".repeat(51))))
+                .isInstanceOf(IllegalArgumentException.class);
+        verifyNoInteractions(imageClient);
+        assertThat(lock.tryAcquire(TRIP_ID)).isTrue();
     }
 
     @Test
