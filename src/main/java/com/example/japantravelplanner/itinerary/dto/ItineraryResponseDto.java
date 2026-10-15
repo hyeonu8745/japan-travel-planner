@@ -4,6 +4,7 @@ import com.example.japantravelplanner.attraction.entity.Attraction;
 import com.example.japantravelplanner.itinerary.entity.DroppedPlace;
 import com.example.japantravelplanner.itinerary.entity.Itinerary;
 import com.example.japantravelplanner.itinerary.entity.ItineraryDay;
+import com.example.japantravelplanner.itinerary.planner.AirportPlan;
 import com.example.japantravelplanner.itinerary.entity.ItineraryStop;
 import com.example.japantravelplanner.itinerary.planner.DropReason;
 import com.example.japantravelplanner.itinerary.planner.StopType;
@@ -76,8 +77,18 @@ public record ItineraryResponseDto(
             List<DroppedDto> dropped,
             List<String> warnings,
             List<TripZone> zones,     // 10-11 추가: 그날 실제로 도는 지역 (중심 지역 먼저, 관광지 위치로 계산). 하루에 두 지역일 수 있다
-            String zonesLabel         // zones를 한 줄로 ("아사쿠사·우에노 + 아키하바라·간다")
+            String zonesLabel,        // zones를 한 줄로 ("아사쿠사·우에노 + 아키하바라·간다")
+            List<TransferDto> transfers   // 10-15 추가: 공항 이동 (첫날·마지막 날, 비행기 시각이 있을 때만. 없으면 빈 목록)
     ) {
+    }
+
+    /**
+     * 공항 이동 한 단계 (일정 항목이 아니라 서버가 여행 조건으로 계산해 붙이는 안내).
+     *
+     * @param kind     FLIGHT_ARRIVAL, AIRPORT_TO_HOTEL, HOTEL_DROP / CHECKOUT, HOTEL_PICKUP, HOTEL_TO_AIRPORT, FLIGHT_DEPARTURE
+     * @param position BEFORE = 그날 첫 장소 앞에, AFTER = 마지막 장소 뒤에 보여준다
+     */
+    public record TransferDto(LocalTime time, String kind, String label, String position) {
     }
 
     /**
@@ -166,7 +177,7 @@ public record ItineraryResponseDto(
                                     ? alt.withNameKo(restaurantNames.get(alt.id())) : alt)
                             .toList());
                 }).toList(),
-                day.dropped(), day.warnings(), day.zones(), day.zonesLabel())).toList();
+                day.dropped(), day.warnings(), day.zones(), day.zonesLabel(), day.transfers())).toList();
         return new ItineraryResponseDto(id, tripId, version, source, changeNote, krwPerYen, createdAt, accommodation, newDays,
                 exchangeRate);
     }
@@ -191,9 +202,10 @@ public record ItineraryResponseDto(
     public static ItineraryResponseDto from(Itinerary itinerary, Function<String, List<String>> typeLabels,
                                             Map<Long, Restaurant> alternatives, ReasonContext reasons) {
         ReasonContext context = ReasonContext.orNone(reasons);
-        List<DayDto> days = itinerary.getDays().stream()
-                .map(day -> toDay(day, typeLabels, alternatives, context)).toList();
         Trip trip = itinerary.getTrip();
+        int lastDay = itinerary.getDays().stream().mapToInt(ItineraryDay::getDayNumber).max().orElse(1);
+        List<DayDto> days = itinerary.getDays().stream()
+                .map(day -> toDay(day, typeLabels, alternatives, context, transfersOf(trip, day, lastDay))).toList();
         AccommodationDto accommodation = new AccommodationDto(trip.getAccommodationName(),
                 trip.getAccommodationAddress(), lat(trip.getAccommodationLocation()), lng(trip.getAccommodationLocation()));
         return new ItineraryResponseDto(itinerary.getId(), trip.getId(), itinerary.getVersionNo(), itinerary.getSource(),
@@ -208,13 +220,22 @@ public record ItineraryResponseDto(
         return ids;
     }
 
+    /** 첫날은 공항 → 숙소, 마지막 날은 체크아웃 … 숙소 → 공항 (당일치기면 둘 다) */
+    static List<TransferDto> transfersOf(Trip trip, ItineraryDay day, int lastDay) {
+        if (trip == null) return List.of();
+        List<AirportPlan.Step> steps = new java.util.ArrayList<>();
+        if (day.getDayNumber() == 1) steps.addAll(AirportPlan.arrivalSteps(trip));
+        if (day.getDayNumber() == lastDay) steps.addAll(AirportPlan.departureSteps(trip, day.getWindowStart()));
+        return steps.stream().map(st -> new TransferDto(st.time(), st.kind(), st.label(), st.position())).toList();
+    }
+
     private static DayDto toDay(ItineraryDay day, Function<String, List<String>> typeLabels,
-                                Map<Long, Restaurant> alternatives, ReasonContext reasons) {
+                                Map<Long, Restaurant> alternatives, ReasonContext reasons, List<TransferDto> transfers) {
         return new DayDto(day.getDayNumber(), day.getDate(), day.getZone(), day.getZone().getLabel(),
                 day.getWindowStart(), day.getWindowEnd(), day.getDescription(),
                 day.getStops().stream().map(stop -> toStop(stop, day.getDate(), typeLabels, alternatives, reasons)).toList(),
                 day.getDropped().stream().map(ItineraryResponseDto::toDropped).toList(),
-                List.copyOf(day.getWarnings()), zonesOf(day), TripZone.labelOf(zonesOf(day)));
+                List.copyOf(day.getWarnings()), zonesOf(day), TripZone.labelOf(zonesOf(day)), transfers);
     }
 
     /** 그날 도는 지역: 관광지 위치의 지역 (중심 지역에 관광지가 있으면 맨 앞, 관광지가 없으면 중심 지역) */

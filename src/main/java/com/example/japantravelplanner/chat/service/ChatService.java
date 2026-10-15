@@ -265,6 +265,7 @@ public class ChatService {
                 - 숙소: %s (%s)
                 - 알레르기·제외 식품: %s
                 - 이동 제약: %s
+                - 비행기: %s
                 """.formatted(
                 trip.getStartDate(), trip.getEndDate(), nights, nights + 1,
                 trip.getTravelers(),
@@ -274,7 +275,18 @@ public class ChatService {
                 trip.getTransportMode(),
                 trip.getAccommodationName(), trip.getAccommodationAddress(),
                 blankToNone(trip.getAllergies()),
-                blankToNone(trip.getMobilityConstraints()));
+                blankToNone(trip.getMobilityConstraints()),
+                describeFlights(trip));
+    }
+
+    /** 10-15: 여행 조건에 비행기 시각이 있으면 AI가 도착·출발 시각을 다시 묻지 않게 알려준다 */
+    static String describeFlights(Trip trip) {
+        String arrival = trip.arrivalAirportInfo()
+                .map(a -> "도착 " + a.label() + " " + trip.getArrivalFlightTime()).orElse(null);
+        String departure = trip.departureAirportInfo()
+                .map(a -> "출발 " + a.label() + " " + trip.getDepartureFlightTime()).orElse(null);
+        if (arrival == null && departure == null) return "입력 안 함";
+        return (arrival == null ? "도착 입력 안 함" : arrival) + " / " + (departure == null ? "출발 입력 안 함" : departure);
     }
 
     private String describePreference(TripPreference preference) {

@@ -1,6 +1,7 @@
 package com.example.japantravelplanner.trip.service;
 
 import com.example.japantravelplanner.trip.dto.TripRequestDto;
+import com.example.japantravelplanner.trip.entity.Airport;
 import com.example.japantravelplanner.trip.entity.Interest;
 import com.example.japantravelplanner.trip.entity.Trip;
 
@@ -13,7 +14,8 @@ import java.util.Set;
 /**
  * 여행 조건을 고칠 때 무엇이 바뀌었고, 그래서 일정을 어떻게 맞춰야 하는지 판단한다.
  *
- * - REGENERATE: 날짜·인원·예산·여행 속도·관심사·알레르기 → 장소나 식당 자체가 달라지므로 일정을 새로 만든다 (AI 사용)
+ * - REGENERATE: 날짜·인원·예산·여행 속도·관심사·알레르기·공항·비행기 시각 → 장소나 식당 자체가 달라지므로 일정을 새로 만든다 (AI 사용)
+ *   (공항·비행기 시각은 첫날·마지막 날 시간대가 바뀌어 끼니·장소 수가 달라지고, 마지막 날 숙소 근처 쇼핑 여부도 바뀐다)
  * - RETIME: 숙소 주소·이동수단·이동 제약 → 장소는 그대로 두고 이동 시간과 시각만 다시 계산한다 (AI 없음)
  * - NONE: 숙소 이름만 바뀌었거나 바뀐 것이 없음 → 일정은 그대로
  *
@@ -25,7 +27,8 @@ public record TripChange(Impact impact, List<String> fields) {
 
     /** 일정을 새로 만들어야 하는 항목 */
     private static final Set<String> REGENERATE_FIELDS = Set.of(
-            "startDate", "endDate", "travelers", "budget", "travelPace", "interests", "allergies");
+            "startDate", "endDate", "travelers", "budget", "travelPace", "interests", "allergies",
+            "arrivalAirport", "arrivalFlightTime", "departureAirport", "departureFlightTime");
 
     /** 시각만 다시 계산하면 되는 항목 */
     private static final Set<String> RETIME_FIELDS = Set.of(
@@ -44,6 +47,10 @@ public record TripChange(Impact impact, List<String> fields) {
         check(fields, "transportMode", trip.getTransportMode(), request.getTransportMode());
         check(fields, "accommodationName", text(trip.getAccommodationName()), text(request.getAccommodationName()));
         check(fields, "accommodationAddress", text(trip.getAccommodationAddress()), text(request.getAccommodationAddress()));
+        check(fields, "arrivalAirport", trip.getArrivalAirport(), Airport.normalize(request.getArrivalAirport()));
+        check(fields, "arrivalFlightTime", trip.getArrivalFlightTime(), request.getArrivalFlightTime());
+        check(fields, "departureAirport", trip.getDepartureAirport(), Airport.normalize(request.getDepartureAirport()));
+        check(fields, "departureFlightTime", trip.getDepartureFlightTime(), request.getDepartureFlightTime());
 
         Impact impact = Impact.NONE;
         if (fields.stream().anyMatch(REGENERATE_FIELDS::contains)) {
@@ -76,6 +83,10 @@ public record TripChange(Impact impact, List<String> fields) {
             case "transportMode" -> "이동수단";
             case "accommodationName" -> "숙소 이름";
             case "accommodationAddress" -> "숙소 주소";
+            case "arrivalAirport" -> "도착 공항";
+            case "arrivalFlightTime" -> "비행기 도착 시각";
+            case "departureAirport" -> "출발 공항";
+            case "departureFlightTime" -> "비행기 출발 시각";
             default -> field;
         };
     }

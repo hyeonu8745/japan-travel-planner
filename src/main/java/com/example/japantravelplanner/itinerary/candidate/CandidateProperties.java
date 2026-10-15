@@ -36,4 +36,9 @@ public class CandidateProperties {
     private double partnerDistancePenaltyPerKm = 0.15;
     // 다른 날의 중심 지역이거나 이미 다른 날 함께 돈 지역이면 이만큼 감점 (같은 동네가 날마다 반복되지 않게)
     private double partnerReusePenalty = 0.5;
+
+    // 마지막 날 = 숙소 근처 쇼핑 (10-11 사용자 결정: 나리타·하네다로 가니까 숙소 근처에서 쇼핑하다 간다).
+    // 여행 조건에 비행기 출발 시각이 있을 때만. 숙소에서 이 거리 안 관광지만, 이웃 지역 없이, 쇼핑에 가산, 놀이공원 등은 제외
+    private double lastDayRadiusMeters = 2000;
+    private double lastDayShoppingBonus = 0.3;
 }

@@ -33,7 +33,7 @@ final class PosterFixtures {
 
     static DayDto day(int n, String zonesLabel, List<StopDto> stops) {
         return new DayDto(n, LocalDate.of(2026, 10, 24 + n), TripZone.ASAKUSA_UENO, "아사쿠사·우에노", LocalTime.of(9, 30),
-                LocalTime.of(21, 0), null, stops, List.of(), List.of(), List.of(TripZone.ASAKUSA_UENO), zonesLabel);
+                LocalTime.of(21, 0), null, stops, List.of(), List.of(), List.of(TripZone.ASAKUSA_UENO), zonesLabel, List.of());
     }
 
     static ItineraryResponseDto itinerary(int days) {

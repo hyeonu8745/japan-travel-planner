@@ -46,6 +46,7 @@ public final class PreferencePrompt {
               (예: "라멘은 너무 짜서 빼주세요" → FOOD_AVOID "라멘 (너무 짜서)". "너무 짠 음식"만 적고 라멘을 빠뜨리지 않는다)
               좋아하는 음식과 피할 음식을 한 항목에 섞지 않는다. summary에만 적고 constraints에서 빠뜨리지 않는다.
             - category: FOOD_PREFER(먹고 싶은 음식), FOOD_AVOID(피할 음식), ATMOSPHERE(분위기), MOBILITY(이동·체력), SMOKING(흡연), SCHEDULE(날짜별 일정 요청), ETC(그 외)
+            - [여행 조건]의 비행기에 도착(또는 출발) 시각이 있으면 그 시각은 이미 아는 것이다. 묻지 않고, arrival_time(또는 departure_time)은 비워 둔다. 서버가 비행기 시각으로 공항 이동까지 계산한다.
             - 도착·출발 시각은 constraints에 넣지 말고 arrival_time, departure_time에만 넣는다. SCHEDULE은 "둘째 날은 시부야"처럼 날짜별 요청에만 쓴다.
             - 인원과 관계없는 조건은 무시한다. (예: 혼자 여행인데 동행자 조건)
             - arrival_time, departure_time: 24시간 "HH:mm" 형식. 모르면 null. 이미 정리된 값이 있으면 유지한다.
@@ -54,7 +55,7 @@ public final class PreferencePrompt {
             - mentioned_travelers: 사용자가 이번 [사용자 새 메시지]에서 여행 인원을 말하면 그 숫자를 넣는다. "혼자"는 1, "둘이"·"친구랑 둘"은 2. 인원을 말하지 않았으면 null.
 
             [생성 준비]
-            - ready_to_generate: 음식 선호·회피, 분위기 또는 이동 성향, 도착·출발 시각(모른다는 답도 포함)이 어느 정도 파악되면 true.
+            - ready_to_generate: 음식 선호·회피, 분위기 또는 이동 성향, 도착·출발 시각(모른다는 답, 여행 조건의 비행기 시각도 포함)이 어느 정도 파악되면 true.
               true가 되는 순간 reply_to_user 끝에 "이제 일정을 만들어드릴까요?"라고 제안한다.
             - user_wants_generation: 사용자가 일정을 만들어 달라고 하거나 제안에 동의하면 true.
               정보가 부족해도 사용자가 원하면 true로 하고, 부족한 부분은 기본값으로 진행한다고 안내한다.

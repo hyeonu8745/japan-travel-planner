@@ -10,6 +10,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 @Getter
@@ -17,7 +18,8 @@ import java.util.List;
 @JsonPropertyOrder({
         "id", "title", "status", "startDate", "endDate", "travelers", "budget",
         "travelPace", "interests", "transportMode", "accommodationName",
-        "accommodationAddress", "allergies", "mobilityConstraints"
+        "accommodationAddress", "allergies", "mobilityConstraints",
+        "arrivalAirport", "arrivalFlightTime", "departureAirport", "departureFlightTime"
 })
 public class TripResponseDto {
     private Long id;
@@ -34,6 +36,11 @@ public class TripResponseDto {
     private String accommodationAddress;
     private String allergies;
     private String mobilityConstraints;
+    // 10-15 추가 (입력 안 했으면 null)
+    private String arrivalAirport;
+    private LocalTime arrivalFlightTime;
+    private String departureAirport;
+    private LocalTime departureFlightTime;
 
     public static TripResponseDto from(Trip trip) {
         return TripResponseDto.builder()
@@ -51,6 +58,10 @@ public class TripResponseDto {
                 .accommodationAddress(trip.getAccommodationAddress())
                 .allergies(trip.getAllergies())
                 .mobilityConstraints(trip.getMobilityConstraints())
+                .arrivalAirport(trip.getArrivalAirport())
+                .arrivalFlightTime(trip.getArrivalFlightTime())
+                .departureAirport(trip.getDepartureAirport())
+                .departureFlightTime(trip.getDepartureFlightTime())
                 .build();
     }
-}
+}

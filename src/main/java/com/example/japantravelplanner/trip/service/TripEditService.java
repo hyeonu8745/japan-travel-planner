@@ -20,6 +20,7 @@ import com.example.japantravelplanner.trip.dto.TripResponseDto;
 import com.example.japantravelplanner.trip.dto.TripUpdateResponseDto;
 import com.example.japantravelplanner.trip.dto.TripUpdateResponseDto.ItineraryUpdate;
 import com.example.japantravelplanner.trip.dto.TripUpdateResponseDto.Result;
+import com.example.japantravelplanner.trip.entity.Airport;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.trip.entity.TripStatus;
 import com.example.japantravelplanner.trip.repository.TripPreferenceRepository;
@@ -128,6 +129,10 @@ public class TripEditService {
         trip.setTransportMode(request.getTransportMode());
         trip.setAccommodationName(request.getAccommodationName());
         trip.setAccommodationAddress(request.getAccommodationAddress());
+        trip.setArrivalAirport(Airport.normalize(request.getArrivalAirport()));
+        trip.setArrivalFlightTime(request.getArrivalFlightTime());
+        trip.setDepartureAirport(Airport.normalize(request.getDepartureAirport()));
+        trip.setDepartureFlightTime(request.getDepartureFlightTime());
 
         // 일정이 조건과 맞지 않게 됐다. 맞추는 데 성공하면 GENERATED/EDITING으로 바뀐다
         if (hasItinerary && change.impact() != TripChange.Impact.NONE) {

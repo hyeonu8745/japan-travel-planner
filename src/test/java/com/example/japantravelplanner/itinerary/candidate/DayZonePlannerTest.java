@@ -109,4 +109,49 @@ class DayZonePlannerTest {
         assertThat(BrandKey.of("西新宿")).isEqualTo("西新宿");   // 앞부분이 짧으면 지역 이름 자체
         assertThat(BrandKey.of("浅草寺")).isEqualTo("浅草寺");
     }
+
+    private static ScoredAttraction at(long id, String name, String types, double lat, double lng, TripZone zone, double score) {
+        return new ScoredAttraction(Attraction.builder().id(id).name(name).types(types)
+                .location(GF.createPoint(new Coordinate(lng, lat))).build(), zone, score);
+    }
+
+    @Test
+    void 비행기로_떠나는_마지막_날은_숙소_근처_쇼핑_이웃_지역_없이_놀이공원_제외() {
+        // 10-15: 숙소 신주쿠(가부키초), 첫날은 점수가 높은 긴자, 마지막 날은 숙소 2km 안
+        double hotelLat = 35.6950, hotelLng = 139.7020;
+        ScoredAttraction ginzaA = at(41, "銀座歩行者天国", "tourist_attraction", 35.6717, 139.7650, TripZone.GINZA_TOKYO, 4.9);
+        ScoredAttraction ginzaB = at(42, "浜離宮恩賜庭園", "garden,park", 35.6597, 139.7634, TripZone.GINZA_TOKYO, 4.8);
+        ScoredAttraction gyoen = at(43, "新宿御苑", "park", 35.6852, 139.7100, TripZone.SHINJUKU, 4.5);
+        ScoredAttraction isetan = at(44, "伊勢丹新宿店", "department_store", 35.6916, 139.7046, TripZone.SHINJUKU, 4.3);
+        ScoredAttraction game = at(45, "新宿ゲームセンター", "amusement_center", 35.6940, 139.7010, TripZone.SHINJUKU, 4.0);
+        ScoredAttraction tocho = at(46, "東京都庁展望室", "observation_deck", 35.6896, 139.6917, TripZone.SHINJUKU, 4.2);
+        ScoredAttraction farWest = at(47, "中野ブロードウェイ", "shopping_mall", 35.7090, 139.6655, TripZone.SHINJUKU, 4.6);
+
+        List<DayZone> days = planner.plan(List.of(ginzaA, ginzaB, gyoen, isetan, game, tocho, farWest),
+                LocalDate.of(2026, 10, 25), 2, 2, List.of(), List.of(), hotelLat, hotelLng, false, 10_000, true);
+
+        assertThat(days.get(0).zone()).isEqualTo(TripZone.GINZA_TOKYO);
+        DayZone last = days.get(1);
+        assertThat(last.zone()).isEqualTo(TripZone.SHINJUKU);
+        assertThat(last.partner()).isNull();
+        // 백화점(4.3 + 쇼핑 0.3)이 공원(4.5)보다 먼저, 게임센터는 빠지고, 3km 넘는 나카노는 숙소 지역 채우기로만 뒤에
+        assertThat(last.candidates()).extracting(c -> c.attraction().getName())
+                .startsWith("伊勢丹新宿店", "新宿御苑", "東京都庁展望室")
+                .doesNotContain("新宿ゲームセンター");
+    }
+
+    @Test
+    void 비행기_출발이_없으면_마지막_날도_예전처럼_고른다() {
+        ScoredAttraction ginzaA = at(51, "銀座歩行者天国", "tourist_attraction", 35.6717, 139.7650, TripZone.GINZA_TOKYO, 4.9);
+        ScoredAttraction gyoen = at(52, "新宿御苑", "park", 35.6852, 139.7100, TripZone.SHINJUKU, 4.5);
+        ScoredAttraction game = at(53, "新宿ゲームセンター", "amusement_center", 35.6940, 139.7010, TripZone.SHINJUKU, 4.4);
+
+        List<DayZone> days = planner.plan(List.of(ginzaA, gyoen, game), LocalDate.of(2026, 10, 25), 2, 2,
+                List.of(), List.of(), 35.6950, 139.7020, false, 0, false);
+
+        // 숙소 근처 지역(신주쿠)은 첫날, 놀이 시설도 빼지 않는다
+        assertThat(days.get(0).zone()).isEqualTo(TripZone.SHINJUKU);
+        assertThat(days.get(0).candidates()).extracting(c -> c.attraction().getName()).contains("新宿ゲームセンター");
+        assertThat(days.get(1).zone()).isEqualTo(TripZone.GINZA_TOKYO);
+    }
 }

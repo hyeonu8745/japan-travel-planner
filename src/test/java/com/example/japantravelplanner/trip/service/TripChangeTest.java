@@ -39,6 +39,10 @@ class TripChangeTest {
         request.setTransportMode(trip.getTransportMode());
         request.setAccommodationName(trip.getAccommodationName());
         request.setAccommodationAddress(trip.getAccommodationAddress());
+        request.setArrivalAirport(trip.getArrivalAirport());
+        request.setArrivalFlightTime(trip.getArrivalFlightTime());
+        request.setDepartureAirport(trip.getDepartureAirport());
+        request.setDepartureFlightTime(trip.getDepartureFlightTime());
         return request;
     }
 
@@ -131,5 +135,42 @@ class TripChangeTest {
         request.setInterests(null);
 
         assertThat(TripChange.between(trip, request).fields()).containsExactly("interests");
+    }
+
+    @Test
+    void 공항이나_비행기_시각이_바뀌면_시간대가_달라지므로_새로_만든다() {
+        TripRequestDto request = sameAs(trip);
+        request.setArrivalAirport("hnd");
+        request.setArrivalFlightTime(java.time.LocalTime.of(10, 30));
+
+        TripChange change = TripChange.between(trip, request);
+
+        assertThat(change.impact()).isEqualTo(TripChange.Impact.REGENERATE);
+        assertThat(change.fields()).containsExactly("arrivalAirport", "arrivalFlightTime");
+        assertThat(change.labels()).isEqualTo("도착 공항, 비행기 도착 시각");
+    }
+
+    @Test
+    void 공항_코드는_대소문자가_달라도_같은_공항() {
+        trip.setDepartureAirport("NRT");
+        TripRequestDto request = sameAs(trip);
+        request.setDepartureAirport(" nrt ");
+
+        assertThat(TripChange.between(trip, request).fields()).isEmpty();
+    }
+
+    @Test
+    void 모르는_공항이나_공항_없는_비행기_시각은_입력_오류() {
+        TripRequestDto request = sameAs(trip);
+        request.setArrivalAirport("KIX");
+        assertThat(request.isAirportKnown()).isFalse();
+
+        request.setArrivalAirport(null);
+        request.setArrivalFlightTime(java.time.LocalTime.of(10, 0));
+        assertThat(request.isAirportKnown()).isTrue();
+        assertThat(request.isAirportGivenWithTime()).isFalse();
+
+        request.setArrivalAirport("HND");
+        assertThat(request.isAirportGivenWithTime()).isTrue();
     }
 }

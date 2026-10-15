@@ -83,12 +83,14 @@ public class ItineraryPlanner {
 
         List<ScoredAttraction> scored = scoredAttractions(trip, constraints);
         List<DayZone> zones = planZones(trip, constraints, hotel, scored, options.compact());
+        Integer flightStart = AirportPlan.firstDayStart(trip);   // 10-15: 비행기 시각이 있으면 공항 이동까지 계산
+        Integer flightEnd = AirportPlan.lastDayEnd(trip);
         List<DayWindow> windows = new ArrayList<>();
         for (DayZone day : zones) {
             windows.add(DayWindow.of(day.dayNumber() == 1, day.dayNumber() == days,
                     preference == null ? null : preference.getArrivalTime(),
                     preference == null ? null : preference.getDepartureTime(),
-                    nightView));
+                    nightView, flightStart, flightEnd));
         }
 
         // 야경 장소는 날짜마다 따로 고르지 않고 여행 전체를 보고 나눈다 (전망대만 반복되지 않게)
@@ -146,7 +148,8 @@ public class ItineraryPlanner {
         double range = dayZonePlanner.rangeMeters(compact, trip.getTransportMode() == TransportMode.RENTAL_CAR);
         return dayZonePlanner.plan(scored, trip.getStartDate(), daysOf(trip),
                 trip.getTravelPace().attractionsPerDay(), interestsOf(trip), constraints,
-                hotel.getY(), hotel.getX(), compact, range);
+                hotel.getY(), hotel.getX(), compact, range,
+                trip.departureAirportInfo().isPresent());   // 10-15: 비행기로 떠나는 마지막 날은 숙소 근처 쇼핑
     }
 
     public static List<PreferenceConstraint> constraintsOf(TripPreference preference) {

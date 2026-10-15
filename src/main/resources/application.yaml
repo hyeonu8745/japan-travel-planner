@@ -98,6 +98,9 @@ app:
     day-range-car-km: 12      # 렌터카
     partner-distance-penalty-per-km: 0.15   # 이웃 지역 고를 때 중심 사이 1km당 감점
     partner-reuse-penalty: 0.5               # 다른 날의 중심 지역이거나 이미 함께 돈 지역이면 감점
+    # 마지막 날 숙소 근처 쇼핑 (10-15, 여행 조건에 비행기 출발 시각이 있을 때만)
+    last-day-radius-meters: 2000             # 숙소에서 이 거리 안 관광지만
+    last-day-shopping-bonus: 0.3             # 쇼핑(백화점·쇼핑몰·시장) 가산
 
   poster:                        # 여행 포스터 (10-12): 1장 지도 포스터 + 상세 일정표 (모두 이미지 AI)
     enabled: true

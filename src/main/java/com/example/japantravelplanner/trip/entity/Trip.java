@@ -7,6 +7,7 @@ import org.locationtech.jts.geom.Point;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -78,6 +79,19 @@ public class Trip {
     @Column(columnDefinition = "geometry(Point,4326)")
     private Point accommodationLocation; // 일정 생성 시 Geocoding으로 채움
 
+    // 10-15 공항 (모두 선택). 공항은 코드 문자열(Airport: NRT, HND), 시각은 비행기 도착·출발 시각(현지)
+    @Column(name = "arrival_airport", length = 8)
+    private String arrivalAirport;
+
+    @Column(name = "arrival_flight_time")
+    private LocalTime arrivalFlightTime;
+
+    @Column(name = "departure_airport", length = 8)
+    private String departureAirport;
+
+    @Column(name = "departure_flight_time")
+    private LocalTime departureFlightTime;
+
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private TripStatus status = TripStatus.CONDITIONS_SET;
@@ -111,6 +125,15 @@ public class Trip {
 
     public Set<Long> excludedRestaurants() {
         return excludedRestaurantIds == null ? Set.of() : excludedRestaurantIds;
+    }
+
+    /** 비행기 도착 정보가 다 있을 때만 (공항 + 시각) */
+    public java.util.Optional<Airport> arrivalAirportInfo() {
+        return arrivalFlightTime == null ? java.util.Optional.empty() : Airport.of(arrivalAirport);
+    }
+
+    public java.util.Optional<Airport> departureAirportInfo() {
+        return departureFlightTime == null ? java.util.Optional.empty() : Airport.of(departureAirport);
     }
 
     public boolean isAwaitingConfirmation() {

@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.trip.dto;
 
+import com.example.japantravelplanner.trip.entity.Airport;
 import com.example.japantravelplanner.trip.entity.Interest;
 import com.example.japantravelplanner.trip.entity.TransportMode;
 import com.example.japantravelplanner.trip.entity.TravelPace;
@@ -8,6 +9,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
@@ -55,6 +57,27 @@ public class TripRequestDto {
     @Size(max = 500, message = "숙소 주소는 500자 이하여야 합니다.")
     private String accommodationAddress;
 
+    // 10-15 공항 (모두 선택). 공항 코드 NRT(나리타) / HND(하네다), 시각은 "HH:mm" (비행기 도착·출발 시각)
+    private String arrivalAirport;
+    private LocalTime arrivalFlightTime;
+    private String departureAirport;
+    private LocalTime departureFlightTime;
+
+    @AssertTrue(message = "공항은 NRT(나리타), HND(하네다) 중에서 골라주세요.")
+    public boolean isAirportKnown() {
+        return Airport.isKnownOrBlank(arrivalAirport) && Airport.isKnownOrBlank(departureAirport);
+    }
+
+    @AssertTrue(message = "비행기 시각을 입력했다면 공항도 골라주세요.")
+    public boolean isAirportGivenWithTime() {
+        return (arrivalFlightTime == null || !isBlank(arrivalAirport))
+                && (departureFlightTime == null || !isBlank(departureAirport));
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
+    }
+
     @AssertTrue(message = "종료일은 시작일과 같거나 이후여야 합니다.")
     public boolean isDateRangeValid() {
         if (startDate == null || endDate == null) {
@@ -70,4 +93,4 @@ public class TripRequestDto {
         }
         return ChronoUnit.DAYS.between(startDate, endDate) + 1 <= MAX_TRIP_DAYS;
     }
-}
+}

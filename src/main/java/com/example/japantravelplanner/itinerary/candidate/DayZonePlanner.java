@@ -59,6 +59,18 @@ public class DayZonePlanner {
     public List<DayZone> plan(List<ScoredAttraction> scored, LocalDate startDate, int days, int perDay,
                               Collection<Interest> interests, List<PreferenceConstraint> constraints,
                               double hotelLat, double hotelLng, boolean compact, double rangeMeters) {
+        return plan(scored, startDate, days, perDay, interests, constraints, hotelLat, hotelLng, compact, rangeMeters, false);
+    }
+
+    /**
+     * @param lastDayNearHotel true면 마지막 날은 숙소 근처 쇼핑 (10-15, 비행기 출발 시각이 있을 때):
+     *                         숙소가 있는 지역, 이웃 지역 없이, 숙소에서 lastDayRadiusMeters 안 관광지, 쇼핑 가산, 놀이공원 등 제외
+     */
+    public List<DayZone> plan(List<ScoredAttraction> scored, LocalDate startDate, int days, int perDay,
+                              Collection<Interest> interests, List<PreferenceConstraint> constraints,
+                              double hotelLat, double hotelLng, boolean compact, double rangeMeters,
+                              boolean lastDayNearHotel) {
+        boolean nearHotelLast = lastDayNearHotel && days >= 2;
 
         Map<TripZone, List<ScoredAttraction>> byZone = scored.stream()
                 .collect(Collectors.groupingBy(ScoredAttraction::zone, () -> new EnumMap<>(TripZone.class),
@@ -92,9 +104,13 @@ public class DayZonePlanner {
         }
 
         // ③ 첫날·마지막 날은 숙소에서 가까운 지역
-        List<TripZone> byDistance = new ArrayList<>(selected);
+        // 마지막 날이 숙소 근처 쇼핑이면: 나머지 날로 같은 규칙, 마지막 날은 숙소가 있는 지역 (첫날과 같아도 된다)
+        List<TripZone> byDistance = new ArrayList<>(nearHotelLast ? selected.subList(0, days - 1) : selected);
         byDistance.sort(Comparator.comparingDouble(zone -> zone.distanceTo(hotelLat, hotelLng)));
-        List<TripZone> dayOrder = arrangeDays(byDistance);
+        List<TripZone> dayOrder = new ArrayList<>(arrangeDays(byDistance));
+        if (nearHotelLast) {
+            dayOrder.add(hotelZone(hotelLat, hotelLng));
+        }
 
         // ④ 날짜마다 후보 (이미 고른 관광지는 제외)
         Set<Long> used = new HashSet<>();
@@ -104,6 +120,12 @@ public class DayZonePlanner {
         List<DayZone> result = new ArrayList<>();
         for (int i = 0; i < days; i++) {
             TripZone zone = dayOrder.get(i);
+            if (nearHotelLast && i == days - 1) {
+                result.add(new DayZone(i + 1, startDate.plusDays(i), zone,
+                        lastDayCandidates(scored, byZone.getOrDefault(zone, List.of()), used, usedBrands,
+                                hotelLat, hotelLng, perDay + props.getExtraCandidates()), null));
+                continue;
+            }
             TripZone partner = rangeMeters > 0
                     ? choosePartner(zone, byZone, used, primaries, partnerUses, perDay, interests, rangeMeters)
                     : null;
@@ -214,6 +236,45 @@ public class DayZonePlanner {
         boolean near = picked.stream().anyMatch(p ->
                 GeoUtils.distanceMeters(p.lat(), p.lng(), candidate.lat(), candidate.lng()) <= props.getNearMeters());
         return candidate.score() - sameKind * props.getSameKindPenalty() - (near ? props.getNearPenalty() : 0);
+    }
+
+    /** 숙소가 있는 지역 (지역 중심이 가장 가까운 곳) */
+    static TripZone hotelZone(double hotelLat, double hotelLng) {
+        return Arrays.stream(TripZone.values())
+                .min(Comparator.comparingDouble(zone -> zone.distanceTo(hotelLat, hotelLng)))
+                .orElseThrow();
+    }
+
+    /**
+     * 마지막 날 후보: 숙소에서 lastDayRadiusMeters 안 (지역과 상관없이), 앞 날에 고른 곳·같은 가게 제외,
+     * 놀이공원·동물원·수족관 제외(짐 찾으러 돌아갈 시간 전에 끝내기 어렵다), 쇼핑은 가산.
+     * 숙소 근처에 모자라면 숙소 지역의 나머지 관광지로 채운다
+     */
+    List<ScoredAttraction> lastDayCandidates(List<ScoredAttraction> scored, List<ScoredAttraction> zonePool,
+                                             Set<Long> used, Set<String> usedBrands,
+                                             double hotelLat, double hotelLng, int count) {
+        Comparator<ScoredAttraction> byLastDayScore = Comparator.comparingDouble(this::lastDayScore).reversed();
+        Map<String, ScoredAttraction> byBrand = new LinkedHashMap<>();
+        scored.stream()
+                .filter(c -> GeoUtils.distanceMeters(hotelLat, hotelLng, c.lat(), c.lng()) <= props.getLastDayRadiusMeters())
+                .filter(c -> PlaceKind.of(c.attraction()) != PlaceKind.AMUSEMENT)
+                .sorted(byLastDayScore)
+                .filter(c -> !used.contains(c.attraction().getId()))
+                .filter(c -> !usedBrands.contains(BrandKey.of(c.attraction().getName())))
+                .forEach(c -> byBrand.putIfAbsent(BrandKey.of(c.attraction().getName()), c));
+        if (byBrand.size() < count) {
+            zonePool.stream()
+                    .filter(c -> PlaceKind.of(c.attraction()) != PlaceKind.AMUSEMENT)
+                    .sorted(Comparator.comparingDouble(ScoredAttraction::score).reversed())
+                    .filter(c -> !used.contains(c.attraction().getId()))
+                    .filter(c -> !usedBrands.contains(BrandKey.of(c.attraction().getName())))
+                    .forEach(c -> byBrand.putIfAbsent(BrandKey.of(c.attraction().getName()), c));
+        }
+        return byBrand.values().stream().limit(count).toList();
+    }
+
+    private double lastDayScore(ScoredAttraction c) {
+        return c.score() + (PlaceKind.of(c.attraction()) == PlaceKind.SHOPPING ? props.getLastDayShoppingBonus() : 0);
     }
 
     /** 가까운 순 목록에서 1번째는 첫날, 2번째는 마지막 날, 나머지는 가운데 */

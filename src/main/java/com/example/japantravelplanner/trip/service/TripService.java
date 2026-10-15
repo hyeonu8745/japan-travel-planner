@@ -2,6 +2,7 @@ package com.example.japantravelplanner.trip.service;
 
 import com.example.japantravelplanner.trip.dto.TripRequestDto;
 import com.example.japantravelplanner.trip.dto.TripResponseDto;
+import com.example.japantravelplanner.trip.entity.Airport;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.user.entity.User;
 import com.example.japantravelplanner.trip.repository.TripRepository;
@@ -43,6 +44,10 @@ public class TripService {
                 .transportMode(request.getTransportMode())
                 .accommodationName(request.getAccommodationName())
                 .accommodationAddress(request.getAccommodationAddress())
+                .arrivalAirport(Airport.normalize(request.getArrivalAirport()))
+                .arrivalFlightTime(request.getArrivalFlightTime())
+                .departureAirport(Airport.normalize(request.getDepartureAirport()))
+                .departureFlightTime(request.getDepartureFlightTime())
                 .build();
 
         Trip savedTrip = tripRepository.save(trip);
@@ -72,4 +77,4 @@ public class TripService {
                 .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
         return TripResponseDto.from(trip);
     }
-}
+}
