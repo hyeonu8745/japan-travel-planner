@@ -117,4 +117,18 @@ class BudgetSummaryServiceTest {
         assertThat(BudgetSummaryService.range(null, null)).isNull();
         assertThat(BudgetSummaryService.sourceLabel("KOREAEXIM")).isEqualTo("한국수출입은행");
     }
+
+    @Test
+    void 쉬는_시간_카페는_낮_예산으로_식비에_더한다() {
+        Trip trip = Trip.builder().id(1L).travelers(1).budget(1_000_000).build();
+        Itinerary itinerary = itinerary(trip, List.of(List.of(
+                stop(1, StopType.LUNCH, restaurant(1, 1000, 1999, 5000, 5999)),
+                stop(2, StopType.CAFE, restaurant(2, 1000, 1999, 3000, 3999)))));
+
+        BudgetSummaryDto dto = BudgetSummaryService.summarize(trip, itinerary, 0.4);
+
+        assertThat(dto.perPerson().minYen()).isEqualTo(2000);     // 점심 1000 + 카페 낮 1000
+        assertThat(dto.days().get(0).meals().get(1).type()).isEqualTo(StopType.CAFE);
+        assertThat(dto.note()).contains("쉬는 시간 카페");
+    }
 }

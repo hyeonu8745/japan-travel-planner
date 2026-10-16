@@ -102,6 +102,16 @@ app:
     last-day-radius-meters: 2000             # 숙소에서 이 거리 안 관광지만
     last-day-shopping-bonus: 0.3             # 쇼핑(백화점·쇼핑몰·시장) 가산
 
+  cafe:                          # 오후 쉬는 시간 카페·디저트 (10-16). 점심~저녁 사이 한 곳, 시간이 모자라면 넣지 않음
+    enabled: true
+    stay-minutes: 40
+    earliest-minutes: 840        # 14:00 (앞 장소를 떠나는 시각 기준)
+    latest-minutes: 990          # 16:30
+    preferred-minutes: 900       # 15:00에 가장 가까운 자리
+    search-radii: [300, 600, 1000]
+    max-yen: 2500                # 1인 예산 상한 (애프터눈 티처럼 비싼 곳 제외)
+    distance-penalty: 0.5        # 점수 = 평점 − 거리(km) × 0.5
+
   weather:                       # 여행 날씨 (10-16). Open-Meteo, 키 없음, 비상업 무료, 화면에 출처 표시
     enabled: true
     forecast-url: https://api.open-meteo.com/v1/forecast

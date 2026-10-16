@@ -171,6 +171,7 @@ public final class PosterPromptBuilder {
         String meal = switch (s.type()) {
             case LUNCH -> "점심";
             case DINNER -> "저녁";
+            case CAFE -> "쉬는 시간 카페";
             default -> null;
         };
         if (meal != null) {

@@ -116,6 +116,7 @@ public final class NarrationInputBuilder {
         return switch (stop.type()) {
             case LUNCH -> "점심 식당 " + nameOf(stop) + " (장르: " + genreOf(stop) + ")";
             case DINNER -> "저녁 식당 " + nameOf(stop) + " (장르: " + genreOf(stop) + ")";
+            case CAFE -> "오후 쉬는 시간 카페 " + nameOf(stop) + " (장르: " + genreOf(stop) + ")";
             case ATTRACTION -> {
                 String labels = String.join(", ", typeLabels.apply(stop.attraction().attraction().getTypes()));
                 String kind = dayPart.isEmpty() ? "관광지" : dayPart + " 관광지";

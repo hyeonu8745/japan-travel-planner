@@ -30,6 +30,11 @@ public class MealHistory {
         if (excluded != null) usedIds.addAll(excluded);
     }
 
+    /** 끼니 장르 흐름(앞 끼니 장르)에는 넣지 않고 "이미 고른 곳"만 (쉬는 시간 카페, 10-16) */
+    public void recordUsedOnly(Long restaurantId) {
+        if (restaurantId != null) usedIds.add(restaurantId);
+    }
+
     public void record(RestaurantCandidate chosen) {
         usedIds.add(chosen.restaurant().getId());
         lastGenres = RestaurantFinder.mainGenres(chosen.restaurant().getGenre());

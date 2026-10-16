@@ -177,6 +177,19 @@ class ItineraryChatEditServiceTest {
         assertThat(ItineraryChatEditService.isPosterRequest("2일차 저녁 스시로")).isFalse();
     }
 
+    @Test
+    void 비_오는_날_일정을_말하면_AI_없이_날짜별_버튼으로_안내한다() {
+        ChatReplyResponseDto reply = service.handle(USER_ID, TRIP_ID, "2일차에 비 오면 실내로 바꿔줘");
+
+        assertThat(reply.assistantMessage().content()).isEqualTo(ItineraryChatEditService.RAIN_GUIDE);
+        verifyNoInteractions(openAiClient);
+        assertThat(ItineraryChatEditService.isRainRequest("비가 온대요")).isTrue();
+        assertThat(ItineraryChatEditService.isRainRequest("우천 시 대안")).isTrue();
+        assertThat(ItineraryChatEditService.isRainRequest("저녁은 비싸지 않은 곳으로")).isFalse();
+        assertThat(ItineraryChatEditService.isRainRequest("비빔밥 집으로 바꿔줘")).isFalse();
+        assertThat(ItineraryChatEditService.isRainRequest("train 타는 곳")).isFalse();
+    }
+
     // ── 교체 ──
 
     @Test

@@ -540,6 +540,7 @@ public class ItineraryStopEditService {
             case ATTRACTION -> "관광지";
             case LUNCH -> "점심";
             case DINNER -> "저녁";
+            case CAFE -> "카페";
         };
     }
 

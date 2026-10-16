@@ -68,7 +68,9 @@ public class BudgetSummaryService {
             for (ItineraryStop stop : day.getStops()) {
                 if (stop.getType() == StopType.ATTRACTION || stop.getRestaurant() == null) continue;
                 Restaurant r = stop.getRestaurant();
-                boolean lunch = stop.getType() == StopType.LUNCH;
+                // 쉬는 시간 카페(10-16)는 점심 예산(낮 가격), 없으면 저녁 예산으로
+                boolean lunch = stop.getType() == StopType.LUNCH
+                        || (stop.getType() == StopType.CAFE && (r.getBudgetLunchMin() != null || r.getBudgetLunchMax() != null));
                 Integer[] range = range(lunch ? r.getBudgetLunchMin() : r.getBudgetDinnerMin(),
                         lunch ? r.getBudgetLunchMax() : r.getBudgetDinnerMax());
                 meals++;

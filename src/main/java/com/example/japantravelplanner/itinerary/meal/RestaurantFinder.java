@@ -191,6 +191,47 @@ public class RestaurantFinder {
                 || genre.contains("居酒屋") || genre.contains("立ち飲み");
     }
 
+    // ===================== 쉬는 시간 카페 (10-16) =====================
+
+    /** 앉아서 쉬는 곳으로 볼 대표 장르 (빵집·과자점·떡집처럼 사 가는 곳은 뺀다) */
+    private static final List<String> CAFE_KEYWORDS = List.of(
+            "カフェ", "喫茶", "スイーツ", "ケーキ", "パフェ", "甘味", "フルーツパーラー", "かき氷", "クレープ",
+            "パンケーキ", "紅茶", "コーヒー", "ジェラート", "アイス", "チョコレート");
+
+    /** 대표(첫 번째) 장르가 카페·디저트인지 */
+    public static boolean isCafeLed(String genreCsv) {
+        String first = firstGenre(genreCsv);
+        return !first.isEmpty() && CAFE_KEYWORDS.stream().anyMatch(first::contains);
+    }
+
+    /**
+     * 오후 쉬는 시간 카페 후보 (10-16). 반경을 넓혀가며 찾고, 평점에서 거리(km)×distancePenalty를 뺀 점수순.
+     * 대표 장르가 카페·디저트인 곳, 폐업 의심·그날 정기 휴일 제외, 1인 예산(점심 → 없으면 저녁 상한)이 maxYen 넘는 곳 제외
+     * (예산 정보가 없으면 통과 — 원칙 6). 끼니 후보처럼 흡연 장르·술집은 걸러진다(대표 장르가 카페라서).
+     */
+    public List<RestaurantCandidate> findCafe(double lat, double lng, Set<Long> excludeIds, LocalDate visitDate,
+                                              List<Integer> radii, int maxYen, double distancePenalty, int limit) {
+        for (int radius : radii) {
+            List<RestaurantCandidate> found = new ArrayList<>();
+            for (Restaurant r : restaurantRepository.findWithinRadius(lat, lng, radius)) {
+                if (excludeIds.contains(r.getId()) || r.getRatingVal() == null || r.getLocation() == null) continue;
+                if (r.isExcludedByGoogleMatch()) continue;
+                if (RegularHoliday.isClosedOn(r.getHoliday(), visitDate)) continue;
+                if (!isCafeLed(r.getGenre()) || isDrinkLed(r.getGenre())) continue;
+                Integer budget = r.getBudgetLunchMax() != null ? r.getBudgetLunchMax() : r.getBudgetDinnerMax();
+                if (budget != null && budget > maxYen) continue;
+                double km = GeoUtils.distanceMeters(lat, lng, r.getLocation().getY(), r.getLocation().getX()) / 1000.0;
+                found.add(new RestaurantCandidate(r, (int) Math.round(km * 1000), r.getRatingVal() - km * distancePenalty, false));
+            }
+            if (!found.isEmpty()) {
+                found.sort(Comparator.comparingDouble(RestaurantCandidate::score).reversed());
+                log.info("[Cafe] 반경 {}m → {}곳", radius, found.size());
+                return found.stream().limit(limit).toList();
+            }
+        }
+        return List.of();
+    }
+
     // 식사가 아니라 간식·디저트·음료가 중심인 장르 (끼니 후보에서 제외)
     private static final List<String> SNACK_KEYWORDS = List.of(
             "菓子", "スイーツ", "ケーキ", "パン", "カフェ", "喫茶", "かき氷", "パフェ", "甘味",

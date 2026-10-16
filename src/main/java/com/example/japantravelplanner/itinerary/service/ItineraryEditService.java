@@ -666,6 +666,9 @@ public class ItineraryEditService {
         if (stop.getType() == StopType.ATTRACTION) {
             throw new IllegalArgumentException("식당(점심·저녁) 항목만 바꿀 수 있어요.");
         }
+        if (stop.getType() == StopType.CAFE) {
+            throw new IllegalArgumentException("쉬는 시간 카페는 바꿀 수 없어요. 필요 없으면 빼 주세요.");
+        }
 
         TripPreference preference = preferenceRepository.findByTripId(tripId).orElse(null);
         var constraints = ItineraryPlanner.constraintsOf(preference);

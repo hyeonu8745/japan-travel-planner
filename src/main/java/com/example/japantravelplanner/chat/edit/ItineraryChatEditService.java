@@ -72,6 +72,16 @@ public class ItineraryChatEditService {
             + "넣고 싶은 캐릭터 설명을 골라 만들 수 있어요. 일정을 바꾼 뒤라면 거기서 다시 만들어 주세요.";
     private static final Pattern POSTER = Pattern.compile("포스터|poster", Pattern.CASE_INSENSITIVE);
 
+    static final String RAIN_GUIDE = "비 오는 날 일정은 일정 화면의 날짜마다 있는 [비 오면?] 버튼에서 볼 수 있어요. "
+            + "실외 관광지를 근처 실내 장소로 바꾼 일정을 미리 보고, 마음에 들면 그대로 바꿀 수 있어요.";
+    private static final Pattern RAIN = Pattern.compile("비\\s*(가\\s*)?(오|온|올|와|왔|내리|내린|예보)|우천|장마|\\brain\\b",
+            Pattern.CASE_INSENSITIVE);
+
+    /** 비 오는 날 일정으로 바꿔 달라는 말 ("비 오면", "비가 와서", "우천 시") */
+    static boolean isRainRequest(String content) {
+        return content != null && RAIN.matcher(content).find();
+    }
+
     /** 포스터를 만들거나 다시 그려 달라는 말 */
     static boolean isPosterRequest(String content) {
         return content != null && POSTER.matcher(content).find();
@@ -137,6 +147,10 @@ public class ItineraryChatEditService {
         // 10-16: 포스터는 채팅으로 만들지 않고 포스터 화면으로 안내한다 (AI 없이, 사용자 결정 10-14: 채팅 만들기는 나중에)
         if (snapshot.pending() == null && isPosterRequest(content)) {
             return writeTransaction.execute(status -> save(tripId, content, Outcome.reply(POSTER_GUIDE)));
+        }
+        // 10-16: 비 오는 날 일정은 날짜별 버튼으로 (사용자 결정: 채팅으로 바꾸지 않고 안내만)
+        if (snapshot.pending() == null && isRainRequest(content)) {
+            return writeTransaction.execute(status -> save(tripId, content, Outcome.reply(RAIN_GUIDE)));
         }
         EditCommand command = quickCommand(content, snapshot.pending());
         if (command == null) command = askAi(snapshot, content);
@@ -593,6 +607,7 @@ public class ItineraryChatEditService {
             return switch (type) {
                 case LUNCH -> "점심";
                 case DINNER -> "저녁";
+                case CAFE -> "카페";
                 default -> "관광지";
             };
         }

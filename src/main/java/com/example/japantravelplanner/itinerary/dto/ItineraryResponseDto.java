@@ -288,8 +288,12 @@ public record ItineraryResponseDto(
                 .toList();
     }
 
-    // 점심이면 점심 예산, 저녁이면 저녁 예산
+    // 점심이면 점심 예산, 저녁이면 저녁 예산, 쉬는 시간 카페(10-16)는 낮 예산 → 없으면 저녁 예산
     private static String budgetOf(Restaurant r, StopType type) {
+        if (type == StopType.CAFE) {
+            return r.getBudgetLunch() != null && !r.getBudgetLunch().isBlank() && !"-".equals(r.getBudgetLunch().strip())
+                    ? r.getBudgetLunch() : r.getBudgetDinner();
+        }
         return type == StopType.LUNCH ? r.getBudgetLunch() : r.getBudgetDinner();
     }
 

@@ -48,6 +48,7 @@ public class ItineraryPlanner {
     private final RouteOptimizer routeOptimizer;
     private final MealPlanner mealPlanner;
     private final DayScheduler dayScheduler;
+    private final CafePlanner cafePlanner;
     private final MealBudgetCalculator mealBudgetCalculator;
     private final FoodFilterResolver foodFilterResolver;
     private final TravelProperties travelProperties;
@@ -112,6 +113,10 @@ public class ItineraryPlanner {
             DayMeals meals = mealPlanner.plan(route, hotelPoint, window, budget, filter, history);
             ScheduledDay scheduled = dayScheduler.schedule(route, meals, window, hotelPoint, options,
                     trip.getTravelPace().getStayMultiplier());
+            // 10-16: 오후 쉬는 시간 카페 한 곳 (시간이 남는 날만, 같은 가게는 여행 전체에서 한 번)
+            scheduled = cafePlanner.addBreak(scheduled, window, hotelPoint, options, history.usedIds());
+            scheduled.stops().stream().filter(stop -> stop.type() == StopType.CAFE)
+                    .forEach(stop -> history.recordUsedOnly(stop.meal().chosen().restaurant().getId()));
             scheduled.stops().stream().filter(stop -> stop.attraction() != null)
                     .forEach(stop -> {
                         usedIds.add(stop.attraction().attraction().getId());
