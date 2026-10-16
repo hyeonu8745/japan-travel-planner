@@ -45,15 +45,15 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "data" / "osm_rail"
 RAW = OUT / "raw"
 ATTRACTIONS = ROOT / "data" / "processed" / "clean_attractions.json"
-OVERPASS = [   # osm_collect.py와 같은 공용 서버 3곳 + 일본 OSM 재단 서버(일본 데이터만 있음, 10-16 추가)
+OVERPASS = [   # osm_collect.py와 같은 공용 서버 3곳 (10-16: overpass.osm.jp는 인증서 오류로 뺌)
     "https://overpass-api.de/api/interpreter",
-    "https://overpass.osm.jp/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
 ]
 FAIL_LIMIT_NEW = 2  # 이번 실행에서 한 번도 안 된 서버는 연속 2번 실패하면
 FAIL_LIMIT_OK = 6   # 한 번이라도 된 서버는 연속 6번 실패해야 (가끔 502가 나도 계속 쓴다)
 COOLDOWN = 600      # 이 초 동안 그 서버는 묻지 않는다 (10-16: kumi·private.coffee가 계속 500이라 시간만 버림)
+COOLDOWN_OK = 60    # 받아 본 서버는 1분만 쉰다 (10-16: 하나뿐인 정상 서버를 10분 빼서 전부 멈춘 적이 있음)
 _fails = {}         # 서버 → 연속 실패 수
 _resting = {}       # 서버 → 다시 물어도 되는 시각
 _ok = set()         # 이번 실행에서 받아 본 적 있는 서버 → 먼저 쓴다
@@ -212,9 +212,10 @@ def ask(q, label):
                     pass
             _fails[server] = _fails.get(server, 0) + 1
             if _fails[server] >= (FAIL_LIMIT_OK if server in _ok else FAIL_LIMIT_NEW):
-                _resting[server] = time.time() + COOLDOWN
+                rest = COOLDOWN_OK if server in _ok else COOLDOWN
+                _resting[server] = time.time() + rest
                 _fails[server] = 0
-                print(f"    {label} 실패({host}: {reason}) → {host}는 {COOLDOWN // 60}분 동안 빼요")
+                print(f"    {label} 실패({host}: {reason}) → {host}는 {rest}초 동안 빼요")
             else:
                 print(f"    {label} 실패({host}: {reason}), 15초 뒤 다시")
             time.sleep(15)
