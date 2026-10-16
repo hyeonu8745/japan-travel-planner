@@ -88,6 +88,12 @@ public final class PlanSummary {
             }
             if (!ctx.food().avoidGenres().isEmpty()) lines.add("피하고 싶은 음식이 들어간 식당은 뺐어요.");
             if (ctx.food().avoidSmoky()) lines.add("담배 연기가 있을 수 있는 이자카야·바는 뺐어요.");
+            if (!ctx.food().unfilteredAllergies().isEmpty()) {
+                lines.add(String.join("·", ctx.food().unfilteredAllergies())
+                        + "는 여러 요리에 들어가서 식당 종류로 거를 수 없어요. 주문할 때 꼭 확인해 주세요.");
+            } else if (ctx.food().hasAllergies()) {
+                lines.add("알레르기는 식당 종류로만 걸렀어요. 메뉴 원재료는 주문할 때 꼭 확인해 주세요.");
+            }
 
             long relaxed = meals.stream().filter(ItineraryStop::isBudgetRelaxed).count();
             if (relaxed > 0) lines.add("예산 안에서 찾지 못해 예산을 조금 넘는 식당이 " + relaxed + "곳 있어요.");

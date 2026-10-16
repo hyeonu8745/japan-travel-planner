@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.itinerary.service;
 
+import com.example.japantravelplanner.itinerary.meal.FoodFilter;
 import com.example.japantravelplanner.itinerary.meal.Meal;
 import com.example.japantravelplanner.itinerary.meal.RestaurantCandidate;
 import com.example.japantravelplanner.itinerary.meal.RestaurantFinder;
@@ -30,6 +31,7 @@ class CafePlannerTest {
     private final CafePlanner planner = new CafePlanner(finder, new DayScheduler(travel), props);
     private final TravelPoint hotel = new TravelPoint("숙소", 35.6951, 139.7020);
     private final TravelOptions options = new TravelOptions(LegMode.TRANSIT, 30, false, null);
+    private static final FoodFilter NO_FILTER = new FoodFilter(Set.of(), Set.of(), false);
 
     private final Restaurant cafe = Restaurant.builder().id(91L).name("喫茶ルノアール").genre("喫茶店,カフェ").ratingVal(3.6)
             .budgetLunch("￥1,000～￥1,999").location(GF.createPoint(new Coordinate(139.7015, 35.6905))).build();
@@ -48,10 +50,10 @@ class CafePlannerTest {
 
     @Test
     void 점심과_저녁_사이_15시에_가장_가까운_자리에_카페를_넣고_시각을_다시_계산한다() {
-        when(finder.findCafe(anyDouble(), anyDouble(), any(), any(), any(), anyInt(), anyDouble(), anyInt()))
+        when(finder.findCafe(anyDouble(), anyDouble(), any(), any(), any(), any(), anyInt(), anyDouble(), anyInt()))
                 .thenReturn(List.of(new RestaurantCandidate(cafe, 120, 3.5, false), new RestaurantCandidate(other, 300, 3.3, false)));
 
-        ScheduledDay result = planner.addBreak(fullDay(), window("09:30", "21:00"), hotel, options, Set.of(5L));
+        ScheduledDay result = planner.addBreak(fullDay(), window("09:30", "21:00"), hotel, options, NO_FILTER, Set.of(5L));
 
         // 박물관을 14:35에 떠남(15:00과 25분 차) / 거리를 15:55에 떠남(55분 차) → 박물관 뒤
         assertThat(result.stops()).extracting(ScheduledStop::type).containsExactly(
@@ -64,7 +66,7 @@ class CafePlannerTest {
         assertThat(cafeStop.arrival()).isAfter(LocalTime.of(14, 35));
         assertThat(result.stops().get(4).arrival()).isAfter(cafeStop.departure());   // 뒤 장소는 카페 뒤로 밀림
         assertThat(result.stops().get(5).arrival()).isEqualTo(LocalTime.of(18, 0));   // 저녁은 그대로
-        verify(finder).findCafe(anyDouble(), anyDouble(), eq(Set.of(5L)), any(), eq(List.of(300, 600, 1000)), eq(2500),
+        verify(finder).findCafe(anyDouble(), anyDouble(), eq(NO_FILTER), eq(Set.of(5L)), any(), eq(List.of(300, 600, 1000)), eq(2500),
                 eq(0.5), eq(3));
     }
 
@@ -73,24 +75,24 @@ class CafePlannerTest {
         ScheduledDay noDinner = day(1, List.of(
                 mealStop(StopType.LUNCH, restaurant(21, "점심집", "ラーメン"), false, false, "11:30", "12:30", 0),
                 attractionStop(attraction(2, "박물관", "museum"), "12:50", "14:35", 105)), List.of(), List.of());
-        assertThat(planner.addBreak(noDinner, window("09:30", "21:00"), hotel, options, Set.of())).isSameAs(noDinner);
+        assertThat(planner.addBreak(noDinner, window("09:30", "21:00"), hotel, options, NO_FILTER, Set.of())).isSameAs(noDinner);
 
         ScheduledDay noGap = day(1, List.of(
                 mealStop(StopType.LUNCH, restaurant(21, "점심집", "ラーメン"), false, false, "11:30", "12:30", 0),
                 attractionStop(attraction(2, "긴 체험", "museum"), "12:50", "17:20", 270),
                 mealStop(StopType.DINNER, restaurant(22, "저녁집", "洋食"), false, false, "18:00", "19:30", 0)),
                 List.of(), List.of());
-        assertThat(planner.addBreak(noGap, window("09:30", "21:00"), hotel, options, Set.of())).isSameAs(noGap);
+        assertThat(planner.addBreak(noGap, window("09:30", "21:00"), hotel, options, NO_FILTER, Set.of())).isSameAs(noGap);
         verifyNoInteractions(finder);
     }
 
     @Test
     void 근처에_카페가_없거나_넣으면_하루가_넘치면_그대로_둔다() {
-        when(finder.findCafe(anyDouble(), anyDouble(), any(), any(), any(), anyInt(), anyDouble(), anyInt())).thenReturn(List.of());
+        when(finder.findCafe(anyDouble(), anyDouble(), any(), any(), any(), any(), anyInt(), anyDouble(), anyInt())).thenReturn(List.of());
         ScheduledDay day = fullDay();
-        assertThat(planner.addBreak(day, window("09:30", "21:00"), hotel, options, Set.of())).isSameAs(day);
+        assertThat(planner.addBreak(day, window("09:30", "21:00"), hotel, options, NO_FILTER, Set.of())).isSameAs(day);
 
-        when(finder.findCafe(anyDouble(), anyDouble(), any(), any(), any(), anyInt(), anyDouble(), anyInt()))
+        when(finder.findCafe(anyDouble(), anyDouble(), any(), any(), any(), any(), anyInt(), anyDouble(), anyInt()))
                 .thenReturn(List.of(new RestaurantCandidate(cafe, 120, 3.5, false)));
         // 오후가 꽉 찬 날: 박물관 뒤 긴 체험이 17:35까지, 하루는 19:45까지 → 카페를 넣으면 저녁이 밀려 하루를 넘긴다
         ScheduledDay tight = day(1, List.of(
@@ -99,7 +101,7 @@ class CafePlannerTest {
                 attractionStop(attraction(3, "긴 체험", "amusement_center"), "14:55", "17:35", 160),
                 mealStop(StopType.DINNER, restaurant(22, "저녁집", "洋食"), false, false, "18:00", "19:30", 0)),
                 List.of(), List.of());
-        assertThat(planner.addBreak(tight, window("09:30", "19:45"), hotel, options, Set.of())).isSameAs(tight);
+        assertThat(planner.addBreak(tight, window("09:30", "19:45"), hotel, options, NO_FILTER, Set.of())).isSameAs(tight);
     }
 
     @Test

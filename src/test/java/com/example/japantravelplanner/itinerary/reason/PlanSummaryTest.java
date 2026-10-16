@@ -113,4 +113,20 @@ class PlanSummaryTest {
         assertThat(PlanSummary.write(itinerary(stops(), List.of()), ctx))
                 .contains("- 말씀하신 '피규어·애니' 취향에 맞는 곳은 이번 동선에 넣지 못했어요.\n");
     }
+
+    @Test
+    void 알레르기는_식당_종류로만_걸렀다고_알리고_거를_수_없는_재료는_이름을_든다() {
+        // 10-16: 땅콩·우유처럼 여러 요리에 들어가는 재료는 장르로 뺄 수 없다는 사실을 숨기지 않는다
+        var withWords = new ReasonContext(List.of(), new com.example.japantravelplanner.itinerary.meal.FoodFilter(
+                Set.of(), Set.of("そば"), false, true, List.of("땅콩", "우유")));
+        var genreOnly = new ReasonContext(List.of(), new com.example.japantravelplanner.itinerary.meal.FoodFilter(
+                Set.of(), Set.of("そば"), false, true, List.of()));
+
+        assertThat(PlanSummary.write(itinerary(stops(), List.of()), withWords))
+                .contains("- 땅콩·우유는 여러 요리에 들어가서 식당 종류로 거를 수 없어요. 주문할 때 꼭 확인해 주세요.\n");
+        assertThat(PlanSummary.write(itinerary(stops(), List.of()), genreOnly))
+                .contains("- 알레르기는 식당 종류로만 걸렀어요. 메뉴 원재료는 주문할 때 꼭 확인해 주세요.\n");
+        assertThat(PlanSummary.write(itinerary(stops(), List.of()), context(List.of(), Set.of(), Set.of(), false)))
+                .doesNotContain("알레르기");
+    }
 }

@@ -41,6 +41,7 @@ public class FoodFilterResolver {
 
         // 피할 장르가 좋아하는 장르보다 우선
         prefer.removeAll(avoid);
-        return new FoodFilter(prefer, avoid, avoidSmoky);
+        boolean hasAllergies = allergies != null && !allergies.isBlank();
+        return new FoodFilter(prefer, avoid, avoidSmoky, hasAllergies, AllergyWords.unfilterable(allergies));
     }
-}
+}

@@ -151,8 +151,7 @@ public class RestaurantFinder {
             if (isSnackOnly(genres)) continue;
             if (meal == Meal.DINNER && isSnackLed(r.getGenre())) continue;   // 저녁은 간식이 대표인 곳 제외
             if (isDrinkLed(r.getGenre())) continue;   // 술이 중심인 바는 끼니 후보가 아니다
-            if (!Collections.disjoint(genres, filter.avoidGenres())) continue;
-            if (filter.avoidSmoky() && genres.stream().anyMatch(RestaurantFinder::isSmokyGenre)) continue;
+            if (filter.excludes(genres)) continue;   // 피할 음식·알레르기 장르, 담배
 
             int distance = (int) GeoUtils.distanceMeters(lat, lng,
                     r.getLocation().getY(), r.getLocation().getX());
@@ -208,8 +207,9 @@ public class RestaurantFinder {
      * 오후 쉬는 시간 카페 후보 (10-16). 반경을 넓혀가며 찾고, 평점에서 거리(km)×distancePenalty를 뺀 점수순.
      * 대표 장르가 카페·디저트인 곳, 폐업 의심·그날 정기 휴일 제외, 1인 예산(점심 → 없으면 저녁 상한)이 maxYen 넘는 곳 제외
      * (예산 정보가 없으면 통과 — 원칙 6). 끼니 후보처럼 흡연 장르·술집은 걸러진다(대표 장르가 카페라서).
+     * 10-16: 끼니와 같은 음식 조건(피할 음식·알레르기·담배)을 적용한다. 처음에는 빠져 있어 "디저트는 빼 주세요"에도 카페가 들어갔다
      */
-    public List<RestaurantCandidate> findCafe(double lat, double lng, Set<Long> excludeIds, LocalDate visitDate,
+    public List<RestaurantCandidate> findCafe(double lat, double lng, FoodFilter filter, Set<Long> excludeIds, LocalDate visitDate,
                                               List<Integer> radii, int maxYen, double distancePenalty, int limit) {
         for (int radius : radii) {
             List<RestaurantCandidate> found = new ArrayList<>();
@@ -218,6 +218,7 @@ public class RestaurantFinder {
                 if (r.isExcludedByGoogleMatch()) continue;
                 if (RegularHoliday.isClosedOn(r.getHoliday(), visitDate)) continue;
                 if (!isCafeLed(r.getGenre()) || isDrinkLed(r.getGenre())) continue;
+                if (filter != null && filter.excludes(genresOf(r.getGenre()))) continue;   // 10-16: 디저트·카페를 피하거나 밀가루 알레르기 등
                 Integer budget = r.getBudgetLunchMax() != null ? r.getBudgetLunchMax() : r.getBudgetDinnerMax();
                 if (budget != null && budget > maxYen) continue;
                 double km = GeoUtils.distanceMeters(lat, lng, r.getLocation().getY(), r.getLocation().getX()) / 1000.0;

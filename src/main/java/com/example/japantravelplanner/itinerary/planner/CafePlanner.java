@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.itinerary.planner;
 
+import com.example.japantravelplanner.itinerary.meal.FoodFilter;
 import com.example.japantravelplanner.itinerary.meal.Meal;
 import com.example.japantravelplanner.itinerary.meal.RestaurantCandidate;
 import com.example.japantravelplanner.itinerary.meal.RestaurantFinder;
@@ -20,7 +21,7 @@ import java.util.Set;
  * 오후 쉬는 시간 카페 넣기 (10-16). 하루 시각표가 다 정해진 뒤에 한 곳을 끼워 넣고 시각만 다시 계산한다.
  * - 점심과 저녁이 모두 있는 날만 (반나절 일정·도착 날 오후 늦게 시작하는 날은 넣지 않음)
  * - 점심 뒤 ~ 저녁 앞 사이에서 앞 장소를 떠나는 시각이 14:00~16:30인 자리, 15:00에 가장 가까운 곳
- * - 앞뒤 장소의 중간 근처 카페 (RestaurantFinder.findCafe), 여행 전체에서 같은 가게는 한 번
+ * - 앞뒤 장소의 중간 근처 카페 (RestaurantFinder.findCafe), 여행 전체에서 같은 가게는 한 번, 끼니와 같은 음식 조건(피할 음식·알레르기)
  * - 넣고 다시 계산했을 때 새 시간 문제(저녁 지연·하루 초과)가 생기면 넣지 않는다
  */
 @Slf4j
@@ -35,7 +36,7 @@ public class CafePlanner {
     private final CafeProperties props;
 
     public ScheduledDay addBreak(ScheduledDay day, DayWindow window, TravelPoint hotel, TravelOptions options,
-                                 Set<Long> usedRestaurantIds) {
+                                 FoodFilter filter, Set<Long> usedRestaurantIds) {
         if (!props.isEnabled() || window.isEmpty()) return day;
         List<ScheduledStop> stops = day.stops();
         int lunch = indexOf(stops, StopType.LUNCH);
@@ -48,7 +49,7 @@ public class CafePlanner {
         TravelPoint before = pointOf(stops.get(insertAt - 1));
         TravelPoint after = pointOf(stops.get(insertAt));
         TravelPoint anchor = new TravelPoint("카페 기준(중간)", (before.lat() + after.lat()) / 2, (before.lng() + after.lng()) / 2);
-        List<RestaurantCandidate> cafes = restaurantFinder.findCafe(anchor.lat(), anchor.lng(), usedRestaurantIds,
+        List<RestaurantCandidate> cafes = restaurantFinder.findCafe(anchor.lat(), anchor.lng(), filter, usedRestaurantIds,
                 day.date(), props.getSearchRadii(), props.getMaxYen(), props.getDistancePenalty(), ALTERNATIVES + 1);
         if (cafes.isEmpty()) {
             log.info("[Cafe] DAY{} 근처 카페 없음", day.dayNumber());
