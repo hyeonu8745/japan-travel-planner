@@ -7,10 +7,12 @@ import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.itinerary.candidate.AttractionScorer;
 import com.example.japantravelplanner.itinerary.candidate.NightSpots;
 import com.example.japantravelplanner.itinerary.candidate.ScoredAttraction;
+import com.example.japantravelplanner.itinerary.candidate.Shelter;
 import com.example.japantravelplanner.itinerary.dictionary.PlaceTypeLabels;
 import com.example.japantravelplanner.itinerary.dto.AttractionCandidatesResponseDto;
 import com.example.japantravelplanner.itinerary.dto.AttractionCandidatesResponseDto.CandidateDto;
 import com.example.japantravelplanner.itinerary.dto.ItineraryResponseDto;
+import com.example.japantravelplanner.itinerary.dto.RainPlanDto;
 import com.example.japantravelplanner.itinerary.entity.DroppedPlace;
 import com.example.japantravelplanner.itinerary.entity.Itinerary;
 import com.example.japantravelplanner.itinerary.entity.ItineraryDay;
@@ -225,8 +227,14 @@ public class ItineraryAttractionEditService {
 
     /** 관광지가 바뀐 날: 순서는 그대로, 시각만 다시 계산하고 설명은 비운다 */
     private ItineraryDay retimedDay(Target target, Attraction replacement, int stay) {
+        return retimedDay(target, swapOf(target.stop(), replacement, stay));
+    }
+
+    /** 10-16: 여러 곳을 한 번에 바꾼 날 (비 오는 날 대안). 바꾸지 않는 항목은 그대로 */
+    private ItineraryDay retimedDay(Target target, Map<ItineraryStop, Swap> swaps) {
         ItineraryDay day = target.day();
-        Retimed retimed = retimeDay(target, replacement, stay);
+        Retimed retimed = retimeDay(target, swaps);
+        Set<String> replacedNames = swaps.values().stream().map(sw -> sw.attraction().getName()).collect(Collectors.toSet());
 
         // 시간 안내는 새로 계산한 것으로 바꾸고, 나머지 안내(휴일 등)는 그대로 둔다
         List<String> warnings = day.getWarnings().stream()
@@ -236,7 +244,7 @@ public class ItineraryAttractionEditService {
 
         // 시간이 부족해서 뺐던 곳을 사용자가 직접 골랐다면, 이제 일정에 들어 있으므로 "뺀 곳"에서 지운다
         List<DroppedPlace> dropped = day.getDropped().stream()
-                .filter(d -> !Objects.equals(d.getName(), replacement.getName()))
+                .filter(d -> !replacedNames.contains(d.getName()))
                 .collect(Collectors.toCollection(ArrayList::new));
 
         ItineraryDay copy = ItineraryDay.create(day.getDayNumber(), day.getDate(), day.getZone(),
@@ -246,15 +254,15 @@ public class ItineraryAttractionEditService {
         for (int i = 0; i < stops.size(); i++) {
             ItineraryStop s = stops.get(i);
             RetimedStop timed = retimed.stops().get(i);
-            boolean isTarget = s == target.stop();
+            Swap swap = swaps.get(s);
             copy.addStop(ItineraryStop.builder()
                     .stopOrder(s.getStopOrder())
                     .type(s.getType())
-                    .attraction(isTarget ? replacement : s.getAttraction())
+                    .attraction(swap != null ? swap.attraction() : s.getAttraction())
                     .restaurant(s.getRestaurant())
                     .arrivalTime(timed.arrival())
                     .departureTime(timed.departure())
-                    .stayMinutes(isTarget ? stay : s.getStayMinutes())
+                    .stayMinutes(swap != null ? swap.stay() : s.getStayMinutes())
                     .waitMinutes(timed.waitMinutes())
                     .travelMode(timed.travelIn().mode())
                     .travelMinutes(timed.travelIn().minutes())
@@ -304,11 +312,16 @@ public class ItineraryAttractionEditService {
      * @param replacement 대상 항목 자리에 넣어볼 관광지. null이면 지금 그대로 (비교 기준용)
      */
     private Retimed retimeDay(Target target, Attraction replacement, int replacementStay) {
+        return retimeDay(target, replacement == null ? Map.of() : swapOf(target.stop(), replacement, replacementStay));
+    }
+
+    private Retimed retimeDay(Target target, Map<ItineraryStop, Swap> swaps) {
         ItineraryDay day = target.day();
         List<RetimeItem> items = new ArrayList<>();
         for (ItineraryStop s : day.getStops()) {
-            if (s == target.stop() && replacement != null) {
-                items.add(new RetimeItem(StopType.ATTRACTION, pointOf(replacement), replacementStay));
+            Swap swap = swaps.get(s);
+            if (swap != null) {
+                items.add(new RetimeItem(StopType.ATTRACTION, pointOf(swap.attraction()), swap.stay()));
             } else {
                 items.add(new RetimeItem(s.getType(), pointOf(s), s.getStayMinutes()));
             }
@@ -333,6 +346,131 @@ public class ItineraryAttractionEditService {
             log.error("[Itinerary] 새 버전 저장이 DB에서 거절됨 (동시성 문제가 아님): {}", message);
             throw e;
         }
+    }
+
+    // ===================== 비 오는 날 대안 (10-16) =====================
+
+    /**
+     * 그날 실외 관광지(Shelter.OUTDOOR)를 같은 지역(모자라면 3km 안)의 실내 관광지로 바꾼 일정 미리보기.
+     * 후보는 교체 후보와 같은 규칙(findCandidates: 점수순, 일정에 없는 곳, 야경 자리는 야경 장소)에서 실내인 곳 중 첫째.
+     * 식당과 순서는 그대로, 시각만 다시 계산한다. 저장하지 않는다
+     */
+    public RainPlanDto rainPlan(Long userId, Long tripId, int dayNumber) {
+        return readTransaction.execute(status -> toRainPlanDto(planRain(userId, tripId, dayNumber)));
+    }
+
+    /** 미리보기와 같은 계산으로 새 버전(EDITED) 하나를 만든다. version이 지금 일정과 다르면 409 */
+    public ItineraryResponseDto applyRainPlan(Long userId, Long tripId, int dayNumber, Integer version) {
+        if (!lock.tryAcquire(tripId)) {
+            throw new ConflictException("이미 일정을 만들거나 고치고 있어요. 잠시만 기다려주세요.");
+        }
+        try {
+            return writeTransaction.execute(status -> {
+                RainPlan plan = planRain(userId, tripId, dayNumber);
+                if (version != null && version != plan.latest().getVersionNo()) {
+                    throw new ConflictException("일정이 바뀌었어요. 화면을 새로고침해주세요.");
+                }
+                if (plan.swaps().isEmpty()) {
+                    throw new IllegalArgumentException("이 날은 실내로 바꿀 관광지가 없어요.");
+                }
+                Itinerary latest = plan.latest();
+                Itinerary next = Itinerary.create(plan.trip(), latest.getVersionNo() + 1, latest.getKrwPerYen(),
+                        ItinerarySource.EDITED, rainNote(dayNumber, plan.swaps())).copyExchangeRateFrom(latest);
+                for (ItineraryDay day : latest.getDays()) {
+                    next.addDay(day.getDayNumber() == dayNumber ? retimedDay(plan.base(), plan.swaps()) : copyDay(day));
+                }
+                saveNewVersion(next);
+                plan.trip().markEdited();
+                log.info("[Itinerary] 비 오는 날 대안 적용 tripId={} version={} DAY{} {}곳", tripId, next.getVersionNo(),
+                        dayNumber, plan.swaps().size());
+                return toResponse(next);
+            });
+        } finally {
+            lock.release(tripId);
+        }
+    }
+
+    private RainPlan planRain(Long userId, Long tripId, int dayNumber) {
+        Trip trip = findTrip(userId, tripId);
+        Itinerary latest = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
+                .orElseThrow(() -> new NotFoundException("아직 만들어진 일정이 없습니다."));
+        ItineraryDay day = latest.getDays().stream().filter(d -> d.getDayNumber() == dayNumber).findFirst()
+                .orElseThrow(() -> new NotFoundException(dayNumber + "일차 일정이 없어요."));
+
+        Map<ItineraryStop, Swap> swaps = new java.util.LinkedHashMap<>();
+        List<String> kept = new ArrayList<>();
+        Set<Long> chosen = new java.util.HashSet<>();
+        Target base = null;
+        int outdoor = 0;
+        for (ItineraryStop stop : day.getStops()) {
+            if (stop.getType() != StopType.ATTRACTION || Shelter.of(stop.getAttraction()) != Shelter.OUTDOOR) continue;
+            outdoor++;
+            Target target = targetFor(trip, latest, day, stop);
+            if (base == null) base = target;
+            Attraction indoor = findCandidates(target).stream()
+                    .map(ScoredAttraction::attraction)
+                    .filter(a -> Shelter.of(a) == Shelter.INDOOR && !chosen.contains(a.getId()))
+                    .findFirst().orElse(null);
+            if (indoor == null) {
+                kept.add(stop.getAttraction().getName());
+                continue;
+            }
+            chosen.add(indoor.getId());
+            swaps.put(stop, new Swap(indoor, stayOf(indoor, target)));
+        }
+        Retimed retimed = swaps.isEmpty() ? null : retimeDay(base, swaps);
+        return new RainPlan(trip, latest, day, base, swaps, kept, outdoor, retimed);
+    }
+
+    private RainPlanDto toRainPlanDto(RainPlan plan) {
+        List<RainPlanDto.SwapDto> swaps = plan.swaps().entrySet().stream()
+                .map(e -> new RainPlanDto.SwapDto(e.getKey().getId(), e.getKey().getStopOrder(),
+                        place(e.getKey().getAttraction(), e.getKey().getStayMinutes()),
+                        place(e.getValue().attraction(), e.getValue().stay())))
+                .toList();
+        List<RainPlanDto.PreviewStopDto> stops = new ArrayList<>();
+        List<ItineraryStop> dayStops = plan.day().getStops();
+        for (int i = 0; i < dayStops.size(); i++) {
+            ItineraryStop s = dayStops.get(i);
+            Swap swap = plan.swaps().get(s);
+            String name = swap != null ? swap.attraction().getName()
+                    : s.getAttraction() != null ? s.getAttraction().getName() : s.getRestaurant().getName();
+            String nameKo = swap != null ? swap.attraction().getNameKo()
+                    : s.getAttraction() != null ? s.getAttraction().getNameKo() : s.getRestaurant().getNameKo();
+            RetimedStop timed = plan.retimed() == null ? null : plan.retimed().stops().get(i);
+            stops.add(new RainPlanDto.PreviewStopDto(s.getStopOrder(), s.getType(), name, nameKo,
+                    timed == null ? s.getArrivalTime() : timed.arrival(),
+                    timed == null ? s.getDepartureTime() : timed.departure(), swap != null));
+        }
+        return new RainPlanDto(plan.trip().getId(), plan.latest().getVersionNo(), plan.day().getDayNumber(),
+                !swaps.isEmpty(), rainMessage(plan.outdoor(), swaps.size(), plan.kept()), swaps, List.copyOf(plan.kept()),
+                plan.retimed() == null ? List.of() : List.copyOf(plan.retimed().warnings()), stops);
+    }
+
+    static String rainMessage(int outdoor, int swapped, List<String> kept) {
+        if (outdoor == 0) return "이 날은 실외 관광지가 없어 비가 와도 그대로 다니면 돼요.";
+        if (swapped == 0) return "근처에 바꿀 만한 실내 장소가 없어요. 우산을 챙겨 그대로 다니거나 다른 날과 바꿔 보세요.";
+        String result = "실외 관광지 " + swapped + "곳을 근처 실내 장소로 바꿨어요.";
+        if (!kept.isEmpty()) result += " " + String.join(", ", kept) + "은(는) 바꿀 곳이 없어 그대로 두었어요.";
+        return result;
+    }
+
+    /** 변경 이력: "DAY2 비 오는 날 일정: 新宿御苑 → 東京都庁展望室, 明治神宮 → ルミネ新宿" */
+    private static String rainNote(int dayNumber, Map<ItineraryStop, Swap> swaps) {
+        return "DAY" + dayNumber + " 비 오는 날 일정: " + swaps.entrySet().stream()
+                .map(e -> e.getKey().getAttraction().getName() + " → " + e.getValue().attraction().getName())
+                .collect(Collectors.joining(", "));
+    }
+
+    private RainPlanDto.PlaceDto place(Attraction a, int stay) {
+        return new RainPlanDto.PlaceDto(a.getId(), a.getName(), a.getNameKo(), typeLabels.toVisibleLabels(a.getTypes()),
+                lat(a.getLocation()), lng(a.getLocation()), stay);
+    }
+
+    private static Map<ItineraryStop, Swap> swapOf(ItineraryStop stop, Attraction attraction, int stay) {
+        Map<ItineraryStop, Swap> map = new java.util.IdentityHashMap<>();
+        map.put(stop, new Swap(attraction, stay));
+        return map;
     }
 
     // ===================== 후보 찾기 =====================
@@ -402,7 +540,11 @@ public class ItineraryAttractionEditService {
         if (stop.getType() != StopType.ATTRACTION) {
             throw new IllegalArgumentException("관광지 항목만 바꿀 수 있어요. 식당은 식당 교체를 이용해주세요.");
         }
+        return targetFor(trip, latest, day, stop);
+    }
 
+    private Target targetFor(Trip trip, Itinerary latest, ItineraryDay day, ItineraryStop stop) {
+        Long tripId = trip.getId();
         TripPreference preference = preferenceRepository.findByTripId(tripId).orElse(null);
         TravelOptions options = TravelOptions.of(trip, ItineraryPlanner.constraintsOf(preference), travelProperties);
         Point hotelLocation = accommodationLocator.locate(trip);
@@ -472,5 +614,14 @@ public class ItineraryAttractionEditService {
      */
     private record Target(Trip trip, Itinerary latest, ItineraryDay day, ItineraryStop stop, boolean night,
                           TravelOptions options, TravelPoint hotel, TravelPoint previous) {
+    }
+
+    /** 한 항목을 바꿀 관광지와 체류 시간 */
+    private record Swap(Attraction attraction, int stay) {
+    }
+
+    /** @param outdoor 그날 실외 관광지 수, base 시각 계산 기준(첫 실외 항목) */
+    private record RainPlan(Trip trip, Itinerary latest, ItineraryDay day, Target base, Map<ItineraryStop, Swap> swaps,
+                            List<String> kept, int outdoor, Retimed retimed) {
     }
 }

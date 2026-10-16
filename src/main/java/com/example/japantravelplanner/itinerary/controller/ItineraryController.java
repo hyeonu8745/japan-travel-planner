@@ -7,6 +7,7 @@ import com.example.japantravelplanner.itinerary.dto.AddAttractionRequestDto;
 import com.example.japantravelplanner.itinerary.dto.AttractionCandidatesResponseDto;
 import com.example.japantravelplanner.itinerary.dto.ItineraryConfirmResponseDto;
 import com.example.japantravelplanner.itinerary.dto.ItineraryResponseDto;
+import com.example.japantravelplanner.itinerary.dto.RainPlanDto;
 import com.example.japantravelplanner.itinerary.dto.ItineraryVersionDto;
 import com.example.japantravelplanner.itinerary.dto.ReplaceAttractionRequestDto;
 import com.example.japantravelplanner.itinerary.dto.ReorderStopsRequestDto;
@@ -61,6 +62,22 @@ public class ItineraryController {
     public ItineraryConfirmResponseDto confirm(@AuthenticationPrincipal Long userId, @PathVariable Long tripId) {
         ItineraryConfirmResponseDto confirmed = generationService.confirm(userId, tripId);
         return confirmed.withItinerary(koreanNames.fill(confirmed.itinerary()));
+    }
+
+    /** 비 오는 날 대안 미리보기 (10-16). 그날 실외 관광지를 근처 실내 장소로 바꾼 순서·시각, 저장하지 않는다 */
+    @GetMapping("/days/{dayNumber}/rain-plan")
+    public RainPlanDto rainPlan(@AuthenticationPrincipal Long userId, @PathVariable Long tripId,
+                                @PathVariable int dayNumber) {
+        return attractionEditService.rainPlan(userId, tripId, dayNumber);
+    }
+
+    /** 비 오는 날 대안 적용 → 새 버전(EDITED). 본문 {version}은 선택 (미리보기의 version을 보내면 그 사이 바뀌었을 때 409) */
+    @PostMapping("/days/{dayNumber}/rain-plan")
+    public ItineraryResponseDto applyRainPlan(@AuthenticationPrincipal Long userId, @PathVariable Long tripId,
+                                              @PathVariable int dayNumber,
+                                              @RequestBody(required = false) RainPlanDto.ApplyRequest request) {
+        return koreanNames.fill(attractionEditService.applyRainPlan(userId, tripId, dayNumber,
+                request == null ? null : request.version()));
     }
 
     /** 가장 최근 일정의 식비 요약 (10-12). 교통비·숙박비·입장료·쇼핑은 제외 */

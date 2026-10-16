@@ -102,6 +102,18 @@ app:
     last-day-radius-meters: 2000             # 숙소에서 이 거리 안 관광지만
     last-day-shopping-bonus: 0.3             # 쇼핑(백화점·쇼핑몰·시장) 가산
 
+  weather:                       # 여행 날씨 (10-16). Open-Meteo, 키 없음, 비상업 무료, 화면에 출처 표시
+    enabled: true
+    forecast-url: https://api.open-meteo.com/v1/forecast
+    archive-url: https://archive-api.open-meteo.com/v1/archive
+    timeout-seconds: 5
+    forecast-days: 15            # 오늘 + 15일까지 예보 (그 밖은 작년 같은 날)
+    past-days: 92
+    forecast-cache-minutes: 180
+    archive-cache-hours: 168
+    rain-probability-percent: 60 # 예보: 강수 확률 이 % 이상이면 비 오는 날
+    rain-millimeters: 5.0        # 작년 날씨: 강수량 이 mm 이상이면 비 오는 날
+
   fare:                          # 교통비 추정 (10-16). 지하철 IC 운임(성인), 메트로 = 최소 / 도에이 = 최대. 운임이 바뀌면 여기만 고친다
     metro-bands:                 # 도쿄 메트로 (10-16 공식 운임표)
       - { max-km: 6, yen: 178 }

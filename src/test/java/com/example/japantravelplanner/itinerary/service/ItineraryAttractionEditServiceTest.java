@@ -30,6 +30,7 @@ import com.example.japantravelplanner.trip.entity.TripStatus;
 import com.example.japantravelplanner.trip.repository.TripPreferenceRepository;
 import com.example.japantravelplanner.trip.repository.TripRepository;
 import org.junit.jupiter.api.BeforeEach;
+import com.example.japantravelplanner.itinerary.dto.RainPlanDto;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.mockito.ArgumentCaptor;
@@ -431,5 +432,56 @@ class ItineraryAttractionEditServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
 
         assertThat(lock.tryAcquire(TRIP_ID)).isTrue();
+    }
+
+    // ── 비 오는 날 대안 (10-16) ──
+
+    @Test
+    void 비_오는_날_대안은_실외_관광지만_근처_실내_장소로_바꾸고_식당과_실내는_그대로() {
+        RainPlanDto plan = service.rainPlan(USER_ID, TRIP_ID, 1);
+
+        // DAY1: 공원(실외) → 점심 → 박물관(실내) → 저녁 → 전망대(실내, 야경)
+        // 공원 자리 후보 점수순: 가까운 공원(실외라 건너뜀) → 먼 박물관(실내)
+        assertThat(plan.changed()).isTrue();
+        assertThat(plan.version()).isEqualTo(1);
+        assertThat(plan.swaps()).hasSize(1);
+        assertThat(plan.swaps().get(0).from().name()).isEqualTo("지금 공원");
+        assertThat(plan.swaps().get(0).to().name()).isEqualTo("먼 박물관");
+        assertThat(plan.swaps().get(0).to().stayMinutes()).isEqualTo(90);
+        assertThat(plan.message()).isEqualTo("실외 관광지 1곳을 근처 실내 장소로 바꿨어요.");
+        assertThat(plan.stops()).extracting(RainPlanDto.PreviewStopDto::name)
+                .containsExactly("먼 박물관", "점심집", "지금 박물관", "저녁집", "지금 전망대");
+        assertThat(plan.stops().get(0).swapped()).isTrue();
+        assertThat(plan.stops().get(1).swapped()).isFalse();
+        verify(itineraryRepository, never()).saveAndFlush(any());   // 미리보기는 저장하지 않는다
+    }
+
+    @Test
+    void 비_오는_날_대안을_적용하면_새_버전_하나에_모두_바꾸고_이력을_남긴다() {
+        service.applyRainPlan(USER_ID, TRIP_ID, 1, 1);
+
+        Itinerary saved = savedItinerary();
+        assertThat(saved.getVersionNo()).isEqualTo(2);
+        assertThat(saved.getSource()).isEqualTo(ItinerarySource.EDITED);
+        assertThat(saved.getChangeNote()).isEqualTo("DAY1 비 오는 날 일정: 지금 공원 → 먼 박물관");
+        assertThat(saved.getDays().get(0).getStops().get(0).getAttraction().getName()).isEqualTo("먼 박물관");
+        assertThat(saved.getDays().get(0).getStops().get(2).getAttraction().getName()).isEqualTo("지금 박물관");
+        assertThat(saved.getDays().get(1).getDescription()).isEqualTo("하루2 설명");   // 다른 날은 그대로
+        assertThat(lock.tryAcquire(TRIP_ID)).isTrue();
+    }
+
+    @Test
+    void 비_오는_날_대안은_그_사이_일정이_바뀌었으면_409() {
+        assertThatThrownBy(() -> service.applyRainPlan(USER_ID, TRIP_ID, 1, 7))
+                .isInstanceOf(ConflictException.class);
+        verify(itineraryRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void 비_오는_날_안내_문구() {
+        assertThat(ItineraryAttractionEditService.rainMessage(0, 0, List.of())).contains("그대로 다니면 돼요");
+        assertThat(ItineraryAttractionEditService.rainMessage(2, 0, List.of("A", "B"))).contains("바꿀 만한 실내 장소가 없어요");
+        assertThat(ItineraryAttractionEditService.rainMessage(2, 1, List.of("新宿御苑")))
+                .isEqualTo("실외 관광지 1곳을 근처 실내 장소로 바꿨어요. 新宿御苑은(는) 바꿀 곳이 없어 그대로 두었어요.");
     }
 }
