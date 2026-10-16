@@ -3,10 +3,13 @@ package com.example.japantravelplanner.weather;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.util.UriComponentsBuilder;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.net.URI;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -48,15 +51,32 @@ public class WeatherClient {
     private Optional<List<DailyWeather>> call(String url, String daily, double lat, double lng,
                                               LocalDate start, LocalDate end, String label) {
         try {
-            String body = restClient.get()
-                    .uri(url + "?latitude={lat}&longitude={lng}&daily={daily}&timezone=Asia%2FTokyo&start_date={s}&end_date={e}",
-                            round(lat), round(lng), daily, start, end)
+            String body = restClient.get().uri(URI.create(url(url, daily, lat, lng, start, end)))
                     .retrieve().body(String.class);
             return Optional.of(parse(jsonMapper, body));
+        } catch (HttpClientErrorException e) {
+            // Open-Meteo는 400 응답 본문에 이유를 준다 ({"error":true,"reason":"..."}) — 키가 없는 API라 그대로 남겨도 된다
+            log.warn("[Weather] {} 조회 실패 {}~{}: {} {}", label, start, end, e.getStatusCode(), e.getResponseBodyAsString());
+            return Optional.empty();
         } catch (RuntimeException e) {
             log.warn("[Weather] {} 조회 실패 {}~{}: {}", label, start, end, e.getClass().getSimpleName());
             return Optional.empty();
         }
+    }
+
+    /**
+     * 요청 주소. 한 번만 인코딩한다 (10-16 사고: 주소 틀에 "Asia%2FTokyo"를 직접 쓰자 RestClient가 %를 다시 %25로 바꿔
+     * "Asia%252FTokyo"가 가서 400). 완성된 주소는 URI로 넘겨 다시 인코딩되지 않게 한다
+     */
+    static String url(String base, String daily, double lat, double lng, LocalDate start, LocalDate end) {
+        return UriComponentsBuilder.fromUriString(base)
+                .queryParam("latitude", round(lat))
+                .queryParam("longitude", round(lng))
+                .queryParam("daily", daily)
+                .queryParam("timezone", "Asia/Tokyo")
+                .queryParam("start_date", start)
+                .queryParam("end_date", end)
+                .encode().build().toUriString();
     }
 
     /** 좌표는 소수 둘째 자리까지 (약 1km, 캐시가 잘 맞게) */

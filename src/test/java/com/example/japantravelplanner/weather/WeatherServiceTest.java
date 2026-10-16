@@ -108,4 +108,17 @@ class WeatherServiceTest {
         assertThat(WeatherCondition.of(73)).isEqualTo(WeatherCondition.SNOW);
         assertThat(WeatherClient.round(35.68123)).isEqualTo(35.68);
     }
+
+    @Test
+    void 요청_주소는_한_번만_인코딩한다() {
+        // 10-16: 주소 틀에 "Asia%2FTokyo"를 직접 써서 "%252F"로 두 번 인코딩되어 Open-Meteo가 400을 줬다
+        String url = WeatherClient.url("https://api.open-meteo.com/v1/forecast",
+                "weather_code,temperature_2m_max", 35.68123, 139.76712,
+                LocalDate.of(2026, 10, 25), LocalDate.of(2026, 10, 30));
+
+        assertThat(url).startsWith("https://api.open-meteo.com/v1/forecast?latitude=35.68&longitude=139.77")
+                .contains("timezone=Asia/Tokyo").doesNotContain("%25")
+                .contains("start_date=2026-10-25").contains("end_date=2026-10-30")
+                .contains("daily=weather_code,temperature_2m_max");
+    }
 }
