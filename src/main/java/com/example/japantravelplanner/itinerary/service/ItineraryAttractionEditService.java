@@ -455,7 +455,7 @@ public class ItineraryAttractionEditService {
         return result;
     }
 
-    /** 변경 이력: "DAY2 비 오는 날 일정: 新宿御苑 → 東京都庁展望室, 明治神宮 → ルミネ新宿" */
+    /** 변경 이력: "DAY2 비 오는 날 일정: 新宿御苑 → 東京都庁展望室, 代々木公園 → ルミネ新宿" */
     private static String rainNote(int dayNumber, Map<ItineraryStop, Swap> swaps) {
         return "DAY" + dayNumber + " 비 오는 날 일정: " + swaps.entrySet().stream()
                 .map(e -> e.getKey().getAttraction().getName() + " → " + e.getValue().attraction().getName())
