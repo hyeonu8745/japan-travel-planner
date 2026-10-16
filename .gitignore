@@ -64,6 +64,8 @@ data/tabelog_raw/
 data/processed/*.csv
 data/processed/*.json
 data/processed/*.txt
+# OSM 철도·노선·편의 시설 수집 (osm_rail_collect.py, ODbL 원본)
+data/osm_rail/
 # data/scripts/ (스크립트·지역 목록·브랜드 사전·민감 장소 목록)는 커밋한다
 
 ### Python ###
