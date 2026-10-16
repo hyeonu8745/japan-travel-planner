@@ -34,6 +34,7 @@ import json
 import math
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from collections import defaultdict
@@ -50,7 +51,7 @@ OVERPASS = [   # osm_collect.py와 같은 공용 서버 3곳
     "https://overpass.private.coffee/api/interpreter",
 ]
 UA = "TabiMate-student-project/1.0 (osm rail network)"
-PAUSE = 3   # 요청 사이 쉬는 초
+PAUSE = 30   # 받은 뒤 쉬는 초 (공용 서버는 무거운 요청 뒤 잠깐 거절한다 → 바로 물으면 3곳 다 실패, 10-16 확인)
 
 # 지역: (남, 서, 북, 동), 조각 수(n → n×n). 공항선이 들어가게 공항까지 포함한다
 REGIONS = {
@@ -70,7 +71,7 @@ KYOTO_BUS = ((34.92, 135.65, 35.08, 135.82), 2)   # 교토 시내버스만
 
 RAIL_ROUTES = "subway|train|light_rail|monorail|tram|funicular|ferry"
 STOP_ROLES = ("stop", "stop_entry_only", "stop_exit_only")
-HEAD = "[out:json][timeout:60][maxsize:134217728];"   # osm_collect.py보다 조금 크게 (노선 관계는 멤버가 많다)
+HEAD = "[out:json][timeout:180][maxsize:268435456];"   # 노선 관계는 멤버가 많아 osm_collect.py보다 크게 (180초·256MB)
 
 
 # ===================== 범위 =====================
@@ -160,7 +161,7 @@ KINDS = {"rail": q_rail, "station": q_station, "aerial": q_aerial, "extra": q_ex
 def post(url, data):
     body = urllib.parse.urlencode(data).encode()
     req = urllib.request.Request(url, data=body, headers={"User-Agent": UA, "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=180) as res:
+    with urllib.request.urlopen(req, timeout=300) as res:
         return json.loads(res.read().decode("utf-8"))
 
 
@@ -175,8 +176,16 @@ def ask(q, label):
                 raise RuntimeError(remark[:60])
             return part
         except Exception as e:
+            reason = str(e)[:60]
+            if isinstance(e, urllib.error.HTTPError):   # Overpass는 실패 이유를 본문에 적어 준다 (쿼리 오류인지 붐빔인지)
+                try:
+                    body = e.read().decode("utf-8", "replace")
+                    detail = [line for line in body.splitlines() if "error" in line.lower() or "remark" in line.lower()]
+                    reason += " / " + " ".join(detail)[:200] if detail else ""
+                except Exception:
+                    pass
             wait = 5 if (attempt + 1) % len(OVERPASS) else 30
-            print(f"    {label} 실패({server.split('/')[2]}: {str(e)[:60]}), {wait}초 뒤 다른 서버로")
+            print(f"    {label} 실패({server.split('/')[2]}: {reason}), {wait}초 뒤 다른 서버로")
             time.sleep(wait)
     return None
 
