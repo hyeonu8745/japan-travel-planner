@@ -66,6 +66,8 @@ data/processed/*.json
 data/processed/*.txt
 # OSM 철도·노선·편의 시설 수집 (osm_rail_collect.py, ODbL 원본)
 data/osm_rail/
+# 추가 데이터 (extra_collect.py: 소도시 버스·편의 시설·공휴일·위키 사진·국토수치정보)
+data/extra/
 # data/scripts/ (스크립트·지역 목록·브랜드 사전·민감 장소 목록)는 커밋한다
 
 ### Python ###

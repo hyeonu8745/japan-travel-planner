@@ -1,8 +1,8 @@
 # [추가 지역] 이름	랭킹 주소(1페이지)	받을 페이지 수(5 = 100곳, 약 0.3달러)
 # 남은 크레딧을 보고 위에서부터 주소를 채운다. 주소가 비어 있으면 건너뛴다.
 # 소도시 (도시 랭킹 주소를 주면 지역 코드를 찾아 넣음)
-kanazawa	https://tabelog.com/ishikawa/A1701/rstLst/?SrtT=rt&Srt=D&sort_mode=1	5
-hakone	https://tabelog.com/kanagawa/A1410/rstLst/?SrtT=rt&Srt=D&sort_mode=1	5
+kanazawa	https://tabelog.com/ishikawa/A1701/rstLst/?SrtT=rt&Srt=D&sort_mode=1	15
+hakone	https://tabelog.com/kanagawa/A1410/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
 kamakura	https://tabelog.com/kanagawa/A1404/A140402/rstLst/?SrtT=rt&Srt=D&sort_mode=1	5
 otaru	https://tabelog.com/hokkaido/A0106/A010601/rstLst/?SrtT=rt&Srt=D&sort_mode=1	5
 takayama	https://tabelog.com/gifu/A2104/A210401/rstLst/?SrtT=rt&Srt=D&sort_mode=1	5
@@ -13,6 +13,10 @@ kawaguchiko	https://tabelog.com/yamanashi/A1903/A190303/rstLst/?SrtT=rt&Srt=D&so
 nagoya_osu	https://tabelog.com/aichi/A2301/A230105/rstLst/?SrtT=rt&Srt=D&sort_mode=1	5
 nagoya_castle	https://tabelog.com/aichi/A2301/A230109/rstLst/?SrtT=rt&Srt=D&sort_mode=1	5
 osaka_tsuruhashi	https://tabelog.com/osaka/A2701/A270205/rstLst/?SrtT=rt&Srt=D&sort_mode=1	5
-kyoto_karasuma	https://tabelog.com/kyoto/A2601/A260201/R2810/rstLst/?SrtT=rt&Srt=D&sort_mode=1	5
+kyoto_karasuma	https://tabelog.com/kyoto/A2601/A260201/R2810/rstLst/?SrtT=rt&Srt=D&sort_mode=1	15
 fukuoka_ohori	https://tabelog.com/fukuoka/A4001/A400105/rstLst/?SrtT=rt&Srt=D&sort_mode=1	5
 kyoto_fushimi_inari	https://tabelog.com/kyoto/A2601/A260601/rstLst/?SrtT=rt&Srt=D&sort_mode=1	5
+# 10-16 추가: 상위 100~200곳이 고급점 위주라 점심 후보가 모자란 지역 (이미 받은 페이지는 건너뜀)
+kyoto_gion_higashiyama	https://tabelog.com/kyoto/A2601/A260301/rstLst/?SrtT=rt&Srt=D&sort_mode=1	20
+fukuoka_nakasu	https://tabelog.com/fukuoka/A4001/A400102/rstLst/?SrtT=rt&Srt=D&sort_mode=1	10
+kyoto_arashiyama	https://tabelog.com/kyoto/A2601/A260403/rstLst/?SrtT=rt&Srt=D&sort_mode=1	8

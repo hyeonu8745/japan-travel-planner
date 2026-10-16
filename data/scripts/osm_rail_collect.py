@@ -368,7 +368,7 @@ def unpaired_stations(stations, areas, meters=400):
             d = km((a["lat"], a["lng"]), (b["lat"], b["lng"])) * 1000
             if d <= meters and not (grouped[a["id"]] & grouped[b["id"]]):
                 pairs.append((round(d), a.get("name"), a.get("operator"), b.get("name"), b.get("operator")))
-    return sorted(pairs)
+    return sorted(pairs, key=lambda p: (p[0], str(p[1]), str(p[3])))   # 이름·회사가 없는 역(None)도 정렬되게 (10-16)
 
 
 def build(region, report):
@@ -415,8 +415,9 @@ def build_bus(report):
     routes, stops = build_rail("kyoto_bus", rail)
     write("kyoto_bus_routes.json", routes)
     write("kyoto_bus_stops.json", {str(k): v for k, v in stops.items()})
-    few = sum(1 for r in routes if len(r["stops"]) < 3)
-    report.append(f"[교토 버스] 노선 {len(routes)}, 정류장 {len(stops)}, 정류장 3개 미만 노선 {few} "
+    # 버스 노선은 정류장을 stop이 아니라 platform 역할로 넣는 경우가 많다 (10-16: stop만 세면 243/391이 "3개 미만"으로 보였음)
+    few = sum(1 for r in routes if len(r["stops"]) < 3 and len(r["platforms"]) < 3)
+    report.append(f"[교토 버스] 노선 {len(routes)}, 정류장 {len(stops)}, 정류장(stop·platform) 3개 미만 노선 {few} "
                   f"(많으면 버스 경로는 품질이 낮다는 뜻)")
 
 

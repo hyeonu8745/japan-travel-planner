@@ -24,6 +24,10 @@ PER_RUN = 100          # 스크래퍼 한 번 실행의 최대 개수 (= 5페이
 PAGES_PER_RUN = PER_RUN // 20
 BUDGET_USD = float(os.environ.get("TABELOG_EXTRA_BUDGET_USD", "3.9"))   # 이 금액을 넘으면 새 실행을 시작하지 않는다
 PARALLEL = 6           # 동시에 돌릴 실행 수
+# 10-16: 도구가 10-14에 0.1.26·0.1.27로 바뀐 뒤 평점 3.1~3.4대 가게 대부분이 "Schema validation failed"로 저장되지 않음
+# → 10-12에 잘 받았던 0.1.25로 돌린다 (비우면 최신). TABELOG_ONLY=지역이름 이면 그 지역만 (시험용)
+BUILD = os.environ.get("TABELOG_BUILD", "0.1.25") or None
+ONLY = os.environ.get("TABELOG_ONLY", "").strip()
 
 IN_COLAB = "google.colab" in sys.modules
 
@@ -81,7 +85,7 @@ def run_one(client, job):
         "startUrls": [{"url": url}],
         "maxRestaurants": limit,
         "includeReviews": False,
-    })
+    }, build=BUILD)
     items = [as_dict(x) for x in client.dataset(field(run, "default_dataset_id", "defaultDatasetId")).iterate_items()]
     file.write_text(json.dumps(items, ensure_ascii=False, indent=1), encoding="utf-8")
     cost = field(run, "usage_total_usd", "usageTotalUsd") or len(items) * 0.003   # 비용 값을 못 받으면 건당 단가로 추정
@@ -111,7 +115,8 @@ def main():
     token, out, areas_file = setup()
     client = ApifyClient(token)
     jobs = load_jobs(areas_file, out)
-    todo = [j for j in jobs if not j[5].exists()]
+    todo = [j for j in jobs if not j[5].exists() and (not ONLY or j[0] == ONLY)]
+    print(f"도구 버전: {BUILD or '최신'}" + (f", 지역: {ONLY}" if ONLY else ""))
     print(f"전체 {len(jobs)}개 실행 중 이미 받은 것 {len(jobs) - len(todo)}개, 이번에 {len(todo)}개 (예산 ${BUDGET_USD})")
 
     spent, total, total_good, done = 0.0, 0, 0, 0
