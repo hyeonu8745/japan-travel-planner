@@ -45,11 +45,18 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "data" / "osm_rail"
 RAW = OUT / "raw"
 ATTRACTIONS = ROOT / "data" / "processed" / "clean_attractions.json"
-OVERPASS = [   # osm_collect.py와 같은 공용 서버 3곳
+OVERPASS = [   # osm_collect.py와 같은 공용 서버 3곳 + 일본 OSM 재단 서버(일본 데이터만 있음, 10-16 추가)
     "https://overpass-api.de/api/interpreter",
+    "https://overpass.osm.jp/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
 ]
+FAIL_LIMIT_NEW = 2  # 이번 실행에서 한 번도 안 된 서버는 연속 2번 실패하면
+FAIL_LIMIT_OK = 6   # 한 번이라도 된 서버는 연속 6번 실패해야 (가끔 502가 나도 계속 쓴다)
+COOLDOWN = 600      # 이 초 동안 그 서버는 묻지 않는다 (10-16: kumi·private.coffee가 계속 500이라 시간만 버림)
+_fails = {}         # 서버 → 연속 실패 수
+_resting = {}       # 서버 → 다시 물어도 되는 시각
+_ok = set()         # 이번 실행에서 받아 본 적 있는 서버 → 먼저 쓴다
 UA = "TabiMate-student-project/1.0 (osm rail network)"
 PAUSE = 30   # 받은 뒤 쉬는 초 (공용 서버는 무거운 요청 뒤 잠깐 거절한다 → 바로 물으면 3곳 다 실패, 10-16 확인)
 
@@ -168,28 +175,49 @@ def post(url, data):
         return json.loads(res.read().decode("utf-8"))
 
 
+def _next_server():
+    """쉬는 중이 아닌 서버 중 순서대로. 모두 쉬는 중이면 가장 먼저 풀리는 서버를 기다린다"""
+    now = time.time()
+    ready = sorted((s for s in OVERPASS if _resting.get(s, 0) <= now), key=lambda s: (s not in _ok, OVERPASS.index(s)))
+    if ready:
+        return ready[0]
+    server = min(OVERPASS, key=lambda s: _resting[s])
+    wait = int(_resting[server] - now) + 1
+    print(f"    서버 모두 쉬는 중, {wait}초 기다림")
+    time.sleep(wait)
+    return server
+
+
 def ask(q, label):
-    """쿼리 하나를 서버를 돌려 가며 최대 9번 시도 (osm_collect.py와 같은 방식)"""
-    for attempt in range(9):
-        server = OVERPASS[attempt % len(OVERPASS)]
+    """쿼리 하나를 최대 12번 시도. 받아 본 서버를 먼저 쓰고, 계속 실패하는 서버는 10분 동안 뺀다"""
+    for attempt in range(12):
+        server = _next_server()
+        host = server.split('/')[2]
         try:
             part = post(server, {"data": q})
             remark = part.get("remark") or ""
             if "runtime error" in remark or "timed out" in remark or "out of memory" in remark:
                 raise RuntimeError(remark[:60])
+            _fails[server] = 0
+            _ok.add(server)
             return part
         except Exception as e:
             reason = str(e)[:60]
             if isinstance(e, urllib.error.HTTPError):   # Overpass는 실패 이유를 본문에 적어 준다 (쿼리 오류인지 붐빔인지)
                 try:
                     body = e.read().decode("utf-8", "replace")
-                    detail = [line for line in body.splitlines() if "error" in line.lower() or "remark" in line.lower()]
+                    detail = [line for line in body.splitlines() if "remark" in line.lower() or "runtime" in line.lower()]
                     reason += " / " + " ".join(detail)[:200] if detail else ""
                 except Exception:
                     pass
-            wait = 5 if (attempt + 1) % len(OVERPASS) else 30
-            print(f"    {label} 실패({server.split('/')[2]}: {reason}), {wait}초 뒤 다른 서버로")
-            time.sleep(wait)
+            _fails[server] = _fails.get(server, 0) + 1
+            if _fails[server] >= (FAIL_LIMIT_OK if server in _ok else FAIL_LIMIT_NEW):
+                _resting[server] = time.time() + COOLDOWN
+                _fails[server] = 0
+                print(f"    {label} 실패({host}: {reason}) → {host}는 {COOLDOWN // 60}분 동안 빼요")
+            else:
+                print(f"    {label} 실패({host}: {reason}), 15초 뒤 다시")
+            time.sleep(15)
     return None
 
 
