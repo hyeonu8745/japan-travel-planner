@@ -137,6 +137,22 @@ class ChatServiceTest {
     }
 
     @Test
+    void AI가_준비를_미뤄도_충분히_들었으면_서버가_준비로_넘기고_제안한다() {
+        // 10-16 프론트 테스트: 14번을 답해도 AI가 분위기·음식을 다시 물으며 준비를 미뤘다
+        when(chatMessageRepository.existsByTripId(TRIP_ID)).thenReturn(true);
+        when(chatMessageRepository.countByTripIdAndRole(TRIP_ID, ChatRole.USER)).thenReturn(6L);   // 이번이 7번째
+        when(openAiClient.generateJson(any(), anyString(), anyString(), anyMap()))
+                .thenReturn(ai("조용한 곳을 선호하시는군요. 좀 더 구체적으로 알려주실 수 있을까요?", false));
+
+        var response = service.sendMessage(USER_ID, TRIP_ID, "조용한 곳");
+
+        assertThat(response.readyToGenerate()).isTrue();
+        assertThat(response.tripStatus()).isEqualTo(TripStatus.READY_TO_GENERATE);
+        assertThat(response.assistantMessage().content()).endsWith(ChatService.READY_BY_SERVER)
+                .doesNotContain(ReplyFlow.FOLLOW_UP);
+    }
+
+    @Test
     void 일정이_만들어진_여행의_메시지는_일정_수정_대화로_넘긴다() {
         // 10-11: 예전에는 409로 막았다
         trip.setStatus(TripStatus.EDITING);

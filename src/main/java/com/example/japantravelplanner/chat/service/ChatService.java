@@ -12,6 +12,7 @@ import com.example.japantravelplanner.chat.dto.ChatReplyResponseDto;
 import com.example.japantravelplanner.chat.dto.PreferenceResponseDto;
 import com.example.japantravelplanner.chat.entity.ChatMessage;
 import com.example.japantravelplanner.chat.entity.ChatRole;
+import com.example.japantravelplanner.trip.entity.PreferenceConstraint;
 import com.example.japantravelplanner.chat.repository.ChatMessageRepository;
 import com.example.japantravelplanner.global.exception.AiServiceException;
 import com.example.japantravelplanner.global.exception.ConflictException;
@@ -38,6 +39,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class ChatService {
+
+    /** 서버가 생성 준비로 넘길 때 붙이는 말 (AI가 덧붙인 질문은 답하지 않아도 된다고 알려준다) */
+    static final String READY_BY_SERVER = "위 질문은 답하지 않으셔도 괜찮아요. 지금까지 말씀해 주신 내용으로 일정을 만들 수 있어요. 이제 일정을 만들어드릴까요?";
+
 
     private static final int HOURLY_MESSAGE_LIMIT = 30;
     private static final int MAX_CONSTRAINTS = 30;
@@ -164,15 +169,25 @@ public class ChatService {
                     + "인원이 바뀌었다면 플래너의 '여행 조건' 메뉴에서 수정해주세요.";
         }
 
-        // ② 준비 전에는 답이 질문으로 끝나게 (AI가 "잘 전달되었습니다!"로 대화를 끊은 적이 있다)
-        reply = ReplyFlow.keepGoing(reply, result.readyToGenerate(), result.userWantsGeneration());
+        // ② 10-16: AI가 준비를 미루며 같은 질문을 되풀이해도, 충분히 들었으면 서버가 준비로 넘긴다 (ReadyCheck)
+        List<PreferenceConstraint> constraints = toConstraints(result.constraints());
+        long userTurns = chatMessageRepository.countByTripIdAndRole(tripId, ChatRole.USER) + 1;
+        boolean ready = result.readyToGenerate() || ReadyCheck.enough(userTurns, constraints);
+        boolean forced = ready && !result.readyToGenerate();
 
-        // ③ 생성 준비 상태로 처음 바뀌는 순간에는 제안 문장을 서버가 보장
-        boolean becameReady = result.readyToGenerate() && trip.getStatus() != TripStatus.READY_TO_GENERATE;
+        // ③ 준비 전에는 답이 질문으로 끝나게 (AI가 "잘 전달되었습니다!"로 대화를 끊은 적이 있다)
+        reply = ReplyFlow.keepGoing(reply, ready, result.userWantsGeneration());
+
+        // ④ 생성 준비 상태로 처음 바뀌는 순간에는 제안 문장을 서버가 보장
+        boolean becameReady = ready && trip.getStatus() != TripStatus.READY_TO_GENERATE;
         if (becameReady && !result.userWantsGeneration() && !reply.contains("만들어드릴까요")) {
-            reply = reply.contains("?")
-                    ? reply + " 특별히 없으시다면 이제 일정을 만들어드릴까요?"
-                    : reply + "\n\n이제 일정을 만들어드릴까요?";
+            if (forced) {
+                reply = reply + "\n\n" + READY_BY_SERVER;
+            } else {
+                reply = reply.contains("?")
+                        ? reply + " 특별히 없으시다면 이제 일정을 만들어드릴까요?"
+                        : reply + "\n\n이제 일정을 만들어드릴까요?";
+            }
         }
 
         // 화면에서 대화 기록을 열지 않고 바로 보낸 경우에도 첫 인사가 대화 맨 앞에 오게
@@ -187,18 +202,18 @@ public class ChatService {
         TripPreference preference = tripPreferenceRepository.findByTripId(tripId)
                 .orElseGet(() -> tripPreferenceRepository.save(new TripPreference(trip)));
         preference.update(
-                toConstraints(result.constraints()),
+                constraints,
                 parseTime(result.arrivalTime()),
                 parseTime(result.departureTime()),
                 clampRatio(result.foodBudgetRatio(), preference.getFoodBudgetRatio()),
                 result.summary());
 
-        trip.setStatus(result.readyToGenerate() ? TripStatus.READY_TO_GENERATE : TripStatus.PREFERENCE_GATHERING);
+        trip.setStatus(ready ? TripStatus.READY_TO_GENERATE : TripStatus.PREFERENCE_GATHERING);
 
         return new ChatReplyResponseDto(
                 ChatMessageResponseDto.from(userMessage),
                 ChatMessageResponseDto.from(assistantMessage),
-                result.readyToGenerate(),
+                ready,
                 result.userWantsGeneration(),
                 trip.getStatus());
     }
@@ -284,7 +299,8 @@ public class ChatService {
         String arrival = trip.arrivalAirportInfo()
                 .map(a -> "도착 " + a.label() + " " + trip.getArrivalFlightTime()).orElse(null);
         String departure = trip.departureAirportInfo()
-                .map(a -> "출발 " + a.label() + " " + trip.getDepartureFlightTime()).orElse(null);
+                .map(a -> "출발 " + a.label() + " " + trip.getDepartureFlightTime()
+                        + " (공항에는 " + a.beforeDepartureMinutes() / 60 + "시간 전 도착으로 계산)").orElse(null);
         if (arrival == null && departure == null) return "입력 안 함";
         return (arrival == null ? "도착 입력 안 함" : arrival) + " / " + (departure == null ? "출발 입력 안 함" : departure);
     }

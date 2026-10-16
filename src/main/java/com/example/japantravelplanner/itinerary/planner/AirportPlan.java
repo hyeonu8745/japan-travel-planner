@@ -23,7 +23,6 @@ public final class AirportPlan {
     static final int ARRIVAL_PROCESS = 60;     // 입국 심사·짐 찾기
     static final int HOTEL_DROP = 20;          // 숙소에 짐 맡기기·체크인
     static final int CHECK_IN_HOUR = 15;       // 일본 호텔 체크인 보통 15시
-    static final int AIRPORT_BEFORE = 120;     // 국제선: 출발 2시간 전 공항 도착
     static final int LUGGAGE_PICKUP = 15;      // 숙소에서 짐 찾기
     static final int LAST_STOP_TO_HOTEL = 30;  // 마지막 장소 → 숙소 (마지막 날은 숙소 근처라 짧게 잡는다)
     static final int CHECKOUT = 15;            // 아침 체크아웃·짐 맡기기
@@ -50,7 +49,7 @@ public final class AirportPlan {
     }
 
     private static int leaveHotel(Trip trip, Airport a) {
-        return minutes(trip.getDepartureFlightTime()) - AIRPORT_BEFORE - a.transferMinutes();
+        return minutes(trip.getDepartureFlightTime()) - a.beforeDepartureMinutes() - a.transferMinutes();
     }
 
     /** 첫날 일정표 앞에 붙는 공항 → 숙소 단계 */
@@ -84,9 +83,14 @@ public final class AirportPlan {
             steps.add(new Step(time(leave), "HOTEL_TO_AIRPORT",
                     "숙소 → " + a.label() + " (대중교통 약 " + a.transferMinutes() + "분)", "AFTER"));
             steps.add(new Step(trip.getDepartureFlightTime(), "FLIGHT_DEPARTURE",
-                    "비행기 출발 (공항에는 2시간 전 도착)", "AFTER"));
+                    "비행기 출발 (공항에는 " + hours(a.beforeDepartureMinutes()) + " 전 도착, 면세품 환급 세관 확인 시간 포함)", "AFTER"));
         });
         return steps;
+    }
+
+    /** 180 → "3시간", 150 → "2시간 30분" */
+    static String hours(int minutes) {
+        return minutes % 60 == 0 ? minutes / 60 + "시간" : minutes / 60 + "시간 " + minutes % 60 + "분";
     }
 
     static int minutes(LocalTime t) {

@@ -13,17 +13,26 @@ import java.util.Optional;
  */
 public enum Airport {
 
-    NRT("나리타 국제공항", 35.7720, 140.3929),
-    HND("하네다 공항", 35.5494, 139.7798);
+    // 10-16: 2026-11-01부터 일본 면세가 리펀드 방식(출국 때 공항 세관에서 확인 후 환급)으로 바뀌어
+    // 대도시 공항은 세관 줄이 길어진다 → 출발 3시간 전 공항 도착 (사용자 결정). 작은 공항은 확장 때 공항마다 정한다
+    NRT("나리타 국제공항", 35.7720, 140.3929, 180),
+    HND("하네다 공항", 35.5494, 139.7798, 180);
 
     private final String label;
     private final double lat;
     private final double lng;
+    private final int beforeDepartureMinutes;
 
-    Airport(String label, double lat, double lng) {
+    Airport(String label, double lat, double lng, int beforeDepartureMinutes) {
         this.label = label;
         this.lat = lat;
         this.lng = lng;
+        this.beforeDepartureMinutes = beforeDepartureMinutes;
+    }
+
+    /** 비행기 출발 몇 분 전에 공항에 도착할지 (국제선 수속 + 면세 환급 세관 확인) */
+    public int beforeDepartureMinutes() {
+        return beforeDepartureMinutes;
     }
 
     public String label() {

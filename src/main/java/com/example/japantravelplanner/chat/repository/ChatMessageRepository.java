@@ -18,9 +18,12 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
     // 사용자별 최근 메시지 수 (호출 제한용, #30)
     long countByTripUserIdAndRoleAndCreatedAtAfter(Long userId, ChatRole role, LocalDateTime after);
 
+    // 이 여행에서 사용자가 보낸 메시지 수 (10-16: 대화가 길어지면 서버가 생성 준비로 넘긴다, ReadyCheck)
+    long countByTripIdAndRole(Long tripId, ChatRole role);
+
     // 첫 인사 메시지를 이미 보냈는지 (대화가 하나라도 있는지)
     boolean existsByTripId(Long tripId);
 
     // 여행을 지울 때 대화도 함께 지운다
     void deleteByTripId(Long tripId);
-}
+}

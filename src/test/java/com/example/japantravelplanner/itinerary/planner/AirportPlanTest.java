@@ -51,19 +51,27 @@ class AirportPlanTest {
     }
 
     @Test
-    void 하네다_18시_출발이면_14시30분까지_관광하고_숙소에서_짐_찾아_공항으로() {
+    void 하네다_18시_출발이면_13시30분까지_관광하고_숙소에서_짐_찾아_공항으로() {
         Trip t = trip(null, null, "HND", LocalTime.of(18, 0));
 
-        // 공항 도착 16:00 ← 숙소 출발 15:15 ← 짐 찾기 15:00 ← 마지막 장소 출발 14:30
-        assertThat(AirportPlan.lastDayEnd(t)).isEqualTo(14 * 60 + 30);
+        // 10-16 면세 리펀드: 공항 도착 15:00(3시간 전) ← 숙소 출발 14:15 ← 짐 찾기 14:00 ← 마지막 장소 출발 13:30
+        assertThat(AirportPlan.lastDayEnd(t)).isEqualTo(13 * 60 + 30);
         DayWindow window = DayWindow.of(false, true, null, null, false, null, AirportPlan.lastDayEnd(t));
-        assertThat(window.end()).isEqualTo(LocalTime.of(14, 30));
+        assertThat(window.end()).isEqualTo(LocalTime.of(13, 30));
         assertThat(window.lunch()).isTrue();
         assertThat(window.dinner()).isFalse();
 
         assertThat(times(AirportPlan.departureSteps(t, window.start()))).containsExactly(
-                "09:15 CHECKOUT BEFORE", "15:00 HOTEL_PICKUP AFTER", "15:15 HOTEL_TO_AIRPORT AFTER",
+                "09:15 CHECKOUT BEFORE", "14:00 HOTEL_PICKUP AFTER", "14:15 HOTEL_TO_AIRPORT AFTER",
                 "18:00 FLIGHT_DEPARTURE AFTER");
+    }
+
+    @Test
+    void 출발_단계에_공항_3시간_전_도착과_면세_환급_확인을_알린다() {
+        Trip t = trip(null, null, "NRT", LocalTime.of(17, 40));
+        assertThat(AirportPlan.departureSteps(t, LocalTime.of(9, 30)).getLast().label())
+                .isEqualTo("비행기 출발 (공항에는 3시간 전 도착, 면세품 환급 세관 확인 시간 포함)");
+        assertThat(AirportPlan.hours(150)).isEqualTo("2시간 30분");
     }
 
     @Test
@@ -72,9 +80,9 @@ class AirportPlanTest {
 
         DayWindow window = DayWindow.of(false, true, null, null, false, null, AirportPlan.lastDayEnd(t));
         assertThat(window.isEmpty()).isTrue();
-        // 숙소 출발 05:40 (09:00 - 120 - 80), 짐 찾기 05:25, 체크아웃은 그 전
+        // 숙소 출발 04:40 (09:00 - 180 - 80), 짐 찾기 04:25, 체크아웃은 그 전
         assertThat(times(AirportPlan.departureSteps(t, null))).containsExactly(
-                "05:10 CHECKOUT BEFORE", "05:25 HOTEL_PICKUP AFTER", "05:40 HOTEL_TO_AIRPORT AFTER",
+                "04:10 CHECKOUT BEFORE", "04:25 HOTEL_PICKUP AFTER", "04:40 HOTEL_TO_AIRPORT AFTER",
                 "09:00 FLIGHT_DEPARTURE AFTER");
     }
 
