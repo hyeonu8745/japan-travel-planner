@@ -7,24 +7,21 @@ import java.util.Optional;
 /**
  * 도착·출발 공항 (10-15). DB에는 코드 문자열(NRT, HND)로 저장한다 — enum 컬럼은 CHECK 제약이 생겨
  * 확장 때 공항을 더하면 SQL이 필요하므로 (6장).
- * 확장(11월) 때 도시별 공항(KIX, ITM, FUK, CTS 등)을 여기에 더한다.
- *
- * @param transferMinutes 공항 ↔ 시내 숙소 대중교통 대표 시간(분). Google은 일본 대중교통 경로를 주지 않아서
- *                        대표값을 쓴다 (나리타: 스카이라이너·나리타 익스프레스 + 갈아타기, 하네다: 게이큐·모노레일 + 갈아타기)
+ * 확장(11월) 때 공항을 더한다 (확장 계획 0-7: KIX, UKB, FUK, CTS, NGO, OKA, HIJ, KMQ).
+ * 이동 시간·운임은 공항 + 도시 짝마다 {@link AirportAccess}에 둔다.
+ * 이름은 공식 한국어 표기 (10-15 정리: 나리타 국제공항, 하네다 공항).
  */
 public enum Airport {
 
-    NRT("나리타 공항", 80, 35.7720, 140.3929),
-    HND("하네다 공항", 45, 35.5494, 139.7798);
+    NRT("나리타 국제공항", 35.7720, 140.3929),
+    HND("하네다 공항", 35.5494, 139.7798);
 
     private final String label;
-    private final int transferMinutes;
     private final double lat;
     private final double lng;
 
-    Airport(String label, int transferMinutes, double lat, double lng) {
+    Airport(String label, double lat, double lng) {
         this.label = label;
-        this.transferMinutes = transferMinutes;
         this.lat = lat;
         this.lng = lng;
     }
@@ -33,8 +30,9 @@ public enum Airport {
         return label;
     }
 
+    /** 공항 ↔ 숙소 대표 시간 (지금은 도쿄 기준, AirportAccess) */
     public int transferMinutes() {
-        return transferMinutes;
+        return AirportAccess.tokyo(this).map(AirportAccess::minutes).orElse(60);
     }
 
     public double lat() {

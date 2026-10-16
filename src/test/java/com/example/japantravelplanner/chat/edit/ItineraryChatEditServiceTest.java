@@ -165,6 +165,18 @@ class ItineraryChatEditServiceTest {
         assertThat(ItineraryChatEditService.quickCommand("네", null)).isNull();
     }
 
+    @Test
+    void 포스터를_말하면_AI_없이_포스터_화면으로_안내한다() {
+        ChatReplyResponseDto reply = service.handle(USER_ID, TRIP_ID, "레트로 스타일로 포스터 다시 만들어줘");
+
+        assertThat(reply.assistantMessage().content()).isEqualTo(ItineraryChatEditService.POSTER_GUIDE)
+                .contains("포스터 화면의 [만들기]");
+        assertThat(reply.itinerary()).isNull();
+        verifyNoInteractions(openAiClient);
+        assertThat(ItineraryChatEditService.isPosterRequest("Poster 만들어 줘")).isTrue();
+        assertThat(ItineraryChatEditService.isPosterRequest("2일차 저녁 스시로")).isFalse();
+    }
+
     // ── 교체 ──
 
     @Test

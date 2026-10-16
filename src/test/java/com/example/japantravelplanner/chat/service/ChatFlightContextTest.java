@@ -15,7 +15,7 @@ class ChatFlightContextTest {
     void 비행기_시각을_여행_조건_설명에_넣는다() {
         Trip both = Trip.builder().arrivalAirport("NRT").arrivalFlightTime(LocalTime.of(10, 30))
                 .departureAirport("HND").departureFlightTime(LocalTime.of(18, 0)).build();
-        assertThat(ChatService.describeFlights(both)).isEqualTo("도착 나리타 공항 10:30 / 출발 하네다 공항 18:00");
+        assertThat(ChatService.describeFlights(both)).isEqualTo("도착 나리타 국제공항 10:30 / 출발 하네다 공항 18:00");
 
         Trip arrivalOnly = Trip.builder().arrivalAirport("HND").arrivalFlightTime(LocalTime.of(9, 5)).build();
         assertThat(ChatService.describeFlights(arrivalOnly)).isEqualTo("도착 하네다 공항 09:05 / 출발 입력 안 함");

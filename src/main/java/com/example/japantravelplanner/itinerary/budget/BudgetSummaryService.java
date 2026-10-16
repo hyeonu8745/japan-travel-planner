@@ -1,5 +1,9 @@
 package com.example.japantravelplanner.itinerary.budget;
 
+import com.example.japantravelplanner.itinerary.fare.FareProperties;
+import com.example.japantravelplanner.itinerary.fare.TransportEstimate;
+import com.example.japantravelplanner.itinerary.fare.TransportEstimator;
+import com.example.japantravelplanner.itinerary.travel.TravelProperties;
 import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.itinerary.entity.Itinerary;
 import com.example.japantravelplanner.itinerary.entity.ItineraryDay;
@@ -31,6 +35,8 @@ public class BudgetSummaryService {
     private final TripRepository tripRepository;
     private final TripPreferenceRepository preferenceRepository;
     private final ItineraryRepository itineraryRepository;
+    private final FareProperties fareProperties;
+    private final TravelProperties travelProperties;
 
     @Transactional(readOnly = true)
     public BudgetSummaryDto summarize(Long userId, Long tripId) {
@@ -40,10 +46,15 @@ public class BudgetSummaryService {
                 .orElseThrow(() -> new NotFoundException("아직 만들어진 일정이 없습니다."));
         double foodRatio = preferenceRepository.findByTripId(tripId).map(TripPreference::getFoodBudgetRatio)
                 .orElse(DEFAULT_FOOD_RATIO);
-        return summarize(trip, itinerary, foodRatio);
+        return summarize(trip, itinerary, foodRatio, fareProperties, travelProperties);
     }
 
     static BudgetSummaryDto summarize(Trip trip, Itinerary itinerary, double foodRatio) {
+        return summarize(trip, itinerary, foodRatio, new FareProperties(), new TravelProperties());
+    }
+
+    static BudgetSummaryDto summarize(Trip trip, Itinerary itinerary, double foodRatio,
+                                      FareProperties fares, TravelProperties travel) {
         int travelers = trip.getTravelers() == null || trip.getTravelers() < 1 ? 1 : trip.getTravelers();
         double rate = itinerary.getKrwPerYen();
         int tripBudget = trip.getBudget() == null ? 0 : trip.getBudget();
@@ -86,9 +97,17 @@ public class BudgetSummaryService {
                 : food.minKrw() > foodBudget ? "OVER" : "MAYBE_OVER";
         int share = tripBudget <= 0 ? 0 : (int) Math.round(food.maxKrw() * 100.0 / tripBudget);
 
+        // 10-16 교통비: 숙소로 돌아갈 때 도보 기준(30분)보다 멀면 지하철 한 구간
+        double walkLimit = travel.getWalkThresholdMinutes() * travel.getWalkMetersPerMinute() / travel.getWalkDetour();
+        TransportEstimate transport = TransportEstimator.estimate(trip, itinerary, fares, rate, travelers,
+                walkLimit, travel.getTransitDetour());
+        int totalMin = food.minYen() + transport.total().minYen();
+        int totalMax = food.maxYen() + transport.total().maxYen();
+        BudgetSummaryDto.Total total = new BudgetSummaryDto.Total(totalMin, totalMax, krw(totalMin, rate), krw(totalMax, rate));
+
         return new BudgetSummaryDto(trip.getId(), itinerary.getVersionNo(), travelers, rate,
                 itinerary.getExchangeRateDate(), sourceLabel(itinerary.getExchangeRateSource()), tripBudget, foodRatio,
-                foodBudget, food, perPerson, verdict, share, BudgetSummaryDto.NOTE, days);
+                foodBudget, food, perPerson, verdict, share, BudgetSummaryDto.NOTE, days, transport, total);
     }
 
     /**

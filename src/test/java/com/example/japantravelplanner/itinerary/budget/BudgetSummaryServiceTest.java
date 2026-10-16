@@ -70,6 +70,11 @@ class BudgetSummaryServiceTest {
         assertThat(dto.foodBudgetKrw()).isEqualTo(400_000);
         assertThat(dto.verdict()).isEqualTo("WITHIN");
         assertThat(dto.note()).contains("교통비").contains("아침");
+        // 10-16 교통비: 대중교통 800m 4구간 × 178엔 (숙소 좌표가 없어 돌아가는 구간은 없음), 2명
+        assertThat(dto.transport().subway().legs()).isEqualTo(4);
+        assertThat(dto.transport().total().minYen()).isEqualTo(4 * 178 * 2);
+        assertThat(dto.total().minYen()).isEqualTo(9998 + 4 * 178 * 2);
+        assertThat(dto.total().maxYen()).isEqualTo(13994 + 4 * 178 * 2);
         assertThat(dto.exchangeRateSourceLabel()).isEqualTo("고정 환율");
     }
 

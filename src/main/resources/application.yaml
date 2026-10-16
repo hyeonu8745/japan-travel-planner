@@ -102,6 +102,24 @@ app:
     last-day-radius-meters: 2000             # 숙소에서 이 거리 안 관광지만
     last-day-shopping-bonus: 0.3             # 쇼핑(백화점·쇼핑몰·시장) 가산
 
+  fare:                          # 교통비 추정 (10-16). 지하철 IC 운임(성인), 메트로 = 최소 / 도에이 = 최대. 운임이 바뀌면 여기만 고친다
+    metro-bands:                 # 도쿄 메트로 (10-16 공식 운임표)
+      - { max-km: 6, yen: 178 }
+      - { max-km: 11, yen: 209 }
+      - { max-km: 19, yen: 252 }
+      - { max-km: 27, yen: 293 }
+      - { max-km: 40, yen: 324 }
+    toei-bands:                  # 도에이 지하철 (10-16 공식 운임표)
+      - { max-km: 4, yen: 178 }
+      - { max-km: 9, yen: 220 }
+      - { max-km: 15, yen: 272 }
+      - { max-km: 21, yen: 325 }
+      - { max-km: 27, yen: 377 }
+      - { max-km: 46, yen: 430 }
+    pass24-yen: 1000             # Tokyo Subway Ticket 24·48·72시간권 (메트로·도에이 전 노선)
+    pass48-yen: 1500
+    pass72-yen: 2000
+
   poster:                        # 여행 포스터 (10-12): 1장 지도 포스터 + 상세 일정표 (모두 이미지 AI)
     enabled: true
     model: gpt-image-2           # 사용자 지정 크기(page-size)를 받는 gpt-image-2 계열. 더 새 모델: gpt-image-2.5-flare

@@ -68,6 +68,15 @@ public class ItineraryChatEditService {
     static final String HELP = "예를 들어 \"2일차 저녁을 스시로 바꿔줘\", \"3일차 두 번째 장소 빼줘\", "
             + "\"1일차에 정원 하나 넣어줘\"처럼 말씀해 주세요.";
 
+    static final String POSTER_GUIDE = "포스터는 채팅으로는 만들 수 없어요. 포스터 화면의 [만들기]에서 그림 스타일(수채화·레트로·미니멀·스티커)과 "
+            + "넣고 싶은 캐릭터 설명을 골라 만들 수 있어요. 일정을 바꾼 뒤라면 거기서 다시 만들어 주세요.";
+    private static final Pattern POSTER = Pattern.compile("포스터|poster", Pattern.CASE_INSENSITIVE);
+
+    /** 포스터를 만들거나 다시 그려 달라는 말 */
+    static boolean isPosterRequest(String content) {
+        return content != null && POSTER.matcher(content).find();
+    }
+
     private static final Pattern REF = Pattern.compile("D(\\d+)-(\\d+)");
     private static final Pattern YES = Pattern.compile(
             "^(네|넵|예|응|어|좋아요?|좋습니다|그래요?|그렇게\\s*(해|하자|해\\s*줘|해\\s*주세요)|바꿔\\s*(줘|주세요)?|ㅇㅇ|ok|오케이)[\\s.!~]*$");
@@ -125,6 +134,10 @@ public class ItineraryChatEditService {
     /** 일정이 있는 여행의 채팅 메시지 하나를 처리한다. 여행 확인·호출 제한은 ChatService가 먼저 했다 */
     public ChatReplyResponseDto handle(Long userId, Long tripId, String content) {
         Snapshot snapshot = readTransaction.execute(status -> snapshot(tripId));
+        // 10-16: 포스터는 채팅으로 만들지 않고 포스터 화면으로 안내한다 (AI 없이, 사용자 결정 10-14: 채팅 만들기는 나중에)
+        if (snapshot.pending() == null && isPosterRequest(content)) {
+            return writeTransaction.execute(status -> save(tripId, content, Outcome.reply(POSTER_GUIDE)));
+        }
         EditCommand command = quickCommand(content, snapshot.pending());
         if (command == null) command = askAi(snapshot, content);
 
