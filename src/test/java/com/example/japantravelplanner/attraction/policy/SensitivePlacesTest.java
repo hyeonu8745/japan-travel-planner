@@ -73,4 +73,28 @@ class SensitivePlacesTest {
         assertThat(SensitivePlaces.isExcluded("湊川神社")).isFalse();
         assertThat(SensitivePlaces.isExcluded("乃木坂")).isFalse();
     }
+
+    @Test
+    void 성매매_업소_거리와_성인_시설_전범_수용지는_절대_뺀다() {
+        assertThat(SensitivePlaces.isExcluded("Yoshiwara Red Light District")).isTrue();
+        assertThat(SensitivePlaces.isExcluded("吉原神社")).isTrue();
+        assertThat(SensitivePlaces.isExcluded("吉原弁財天")).isTrue();
+        assertThat(SensitivePlaces.isExcluded("吉原公園")).isTrue();
+        assertThat(SensitivePlaces.isExcluded("飛田新地")).isTrue();
+        assertThat(SensitivePlaces.isExcluded("Tobita Shinchi")).isTrue();
+        assertThat(SensitivePlaces.isExcluded("松島新地")).isTrue();
+        assertThat(SensitivePlaces.isExcluded("新吉原遊郭跡")).isTrue();
+        assertThat(SensitivePlaces.isExcluded("熱海秘宝館")).isTrue();
+        assertThat(SensitivePlaces.isExcluded("巣鴨拘置所")).isTrue();
+        assertThat(SensitivePlaces.isExcluded("Sugamo Prison memorial")).isTrue();
+    }
+
+    @Test
+    void 이름에_풍속이_들어간_풍속_박물관과_먹자골목_신치는_남긴다() {
+        assertThat(SensitivePlaces.isExcluded("風俗博物館")).isFalse();          // 교토 복식(風俗) 박물관
+        assertThat(SensitivePlaces.isExcluded("下町風俗資料館")).isFalse();      // 우에노 시타마치 박물관
+        assertThat(SensitivePlaces.isExcluded("北新地")).isFalse();              // 오사카 음식점 거리
+        assertThat(SensitivePlaces.isExcluded("松島神社")).isFalse();            // 니혼바시 신사
+        assertThat(SensitivePlaces.isExcluded("中洲")).isFalse();
+    }
 }
