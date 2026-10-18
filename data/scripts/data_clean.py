@@ -71,12 +71,46 @@ def station_distance(text):
     return int(m.group(1)) if m else None
 
 
+# 도시 중심과 반경(km). 이보다 먼 식당은 여행 동선 밖이라 뺀다 (10-18 데이터 검사: 오쿠히다·오이타 시내·제니바코 등)
+CITY_RADIUS = {
+    "tokyo": (35.681, 139.767, 25), "osaka": (34.69, 135.50, 15), "kyoto": (35.01, 135.77, 15),
+    "kobe": (34.69, 135.19, 15), "nara": (34.685, 135.83, 12), "yokohama": (35.45, 139.63, 15),
+    "fukuoka": (33.59, 130.40, 15), "sapporo": (43.06, 141.35, 15), "nagoya": (35.17, 136.91, 15),
+    "hiroshima": (34.39, 132.46, 20), "naha": (26.21, 127.68, 12), "kanazawa": (36.56, 136.65, 15),
+    "hakone": (35.23, 139.05, 15), "kamakura": (35.32, 139.55, 8), "takayama": (36.14, 137.25, 10),
+    "otaru": (43.19, 141.0, 10), "yufuin": (33.265, 131.36, 8), "beppu": (33.28, 131.49, 10),
+    "kawaguchiko": (35.50, 138.76, 15),
+}
+# 타베로그 지역 묶음에 섞여 들어온 다른 동네 (하코네 = 「箱根・湯河原・真鶴」, 오다와라는 하코네 입구라 남김 - 10-18 사용자 결정)
+OTHER_TOWNS = {"hakone": ("湯河原町", "真鶴町")}
+MOVED_NOTE = re.compile(r"\s*このお店は.*$", re.S)
+
+
+def in_city(city, lat, lng):
+    c = CITY_RADIUS.get(city)
+    return c is None or km((c[0], c[1]), (lat, lng)) <= c[2]
+
+
+def clean_address(addr):
+    """주소 뒤에 붙은 「このお店は「…」から移転しています。※移転前の情報は…」 안내문을 잘라 낸다."""
+    a = MOVED_NOTE.sub("", addr or "").strip()
+    return a or None
+
+
 def clean_tabelog():
     src = json.loads((PROC / "tabelog_geocoded.json").read_text(encoding="utf-8"))
     out, dropped = [], Counter()
     for s in src:
         if s.get("lat") is None:
             dropped["좌표 없음"] += 1
+            continue
+        city = s["areas"][0].split("_")[0]
+        address = clean_address(s.get("address"))
+        if any(t in (address or "") for t in OTHER_TOWNS.get(city, ())):
+            dropped["다른 동네(유가와라·마나즈루)"] += 1
+            continue
+        if not in_city(city, s["lat"], s["lng"]):
+            dropped["도시권 밖"] += 1
             continue
         genres = [g for g in norm(s.get("restaurantGenre")).split("、") if g]
         lmin, lmax = budget(s.get("budgetLunch"))
@@ -87,7 +121,7 @@ def clean_tabelog():
             "storeId": s["storeId"], "name": s["restaurantName"], "url": s["restaurantUrl"],
             "areas": s["areas"], "city": s["areas"][0].split("_")[0],
             "lat": s["lat"], "lng": s["lng"], "geoLevel": s["geoLevel"], "suspect": s.get("suspect", False),
-            "address": s.get("address"), "rating": s.get("restaurantRating"), "reviewCount": s.get("totalReviewCount"),
+            "address": address, "rating": s.get("restaurantRating"), "reviewCount": s.get("totalReviewCount"),
             "genres": genres,
             "budgetLunch": s.get("budgetLunch"), "budgetLunchMin": lmin, "budgetLunchMax": lmax,
             "budgetDinner": s.get("budgetDinner"), "budgetDinnerMin": dmin, "budgetDinnerMax": dmax,
