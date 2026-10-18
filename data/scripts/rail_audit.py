@@ -1,5 +1,6 @@
 """노선 데이터 검사 (10-18).  프로젝트 루트에서: python data/scripts/rail_audit.py
-출력: data/processed/rail_audit_report.txt, rail_audit_flags.tsv"""
+출력: data/processed/rail_audit_report.txt, rail_audit_flags.tsv
+mlit_rail_fill.py 로 채운 노선(<지역>_routes_mlit.json)이 있으면 함께 본다."""
 import csv
 import json
 import re
@@ -96,6 +97,18 @@ for region in REGION:
     P(f"  국토수치정보 역 {len(ml)} 중 OSM 역에 없음 {len(lost)}")
     for m in lost:
         F(region, "국토수치정보에는 있는데 OSM 역 없음", m["name"], f"{m['line']} / {m['operator']}")
+    # 길찾기 기준: 국토수치정보 역이 노선(OSM + 국토수치정보로 채운 노선) 위에 있는지
+    served = defaultdict(list)
+    for rs, st in ((routes, stops), (load(RAIL / f"{region}_routes_mlit.json", []), load(RAIL / f"{region}_stops_mlit.json", {}))):
+        for r in rs:
+            for sid in r["stops"] + r.get("platforms", []):
+                p = st.get(str(sid))
+                if p and p.get("name"):
+                    served[n(p["name"])].append((p["lat"], p["lng"]))
+    off = [m for m in ml if not any(km((m["lat"], m["lng"]), q) < 1.0 for q in served.get(n(m["name"]), []))]
+    P(f"  노선 위에 없는 국토수치정보 역 (채운 노선 포함) {len(off)}")
+    for m in off:
+        F(region, "노선 위에 없는 역(채운 뒤)", m["name"], f"{m['line']} / {m['operator']}")
     for a in areas:
         if not a.get("members"):
             F(region, "빈 갈아타기 묶음", a.get("name"), a["id"])
