@@ -77,6 +77,14 @@ def test_하코네에_섞인_유가와라_마나즈루는_다른_동네():
     assert not any(t in "神奈川県足柄下郡箱根町湯本706" for t in towns)
 
 
+def test_편의시설은_가장_가까운_도시권으로_나누고_밖이면_버린다():
+    assert dc.city_of(35.681, 139.767) == "tokyo"          # 도쿄역
+    assert dc.city_of(35.4437, 139.6380) == "yokohama"     # 요코하마역 (도쿄 반경 안이지만 요코하마가 더 가까움)
+    assert dc.city_of(35.3192, 139.5503) == "kamakura"     # 가마쿠라역
+    assert dc.city_of(35.2824, 139.6680) is None           # 요코스카 (도쿄 파일에 섞여 있던 환전소)
+    assert dc.city_of(35.6558, 139.3389) is None           # 하치오지 (도쿄역에서 약 39km)
+
+
 if __name__ == "__main__":
     n = 0
     for k, f in list(globals().items()):

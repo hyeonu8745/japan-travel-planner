@@ -8,6 +8,7 @@
 출력  data/processed/clean_restaurants_tabelog.json  타베로그 (좌표 있는 곳만, 휴일·예산·표시 정리)
       data/processed/clean_restaurants_chain.json    체인점 (사전에 있는 브랜드만, 종류·장르·예산 붙임)
       data/processed/clean_attractions.json          관광지 (중복 합침, 민감 장소 제외/표시, 한국어 이름 정리)
+      data/processed/clean_facilities.json           편의시설 (data/extra/facility_*.json 중 도시권 안만, city·type 붙임)
       data/processed/clean_report.txt                요약
 """
 import csv
@@ -134,6 +135,39 @@ def clean_tabelog():
             "awardMedal": next((m for m in ("Gold", "Silver", "Bronze") if any(m in a for a in awards)), None),
             "standingBar": any("立ち飲み" in g for g in genres),
         })
+    return out, dropped
+
+
+# ---------- 편의시설 ----------
+
+def city_of(lat, lng):
+    """반경 안에 드는 도시 중 (거리 / 반경)이 가장 작은 곳. 어디에도 안 들면 None."""
+    best, best_r = None, None
+    for city, (clat, clng, radius) in CITY_RADIUS.items():
+        r = km((clat, clng), (lat, lng)) / radius
+        if r <= 1 and (best_r is None or r < best_r):
+            best, best_r = city, r
+    return best
+
+
+def clean_facilities():
+    """data/extra/facility_*.json (종류별 목록) → 도시권 안의 점만, city·type 붙인 한 줄 목록. 도쿄 파일의 요코하마·가마쿠라 점은 그 도시로."""
+    out, dropped, seen = [], Counter(), set()
+    for f in sorted((ROOT / "data" / "extra").glob("facility_*.json")):
+        for typ, rows in json.loads(f.read_text(encoding="utf-8")).items():
+            for x in rows:
+                if x.get("lat") is None or x.get("lng") is None:
+                    dropped["좌표 없음"] += 1
+                    continue
+                if x.get("osmId") in seen:
+                    dropped["중복"] += 1
+                    continue
+                city = city_of(x["lat"], x["lng"])
+                if city is None:
+                    dropped["도시권 밖"] += 1
+                    continue
+                seen.add(x.get("osmId"))
+                out.append({**x, "type": typ, "city": city})
     return out, dropped
 
 
@@ -265,8 +299,9 @@ def main():
     tabelog, t_drop = clean_tabelog()
     chains, c_skip = clean_chains()
     attractions, excluded, noted, a_src = clean_attractions()
+    facilities, f_drop = clean_facilities()
     for name, data in (("clean_restaurants_tabelog", tabelog), ("clean_restaurants_chain", chains),
-                       ("clean_attractions", attractions)):
+                       ("clean_attractions", attractions), ("clean_facilities", facilities)):
         (PROC / f"{name}.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
 
     lines = [
@@ -282,6 +317,9 @@ def main():
         f"[관광지] 원본 {a_src} → 중복 합친 뒤 {len(attractions) + len(excluded)} → 제외(민감·폐관·관람 불가) {len(excluded)} → {len(attractions)}곳 (역사 안내 표시 {noted})",
         f"  종류 {dict(Counter(a['kind'] for a in attractions).most_common())}",
         f"  인기도 있음(위키데이터 장소) {sum(1 for a in attractions if a['popularity'])}, 한국어 이름 {sum(1 for a in attractions if a['nameKo'])}",
+        f"[편의시설] {len(facilities)}곳 (제외 {dict(f_drop)})",
+        f"  종류 {dict(Counter(x['type'] for x in facilities).most_common())}",
+        f"  도시별 {dict(Counter(x['city'] for x in facilities).most_common())}",
         "  제외된 곳:", *[f"    - {e}" for e in excluded],
     ]
     report = "\n".join(lines)
