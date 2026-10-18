@@ -253,6 +253,80 @@ def same_place(merged, a):
                  and km((m["lat"], m["lng"]), (a["lat"], a["lng"])) < SAME_NAME_KM), None)
 
 
+# ---------- 야경 명소 (10-18) ----------
+NIGHT_SKIP = {"灰ヶ峰", "アメリカンビレッジ", "箱根ロープウェイ"}  # 구레시·차탄초(도시 밖), 로프웨이는 밤에 운행 안 함
+
+
+def night_key(s):
+    return re.sub(r"[\s・()（）]", "", norm(s))
+
+
+def load_night_spots():
+    f = ROOT / "data" / "extra" / "night_spots_gemini.tsv"
+    if not f.exists():
+        return []
+    rows = []
+    for line in f.read_text(encoding="utf-8").splitlines()[1:]:
+        c = (line.split("\t") + [""] * 7)[:7]
+        if c[0] and c[1] and c[1] not in NIGHT_SKIP:
+            rows.append({"city": c[0], "name": c[1], "kind": c[2], "hours": c[3] or None, "fee": c[4] or None,
+                         "closed": c[5] or None, "url": c[6] or None})
+    return rows
+
+
+def load_night_osm():
+    f = ROOT / "data" / "extra" / "night_spots_osm.json"
+    if not f.exists():
+        return {}
+    return {(o["city"], o["name"]): o["pick"] for o in json.loads(f.read_text(encoding="utf-8")) if o.get("pick")}
+
+
+def match_night(cands, name):
+    """같은 도시 관광지 중 이름이 같은 곳, 없으면 서로 포함하는(3자 이상) 곳 중 가장 긴 이름."""
+    k = night_key(name)
+    exact = [a for a in cands if night_key(a["name"]) == k]
+    if exact:
+        return exact[0]
+    part = [a for a in cands if len(night_key(a["name"])) >= 3 and (night_key(a["name"]) in k or k in night_key(a["name"]))]
+    return max(part, key=lambda a: len(night_key(a["name"])), default=None)
+
+
+def apply_night_spots(out, rules):
+    """야경 명소 표시를 붙이고, 데이터에 없는 곳은 OSM 좌표로 새로 넣는다. (붙임 수, 새로 넣은 수, 좌표 없는 이름들)"""
+    for a in out:
+        a.setdefault("nightView", False)
+        a.setdefault("nightInfo", None)
+    osm = load_night_osm()
+    tagged, added, missing = 0, 0, []
+    for sp in load_night_spots():
+        info = {k: sp[k] for k in ("kind", "hours", "fee", "closed", "url")}
+        cands = [a for a in out if a["city"] == sp["city"]]
+        m = match_night(cands, sp["name"])
+        if m:
+            m["nightView"], m["nightInfo"] = True, info
+            tagged += 1
+            continue
+        pick = osm.get((sp["city"], sp["name"]))
+        if not pick or not in_city(sp["city"], pick["lat"], pick["lng"]):
+            missing.append(f"{sp['city']}:{sp['name']}")
+            continue
+        new = {"name": sp["name"], "nameJa": None, "nameEn": None}
+        r = sensitive_of(new, rules)
+        if r and r["action"] == "EXCLUDE":
+            continue
+        near = min(cands, key=lambda a: km((a["lat"], a["lng"]), (pick["lat"], pick["lng"])), default=None)
+        out.append({
+            "osmId": pick["osmId"], "name": sp["name"], "nameJa": None, "nameEn": None, "nameKo": None,
+            "kind": "VIEW", "lat": pick["lat"], "lng": pick["lng"],
+            "areas": near["areas"][:1] if near else [sp["city"]], "city": sp["city"],
+            "wikidata": None, "popularity": 0, "openingHours": None, "website": sp["url"], "fee": None,
+            "historyNote": r["reason"] if r and r["action"] == "NOTE" else None,
+            "nightView": True, "nightInfo": info,
+        })
+        added += 1
+    return tagged, added, missing
+
+
 def clean_attractions():
     rules = load_sensitive()
     src = json.loads((PROC / "osm_attractions.json").read_text(encoding="utf-8"))
@@ -292,13 +366,14 @@ def clean_attractions():
             "historyNote": r["reason"] if r and r["action"] == "NOTE" else None,
         })
         noted += bool(r)
-    return out, excluded, noted, len(src)
+    night = apply_night_spots(out, rules)
+    return out, excluded, noted, len(src), night
 
 
 def main():
     tabelog, t_drop = clean_tabelog()
     chains, c_skip = clean_chains()
-    attractions, excluded, noted, a_src = clean_attractions()
+    attractions, excluded, noted, a_src, (n_tag, n_add, n_miss) = clean_attractions()
     facilities, f_drop = clean_facilities()
     for name, data in (("clean_restaurants_tabelog", tabelog), ("clean_restaurants_chain", chains),
                        ("clean_attractions", attractions), ("clean_facilities", facilities)):
@@ -314,9 +389,10 @@ def main():
         f"점심 예산 있음 {sum(1 for t in tabelog if t['budgetLunchMax'])}, 저녁 1만엔 이하 {sum(1 for t in tabelog if t['budgetDinnerMax'] and t['budgetDinnerMax'] <= 9999)}",
         f"[체인점] {len(chains)}곳 (건너뜀 {dict(c_skip)})",
         f"  종류 {dict(Counter(c['category'] for c in chains))}, 도시별 {dict(Counter(c['city'] for c in chains).most_common())}",
-        f"[관광지] 원본 {a_src} → 중복 합친 뒤 {len(attractions) + len(excluded)} → 제외(민감·폐관·관람 불가) {len(excluded)} → {len(attractions)}곳 (역사 안내 표시 {noted})",
+        f"[관광지] 원본 {a_src} → 중복 합친 뒤 {len(attractions) - n_add + len(excluded)} → 제외(민감·폐관·관람 불가) {len(excluded)} → 야경 추가 {n_add} → {len(attractions)}곳 (역사 안내 표시 {noted})",
         f"  종류 {dict(Counter(a['kind'] for a in attractions).most_common())}",
         f"  인기도 있음(위키데이터 장소) {sum(1 for a in attractions if a['popularity'])}, 한국어 이름 {sum(1 for a in attractions if a['nameKo'])}",
+        f"  야경 명소 표시 {n_tag}, 새로 추가 {n_add}, 좌표 없음 {len(n_miss)} {n_miss}",
         f"[편의시설] {len(facilities)}곳 (제외 {dict(f_drop)})",
         f"  종류 {dict(Counter(x['type'] for x in facilities).most_common())}",
         f"  도시별 {dict(Counter(x['city'] for x in facilities).most_common())}",

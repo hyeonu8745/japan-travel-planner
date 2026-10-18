@@ -1,0 +1,22 @@
+# 야경 명소 중 관광지 데이터에 없는 곳을 OSM 에서 찾는 이름 패턴 (10-18). night_spots_fetch.py 가 읽는다.
+# city	name_ja(제미나이 표기와 같게)	osm_name_regex
+osaka	大阪府咲洲庁舎展望台	咲洲庁舎|さきしま.*展望
+kobe	六甲山 天覧台	天覧台
+kobe	摩耶山 掬星台	掬星台
+kobe	神戸ハーバーランド	^神戸ハーバーランド|^ハーバーランド$
+yokohama	みなとみらい21	^みなとみらい21$|^みなとみらい$
+yokohama	大さん橋	大さん橋|大桟橋
+fukuoka	福岡タワー	^福岡タワー$
+fukuoka	博多ポートタワー	博多ポートタワー
+fukuoka	JR博多駅前広場	博多駅前広場
+sapporo	藻岩山展望台	藻岩山|もいわ山
+nagoya	中部電力 MIRAI TOWER	MIRAI TOWER|名古屋テレビ塔
+hiroshima	黄金山展望台	黄金山
+naha	首里城公園	^首里城
+naha	ウミカジテラス	ウミカジテラス
+otaru	天狗山展望台	天狗山
+otaru	毛無山展望所	毛無山
+hakone	芦ノ湖	^芦ノ湖$
+hakone	箱根湯本温泉街	箱根湯本
+kawaguchiko	FUJIYAMAツインテラス	(?i)FUJIYAMA.*ツインテラス|ツインテラス
+kawaguchiko	新倉山浅間公園	新倉山浅間公園|新倉富士浅間

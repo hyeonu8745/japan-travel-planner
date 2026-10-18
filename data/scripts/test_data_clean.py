@@ -85,6 +85,43 @@ def test_편의시설은_가장_가까운_도시권으로_나누고_밖이면_�
     assert dc.city_of(35.6558, 139.3389) is None           # 하치오지 (도쿄역에서 약 39km)
 
 
+def _a(name, city="tokyo", lat=35.66, lng=139.73):
+    return {"name": name, "city": city, "lat": lat, "lng": lng, "areas": [city + "_x"]}
+
+
+def test_야경_명소는_이름이_같거나_포함되면_기존_관광지에_붙인다():
+    cands = [_a("六本木ヒルズ"), _a("東京シティビュー"), _a("東京タワー")]
+    assert dc.match_night(cands, "東京タワー")["name"] == "東京タワー"
+    assert dc.match_night(cands, "六本木ヒルズ 東京シティビュー")["name"] == "東京シティビュー"   # 더 긴 이름
+    assert dc.match_night([_a("JRタワー展望室T38")], "JRタワー展望室 T38") is not None              # 공백 차이
+    assert dc.match_night([_a("塔")], "東京スカイツリー塔") is None                                  # 2자 이하는 부분 일치 안 함
+    assert dc.match_night(cands, "福岡タワー") is None
+
+
+def test_데이터에_없는_야경_명소는_OSM_좌표로_추가하고_도시_밖이면_버린다(monkeypatch=None):
+    out = [_a("福岡市博物館", "fukuoka", 33.5893, 130.3530)]
+    spots = [{"city": "fukuoka", "name": "福岡タワー", "kind": "전망대", "hours": "9:30-22:00", "fee": "800엔", "closed": None, "url": None},
+             {"city": "fukuoka", "name": "遠い展望台", "kind": "전망대", "hours": None, "fee": None, "closed": None, "url": None},
+             {"city": "fukuoka", "name": "福岡市博物館", "kind": "야간 개장", "hours": None, "fee": None, "closed": None, "url": None}]
+    osm = {("fukuoka", "福岡タワー"): {"osmId": "way/1", "lat": 33.5933, "lng": 130.3515},
+           ("fukuoka", "遠い展望台"): {"osmId": "node/2", "lat": 34.5, "lng": 131.5}}
+    old = dc.load_night_spots, dc.load_night_osm
+    dc.load_night_spots, dc.load_night_osm = (lambda: spots), (lambda: osm)
+    try:
+        tagged, added, missing = dc.apply_night_spots(out, RULES)
+    finally:
+        dc.load_night_spots, dc.load_night_osm = old
+    assert (tagged, added, missing) == (1, 1, ["fukuoka:遠い展望台"])
+    tower = next(a for a in out if a["name"] == "福岡タワー")
+    assert tower["kind"] == "VIEW" and tower["nightView"] and tower["nightInfo"]["fee"] == "800엔"
+    assert tower["areas"] == ["fukuoka_x"]                     # 가장 가까운 관광지의 지역을 따름
+    assert out[0]["nightView"] is True                          # 기존 관광지에 표시
+
+
+def test_야경_제외_목록():
+    assert {"灰ヶ峰", "アメリカンビレッジ", "箱根ロープウェイ"} <= dc.NIGHT_SKIP
+
+
 if __name__ == "__main__":
     n = 0
     for k, f in list(globals().items()):
