@@ -54,17 +54,49 @@ def budget(raw):
     return (int(lo[0].replace(",", "")) if lo else None), (int(hi[0].replace(",", "")) if hi else None)
 
 
-def closed_days(hours, holiday=None):
-    """「月・火 定休日」「日 定休日」(Apify 영업시간) 또는 「日曜日、祝日」(캐글 holiday) → ['MON','TUE'] / 「不定休」 → irregular"""
-    h = norm(hours)
+WEEKLY_SKIP = re.compile(r"第\s*\d|毎月|隔週|月に|その他")
+NO_HOLIDAY = re.compile(r"年中無休|無休|定休日\s*(なし|無し|無(?![\w]))|^\s*(なし|無し|無|ナシ)\s*$")
+PAREN = re.compile(r"[（(][^）)]*[）)]")
+DAY = re.compile(r"(?<![祝末始第元曜])([月火水木金土日])(?=曜|・|、|,|，|/|\s|$|祝)")
+
+
+def _days_in(seg):
+    """「月曜日(祝日の場合は翌日)」「火・水曜」「日・祝」「毎週水曜日」 → 요일들. 괄호 안·「第2火曜」 같은 매주가 아닌 표현은 빼고."""
+    seg = PAREN.sub("", seg)
     days = set()
-    for m in re.finditer(r"([月火水木金土日](?:・[月火水木金土日])*)\s*定休日", h):
+    for part in re.split(r"[、,，/／]", seg):   # 「日曜日、祝日、第1・3月曜」 → 第… 부분만 뺀다
+        if not WEEKLY_SKIP.search(part):
+            days |= {WEEK_KO[d] for d in DAY.findall(part)}
+    return days, "祝" in seg
+
+
+def closed_info(hours, holiday=None):
+    """영업시간(Apify)·휴일(캐글) 글 → 정기휴일 요일, 부정기, 정기휴일 없음(年中無休), 공휴일 휴무.
+    10-18: 「■ 定休日月曜日」「定休日毎週水曜日」(定休日 뒤에 요일), 캐글 「日・祝」「月」(曜 없이), 「無休」 처리 추가."""
+    h, hol = norm(hours), norm(holiday)
+    days, on_holiday = set(), False
+    for m in re.finditer(r"([月火水木金土日](?:・[月火水木金土日])*)\s*定休日", h):   # 「水・日 定休日」
         days.update(WEEK_KO[d] for d in m.group(1).split("・"))
-    hol = norm(holiday)
-    if hol and not re.search(r"第\d|隔週|不定", hol):   # 「第2月曜」처럼 매주가 아닌 건 요일로 넣지 않는다
-        days.update(WEEK_KO[d] for d in re.findall(r"([月火水木金土日])曜", hol))
-    irregular = "不定休" in h or "不定休" in hol
-    return sorted(days, key=lambda d: list(WEEK_KO.values()).index(d)), irregular
+    for m in re.finditer(r"定休日\s*([^■【]{0,40})", h):                            # 「■ 定休日月曜日(祝日の場合は翌日)」
+        d, ph = _days_in(m.group(1))
+        days |= d
+        on_holiday |= ph
+    if hol:
+        d, ph = _days_in(hol)
+        days |= d
+        on_holiday |= ph
+    irregular = "不定" in h or "不定" in hol   # 不定休·不定期·不定
+    texts = [m.group(0) for m in re.finditer(r"定休日\s*[^■【]{0,20}", h)] + ([hol] if hol else [])
+    no_holiday = not days and any(NO_HOLIDAY.search(t) for t in texts)
+    order = list(WEEK_KO.values())
+    return {"closedDays": sorted(days, key=order.index), "closedIrregular": irregular,
+            "noRegularHoliday": no_holiday, "closedOnHolidays": on_holiday}
+
+
+def closed_days(hours, holiday=None):
+    """(이전 호환) → (요일 목록, 부정기)"""
+    c = closed_info(hours, holiday)
+    return c["closedDays"], c["closedIrregular"]
 
 
 def station_distance(text):
@@ -116,7 +148,8 @@ def clean_tabelog():
         genres = [g for g in norm(s.get("restaurantGenre")).split("、") if g]
         lmin, lmax = budget(s.get("budgetLunch"))
         dmin, dmax = budget(s.get("budgetDinner"))
-        days, irregular = closed_days(s.get("businessHours"), s.get("holiday"))
+        ci = closed_info(s.get("businessHours"), s.get("holiday"))
+        days, irregular = ci["closedDays"], ci["closedIrregular"]
         awards = s.get("awards") or []
         out.append({
             "storeId": s["storeId"], "name": s["restaurantName"], "url": s["restaurantUrl"],
@@ -127,6 +160,7 @@ def clean_tabelog():
             "budgetLunch": s.get("budgetLunch"), "budgetLunchMin": lmin, "budgetLunchMax": lmax,
             "budgetDinner": s.get("budgetDinner"), "budgetDinnerMin": dmin, "budgetDinnerMax": dmax,
             "businessHours": s.get("businessHours"), "holiday": s.get("holiday"), "source": s.get("source", "apify"), "closedDays": days, "closedIrregular": irregular,
+            "noRegularHoliday": ci["noRegularHoliday"], "closedOnHolidays": ci["closedOnHolidays"],
             "nearestStation": s.get("nearestStation"), "nearestDistance": station_distance(s.get("nearestStation")),
             "reservationOnly": norm(s.get("reservation")).startswith("完全予約制"),
             "smokingAllSeats": "全席喫煙可" in norm(s.get("smokingPolicy")),
@@ -151,9 +185,11 @@ def city_of(lat, lng):
 
 
 def clean_facilities():
-    """data/extra/facility_*.json (종류별 목록) → 도시권 안의 점만, city·type 붙인 한 줄 목록. 도쿄 파일의 요코하마·가마쿠라 점은 그 도시로."""
+    """data/extra/facility_*.json + data/osm_rail/*_extra.json (종류별 목록) → 도시권 안의 점만, city·type 붙인 한 줄 목록.
+    도쿄 파일의 요코하마·가마쿠라 점은 그 도시로."""
     out, dropped, seen = [], Counter(), set()
-    for f in sorted((ROOT / "data" / "extra").glob("facility_*.json")):
+    files = sorted((ROOT / "data" / "extra").glob("facility_*.json")) + sorted((ROOT / "data" / "osm_rail").glob("*_extra.json"))
+    for f in files:   # 10-18: osm_rail 의 온천(publicBath)·코인로커·관광안내소·편의점·ATM 도 같은 목록에
         for typ, rows in json.loads(f.read_text(encoding="utf-8")).items():
             for x in rows:
                 if x.get("lat") is None or x.get("lng") is None:
@@ -327,6 +363,38 @@ def apply_night_spots(out, rules):
     return tagged, added, missing
 
 
+# ---------- 관광지 공식 정보 (제미나이 조사, 10-17·18) ----------
+UNKNOWN = {"", "확인 못 함", "해당 없음", "-", "없음 (확인 못 함)"}
+
+
+def load_official_info():
+    rows = []
+    for name in ("attraction_check_gemini.tsv", "attraction_check_gemini_2.tsv"):
+        f = ROOT / "data" / "extra" / name
+        if not f.exists():
+            continue
+        for line in f.read_text(encoding="utf-8").splitlines()[1:]:
+            c = (line.split("\t") + [""] * 8)[:8]
+            if c[0] and c[1]:
+                v = lambda x: None if x.strip() in UNKNOWN else x.strip()  # noqa: E731
+                rows.append({"city": c[0], "name": c[1], "status": v(c[2]), "reservation": v(c[3]),
+                             "closedDays": v(c[4]), "hours": v(c[5]), "fee": v(c[6]), "url": v(c[7])})
+    return rows
+
+
+def apply_official_info(out, rows=None):
+    """제미나이로 확인한 운영 상태·예약·휴관일·운영시간·요금·공식 URL 을 officialInfo 로 붙인다. 붙인 수."""
+    for a in out:
+        a.setdefault("officialInfo", None)
+    n = 0
+    for r in (load_official_info() if rows is None else rows):
+        m = match_night([a for a in out if a["city"] == r["city"]], r["name"])
+        if m and m["officialInfo"] is None:
+            m["officialInfo"] = {k: r[k] for k in ("status", "reservation", "closedDays", "hours", "fee", "url")}
+            n += 1
+    return n
+
+
 def clean_attractions():
     rules = load_sensitive()
     src = json.loads((PROC / "osm_attractions.json").read_text(encoding="utf-8"))
@@ -367,13 +435,14 @@ def clean_attractions():
         })
         noted += bool(r)
     night = apply_night_spots(out, rules)
-    return out, excluded, noted, len(src), night
+    official = apply_official_info(out)
+    return out, excluded, noted, len(src), night + (official,)
 
 
 def main():
     tabelog, t_drop = clean_tabelog()
     chains, c_skip = clean_chains()
-    attractions, excluded, noted, a_src, (n_tag, n_add, n_miss) = clean_attractions()
+    attractions, excluded, noted, a_src, (n_tag, n_add, n_miss, n_official) = clean_attractions()
     facilities, f_drop = clean_facilities()
     for name, data in (("clean_restaurants_tabelog", tabelog), ("clean_restaurants_chain", chains),
                        ("clean_attractions", attractions), ("clean_facilities", facilities)):
@@ -385,6 +454,7 @@ def main():
         f"  3.5 이상 {sum(1 for t in tabelog if (t['rating'] or 0) >= 3.5)}, 백명점 {sum(t['hyakumeiten'] for t in tabelog)}, "
         f"완전 예약제 {sum(t['reservationOnly'] for t in tabelog)}, 전석 흡연 {sum(t['smokingAllSeats'] for t in tabelog)}, "
         f"한국어 메뉴 {sum(t['koreanMenu'] for t in tabelog)}, 다치노미 {sum(t['standingBar'] for t in tabelog)}",
+        f"  정기휴일 없음(年中無休) {sum(t['noRegularHoliday'] for t in tabelog)}, 공휴일 휴무 {sum(t['closedOnHolidays'] for t in tabelog)}",
         f"  정기휴일 요일 있음 {sum(1 for t in tabelog if t['closedDays'])}, 부정기 {sum(t['closedIrregular'] for t in tabelog)}, "
         f"점심 예산 있음 {sum(1 for t in tabelog if t['budgetLunchMax'])}, 저녁 1만엔 이하 {sum(1 for t in tabelog if t['budgetDinnerMax'] and t['budgetDinnerMax'] <= 9999)}",
         f"[체인점] {len(chains)}곳 (건너뜀 {dict(c_skip)})",
@@ -393,6 +463,7 @@ def main():
         f"  종류 {dict(Counter(a['kind'] for a in attractions).most_common())}",
         f"  인기도 있음(위키데이터 장소) {sum(1 for a in attractions if a['popularity'])}, 한국어 이름 {sum(1 for a in attractions if a['nameKo'])}",
         f"  야경 명소 표시 {n_tag}, 새로 추가 {n_add}, 좌표 없음 {len(n_miss)} {n_miss}",
+        f"  공식 정보(제미나이 조사) 붙임 {n_official}, 운영시간(OSM) 있음 {sum(1 for a in attractions if a['openingHours'])}",
         f"[편의시설] {len(facilities)}곳 (제외 {dict(f_drop)})",
         f"  종류 {dict(Counter(x['type'] for x in facilities).most_common())}",
         f"  도시별 {dict(Counter(x['city'] for x in facilities).most_common())}",

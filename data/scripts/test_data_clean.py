@@ -122,6 +122,36 @@ def test_야경_제외_목록():
     assert {"灰ヶ峰", "アメリカンビレッジ", "箱根ロープウェイ"} <= dc.NIGHT_SKIP
 
 
+def test_정기휴일_글에서_요일과_표시를_뽑는다():
+    ci = dc.closed_info
+    assert ci("月・木 12:00 - 15:00 火・水 定休日")["closedDays"] == ["TUE", "WED"]
+    assert ci("17:00 - 23:00 ■ 定休日月曜日(祝日の場合は翌日)")["closedDays"] == ["MON"]
+    assert ci("■ 定休日毎週水曜日")["closedDays"] == ["WED"]
+    assert ci("■定休日火曜日")["closedDays"] == ["TUE"]
+    assert ci("■ 定休日第３水曜日")["closedDays"] == []                # 매주가 아님
+    assert ci("■ 定休日毎月第2火曜日")["closedDays"] == []
+    r = ci("■ 定休日年中無休（ホテルに準ずる）")
+    assert r["closedDays"] == [] and r["noRegularHoliday"]
+    assert ci(None, "日・祝") == {"closedDays": ["SUN"], "closedIrregular": False, "noRegularHoliday": False, "closedOnHolidays": True}
+    assert ci(None, "日曜日、祝日")["closedDays"] == ["SUN"]
+    assert ci(None, "月")["closedDays"] == ["MON"]
+    assert ci(None, "無休")["noRegularHoliday"] and ci(None, "なし")["noRegularHoliday"]
+    assert ci(None, "年末年始")["closedDays"] == [] and not ci(None, "年末年始")["noRegularHoliday"]
+    assert ci("■ 定休日不定休")["closedIrregular"]
+    assert ci(None, "日曜日、祝日、第1・3月曜日")["closedDays"] == ["SUN"]   # 第… 부분만 빼고 일요일은 남김
+    assert ci(None, "不定期")["closedIrregular"]
+    assert ci("■ 定休日無")["noRegularHoliday"]
+
+
+def test_제미나이_공식_정보를_관광지에_붙인다():
+    out = [_a("清水寺", "kyoto"), _a("東京タワー")]
+    rows = [{"city": "kyoto", "name": "清水寺", "status": "운영", "reservation": "불필요", "closedDays": "무휴",
+             "hours": "06:00~18:00", "fee": "400엔", "url": None},
+            {"city": "kyoto", "name": "없는 절", "status": "운영", "reservation": None, "closedDays": None, "hours": None, "fee": None, "url": None}]
+    assert dc.apply_official_info(out, rows) == 1
+    assert out[0]["officialInfo"]["fee"] == "400엔" and out[1]["officialInfo"] is None
+
+
 if __name__ == "__main__":
     n = 0
     for k, f in list(globals().items()):
