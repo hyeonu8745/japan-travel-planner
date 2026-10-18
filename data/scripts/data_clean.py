@@ -363,6 +363,49 @@ def apply_night_spots(out, rules):
     return tagged, added, missing
 
 
+# ---------- 전망 명소 보충 (osm_view_collect.py, 10-18) ----------
+VIEW_NEAR_KM = 0.15   # 이 안에 이미 관광지가 있고 이름이 서로 포함되면 같은 곳으로 본다
+
+
+def load_views():
+    f = ROOT / "data" / "extra" / "osm_views.json"
+    return json.loads(f.read_text(encoding="utf-8")) if f.exists() else []
+
+
+def apply_views(out, rules, views=None):
+    """전망 지점·전망 타워를 VIEW 관광지로 추가. 이미 있는 곳(같은 위키데이터, 같은 이름 500m, 150m 안 이름 포함)은 건너뜀. 추가 수."""
+    have_wd = {a["wikidata"] for a in out if a.get("wikidata")}
+    added = 0
+    for v in (load_views() if views is None else views):
+        if not in_city(v["city"], v["lat"], v["lng"]):
+            continue
+        if v.get("wikidata") and v["wikidata"] in have_wd:
+            continue
+        r = sensitive_of(v, rules)
+        if r and r["action"] == "EXCLUDE":
+            continue
+        k = night_key(v["name"])
+        if same_place(out, v) or any(
+                km((a["lat"], a["lng"]), (v["lat"], v["lng"])) < VIEW_NEAR_KM
+                and (night_key(a["name"]) in k or k in night_key(a["name"])) for a in out if a["city"] == v["city"]):
+            continue
+        near = min((a for a in out if a["city"] == v["city"]), key=lambda a: km((a["lat"], a["lng"]), (v["lat"], v["lng"])), default=None)
+        t = v.get("tags") or {}
+        out.append({
+            "osmId": v["osmId"], "name": v["name"], "nameJa": v.get("nameJa"), "nameEn": v.get("nameEn"),
+            "nameKo": (v.get("nameKo") or "").split(";")[0].strip() or None,
+            "kind": "VIEW", "lat": v["lat"], "lng": v["lng"], "areas": near["areas"][:1] if near else [v["city"]],
+            "city": v["city"], "wikidata": v.get("wikidata"), "popularity": v.get("sitelinks", 0),
+            "openingHours": t.get("opening_hours"), "website": t.get("website"), "fee": t.get("fee"),
+            "historyNote": r["reason"] if r and r["action"] == "NOTE" else None,
+            "nightView": False, "nightInfo": None, "officialInfo": None,
+        })
+        if v.get("wikidata"):
+            have_wd.add(v["wikidata"])
+        added += 1
+    return added
+
+
 # ---------- 관광지 공식 정보 (제미나이 조사, 10-17·18) ----------
 UNKNOWN = {"", "확인 못 함", "해당 없음", "-", "없음 (확인 못 함)"}
 
@@ -435,14 +478,15 @@ def clean_attractions():
         })
         noted += bool(r)
     night = apply_night_spots(out, rules)
+    views = apply_views(out, rules)
     official = apply_official_info(out)
-    return out, excluded, noted, len(src), night + (official,)
+    return out, excluded, noted, len(src), night + (official, views)
 
 
 def main():
     tabelog, t_drop = clean_tabelog()
     chains, c_skip = clean_chains()
-    attractions, excluded, noted, a_src, (n_tag, n_add, n_miss, n_official) = clean_attractions()
+    attractions, excluded, noted, a_src, (n_tag, n_add, n_miss, n_official, n_views) = clean_attractions()
     facilities, f_drop = clean_facilities()
     for name, data in (("clean_restaurants_tabelog", tabelog), ("clean_restaurants_chain", chains),
                        ("clean_attractions", attractions), ("clean_facilities", facilities)):
@@ -459,10 +503,11 @@ def main():
         f"점심 예산 있음 {sum(1 for t in tabelog if t['budgetLunchMax'])}, 저녁 1만엔 이하 {sum(1 for t in tabelog if t['budgetDinnerMax'] and t['budgetDinnerMax'] <= 9999)}",
         f"[체인점] {len(chains)}곳 (건너뜀 {dict(c_skip)})",
         f"  종류 {dict(Counter(c['category'] for c in chains))}, 도시별 {dict(Counter(c['city'] for c in chains).most_common())}",
-        f"[관광지] 원본 {a_src} → 중복 합친 뒤 {len(attractions) - n_add + len(excluded)} → 제외(민감·폐관·관람 불가) {len(excluded)} → 야경 추가 {n_add} → {len(attractions)}곳 (역사 안내 표시 {noted})",
+        f"[관광지] 원본 {a_src} → 중복 합친 뒤 {len(attractions) - n_add - n_views + len(excluded)} → 제외(민감·폐관·관람 불가) {len(excluded)} → 야경 추가 {n_add} → 전망 보충 {n_views} → {len(attractions)}곳 (역사 안내 표시 {noted})",
         f"  종류 {dict(Counter(a['kind'] for a in attractions).most_common())}",
         f"  인기도 있음(위키데이터 장소) {sum(1 for a in attractions if a['popularity'])}, 한국어 이름 {sum(1 for a in attractions if a['nameKo'])}",
         f"  야경 명소 표시 {n_tag}, 새로 추가 {n_add}, 좌표 없음 {len(n_miss)} {n_miss}",
+        f"  전망 명소 보충 추가 {n_views} (osm_views.json)",
         f"  공식 정보(제미나이 조사) 붙임 {n_official}, 운영시간(OSM) 있음 {sum(1 for a in attractions if a['openingHours'])}",
         f"[편의시설] {len(facilities)}곳 (제외 {dict(f_drop)})",
         f"  종류 {dict(Counter(x['type'] for x in facilities).most_common())}",

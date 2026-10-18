@@ -152,6 +152,22 @@ def test_제미나이_공식_정보를_관광지에_붙인다():
     assert out[0]["officialInfo"]["fee"] == "400엔" and out[1]["officialInfo"] is None
 
 
+def test_전망_명소_보충은_이미_있는_곳을_건너뛴다():
+    out = [dict(_a("東京タワー", lat=35.6586, lng=139.7454), wikidata="Q1"), _a("スカイツリー展望台", lat=35.7101, lng=139.8107)]
+    views = [
+        {"osmId": "way/1", "city": "tokyo", "name": "東京タワー", "lat": 35.6587, "lng": 139.7455, "wikidata": "Q1"},       # 같은 위키데이터
+        {"osmId": "node/2", "city": "tokyo", "name": "展望台", "lat": 35.7102, "lng": 139.8108, "wikidata": None},           # 150m 안 이름 포함
+        {"osmId": "node/3", "city": "tokyo", "name": "文京シビックセンター展望ラウンジ", "lat": 35.7080, "lng": 139.7522,
+         "wikidata": "Q9", "sitelinks": 7, "tags": {"tourism": "viewpoint"}},                                                # 새로
+        {"osmId": "node/4", "city": "tokyo", "name": "遠い展望台", "lat": 36.5, "lng": 139.7, "wikidata": None},             # 도시권 밖
+        {"osmId": "node/5", "city": "tokyo", "name": "靖国神社展望台", "lat": 35.6940, "lng": 139.7436, "wikidata": None},   # 민감 장소
+    ]
+    assert dc.apply_views(out, RULES, views) == 1
+    new = out[-1]
+    assert new["name"] == "文京シビックセンター展望ラウンジ" and new["kind"] == "VIEW" and new["popularity"] == 7
+    assert new["areas"] == ["tokyo_x"] and new["nightView"] is False
+
+
 if __name__ == "__main__":
     n = 0
     for k, f in list(globals().items()):
