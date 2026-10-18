@@ -4,6 +4,7 @@ OpenStreetMap(Overpass)에서 철도 노선망과 함께 쓸 데이터를 받는
     프로젝트 루트에서:  python data/scripts/osm_rail_collect.py
     지역 하나만:        python data/scripts/osm_rail_collect.py tokyo
     정리만 다시:        python data/scripts/osm_rail_collect.py --build
+    빠진 노드만 채우기: python data/scripts/osm_rail_collect.py --fill   (10-18, 옛 방식 노선의 정류장 좌표)
 
 받는 것 (지역마다, 범위를 조각으로 나눠서)
 1. rail      : 노선 관계 route=subway/train/light_rail/monorail/tram/funicular/ferry (out meta → 마지막 수정 날짜)
@@ -81,6 +82,10 @@ KYOTO_BUS = ((34.92, 135.65, 35.08, 135.82), 2)   # 교토 시내버스만
 
 RAIL_ROUTES = "subway|train|light_rail|monorail|tram|funicular|ferry"
 STOP_ROLES = ("stop", "stop_entry_only", "stop_exit_only")
+# 옛 방식(PTv1) 노선: 역·정류장 역할이 비어 있거나 forward_stop/backward_stop (10-18: 나라 버스·가마쿠라 버스·긴테쓰 특급 등)
+OLD_FORWARD = ("", "forward", "forward_stop")
+OLD_BACKWARD = ("backward", "backward_stop")
+FILL_BATCH = 400   # 빠진 노드를 id 로 한 번에 묻는 개수
 HEAD = "[out:json][timeout:180][maxsize:268435456];"   # 노선 관계는 멤버가 많아 osm_collect.py보다 크게 (180초·256MB)
 
 
@@ -99,9 +104,7 @@ def q_rail(b):
     return f"""{HEAD}
 relation["type"="route"]["route"~"^({RAIL_ROUTES})$"]({b})->.r;
 .r out meta;
-(
-  node(r.r:"stop"); node(r.r:"stop_entry_only"); node(r.r:"stop_exit_only"); node(r.r:"platform");
-)->.s;
+node(r.r)->.s;
 .s out body;
 relation(br.r)["type"="route_master"]->.m;
 .m out tags;"""
@@ -159,7 +162,7 @@ def q_bus(b):
     return f"""{HEAD}
 relation["type"="route"]["route"="bus"]({b})->.r;
 .r out meta;
-(node(r.r:"stop"); node(r.r:"platform"); node(r.r:"stop_entry_only"); node(r.r:"stop_exit_only");)->.s;
+node(r.r)->.s;
 .s out body;"""
 
 
@@ -281,16 +284,55 @@ def build_rail(region, elements):
                               "railway": tags.get("railway"), "publicTransport": tags.get("public_transport"),
                               "wheelchair": tags.get("wheelchair")}
         elif e["type"] == "relation" and tags.get("type") == "route":
-            members = e.get("members", [])
             routes.append({
                 "id": e["id"], "route": tags.get("route"), "ref": tags.get("ref"), **names(tags),
                 "colour": tags.get("colour"), "operator": tags.get("operator"), "network": tags.get("network"),
                 "from": tags.get("from"), "to": tags.get("to"), "master": masters.get(e["id"]),
-                "timestamp": e.get("timestamp"),
-                "stops": [m["ref"] for m in members if m["type"] == "node" and m.get("role") in STOP_ROLES],
-                "platforms": [m["ref"] for m in members if m.get("role") == "platform"],
+                "timestamp": e.get("timestamp"), **route_stops(e.get("members", [])),
             })
     return routes, stops
+
+
+def route_stops(members):
+    """노선 관계 멤버 → stops·platforms. 새 방식(stop·platform 역할)이 없으면 옛 방식으로 읽는다:
+    역할이 빈 노드·forward_stop 은 이 방향 정류장(stops), backward_stop 은 반대 방향(backwardStops, 적힌 순서 그대로)."""
+    nodes = [(m["ref"], (m.get("role") or "").strip()) for m in members if m["type"] == "node"]
+    stops = [r for r, role in nodes if role in STOP_ROLES]
+    platforms = [r for r, role in nodes if role.startswith("platform")]
+    if stops or platforms:
+        return {"stops": stops, "platforms": platforms}
+    fwd = [r for r, role in nodes if role in OLD_FORWARD]
+    back = [r for r, role in nodes if role in OLD_BACKWARD]
+    out = {"stops": fwd, "platforms": [], "ptv1": bool(fwd or back)}
+    if back:
+        out["backwardStops"] = back
+    return out
+
+
+def fill_missing(key, kind):
+    """받아 둔 노선 관계에 들어 있는데 좌표(노드)가 없는 멤버를 id 로 다시 받아 raw/<key>_fill<n>_<kind>.json 에 둔다.
+    예전 쿼리가 stop·platform 역할 노드만 받아서, 역할이 빈 옛 방식 노선은 정류장 좌표가 없었다 (10-18)."""
+    rows = load(key, kind)
+    have = {e["id"] for e in rows if e["type"] == "node"}
+    want = sorted({m["ref"] for e in rows if e["type"] == "relation"
+                   for m in e.get("members", []) if m["type"] == "node" and m["ref"] not in have})
+    if not want:
+        print(f"  {key} {kind}: 빠진 노드 없음")
+        return True
+    print(f"  {key} {kind}: 빠진 노드 {len(want)}개 받기")
+    ok = True
+    for i in range(0, len(want), FILL_BATCH):
+        f = RAW / f"{key}_fill{i // FILL_BATCH}_{kind}.json"
+        if f.exists():
+            continue
+        ids = ",".join(str(x) for x in want[i:i + FILL_BATCH])
+        part = ask(f"{HEAD}node(id:{ids});out body;", f"{key} 빠진 노드 {i + 1}~")
+        if part is None:
+            ok = False
+            continue
+        f.write_text(json.dumps(part.get("elements", []), ensure_ascii=False), encoding="utf-8")
+        time.sleep(5)
+    return ok
 
 
 def build_station(elements):
@@ -449,6 +491,12 @@ def main():
     regions = {k: v for k, v in REGIONS.items() if not args or k in args}
     want_bus = not args or "kyoto" in args or "kansai" in args
 
+    if "--fill" in sys.argv:   # 받아 둔 노선의 빠진 노드만 채운다 (10-18)
+        for region in regions:
+            fill_missing(region, "rail")
+        if want_bus:
+            fill_missing("kyoto_bus", "bus")
+        only_build = True
     if not only_build:
         failed = []
         for i, (region, (box, n)) in enumerate(regions.items(), 1):

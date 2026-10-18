@@ -121,7 +121,7 @@ for f in sorted(EXTRA.glob("bus_*_routes.json")) + [RAIL / "kyoto_bus_routes.jso
     stops = load(f.with_name(f.name.replace("routes", "stops")), {})
     far = 0
     for r in routes:
-        pts = [stops[str(s)] for s in r["stops"] if str(s) in stops]
+        pts = [stops[str(s)] for s in r["stops"] + r.get("platforms", []) + r.get("backwardStops", []) if str(s) in stops]
         ins = [p for p in pts if inside(region, p["lat"], p["lng"])]
         if len(pts) <= 1 or len(ins) < len(pts) / 2:
             far += 1

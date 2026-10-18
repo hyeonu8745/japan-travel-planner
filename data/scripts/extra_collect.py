@@ -66,7 +66,9 @@ def collect_bus(build_only):
     report = []
     for region, (box, n) in BUS_REGIONS.items():
         key = f"bus_{region}"
-        if not build_only:
+        if "--fill" in sys.argv:   # 옛 방식 노선의 빠진 정류장 노드만 (10-18)
+            orc.fill_missing(key, "bus")
+        elif not build_only:
             print(f"[버스] {region}")
             orc.fetch(key, box, n, {"bus": orc.q_bus})
         rows = orc.load(key, "bus")
@@ -76,8 +78,8 @@ def collect_bus(build_only):
         routes, stops = orc.build_rail(key, rows)
         write(f"bus_{region}_routes.json", routes)
         write(f"bus_{region}_stops.json", {str(k): v for k, v in stops.items()})
-        few = sum(1 for r in routes if len(r["stops"]) < 3 and len(r["platforms"]) < 3)
-        report.append(f"[버스 {region}] 노선 {len(routes)}, 정류장 {len(stops)}, 정류장 3개 미만 노선 {few}")
+        few = sum(1 for r in routes if sum(1 for x in r["stops"] + r["platforms"] if x in stops) < 2)
+        report.append(f"[버스 {region}] 노선 {len(routes)}, 정류장 {len(stops)}, 좌표 있는 정류장 2개 미만 노선 {few}")
     return report
 
 
