@@ -4,7 +4,7 @@
     프로젝트 루트에서:  python data/scripts/data_clean.py
 
 입력  data/processed/tabelog_geocoded.json, osm_attractions.json, osm_chains.json
-      data/scripts/brand_dictionary.tsv, sensitive_places.tsv
+      data/scripts/brand_dictionary.tsv, sensitive_places.tsv, excluded_places.tsv
 출력  data/processed/clean_restaurants_tabelog.json  타베로그 (좌표 있는 곳만, 휴일·예산·표시 정리)
       data/processed/clean_restaurants_chain.json    체인점 (사전에 있는 브랜드만, 종류·장르·예산 붙임)
       data/processed/clean_attractions.json          관광지 (중복 합침, 민감 장소 제외/표시, 한국어 이름 정리)
@@ -141,13 +141,26 @@ def clean_chains():
 
 # ---------- 관광지 ----------
 
-def load_sensitive():
+RULE_FILES = ("sensitive_places.tsv", "excluded_places.tsv")  # 민감 장소 / 폐관·관람 불가·관광지 아님 (10-18)
+SAME_NAME_KM = 0.5  # 이름이 같으면 이 거리 안은 같은 곳 (10-18: 200m → 500m, 상점가·공원이 두 번 들어감)
+
+
+def parse_rules(text):
     rules = []
-    for line in (SCRIPTS / "sensitive_places.tsv").read_text(encoding="utf-8").splitlines():
+    for line in text.splitlines():
         if not line.strip() or line.startswith("#"):
             continue
         c = (line.split("\t") + [""] * 4)[:4]
         rules.append({"action": c[0], "pattern": re.compile(c[1]) if c[1] else None, "wikidata": c[2], "reason": c[3]})
+    return rules
+
+
+def load_sensitive():
+    rules = []
+    for name in RULE_FILES:
+        f = SCRIPTS / name
+        if f.exists():
+            rules += parse_rules(f.read_text(encoding="utf-8"))
     return rules
 
 
@@ -157,6 +170,19 @@ def sensitive_of(a, rules):
         if (r["wikidata"] and a.get("wikidata") == r["wikidata"]) or (r["pattern"] and r["pattern"].search(names)):
             return r
     return None
+
+
+def same_name_key(name):
+    return re.sub(r"\s", "", norm(name))
+
+
+def same_place(merged, a):
+    """이름(공백 무시)이 같고 SAME_NAME_KM 안에 있는 앞선 항목. 둘 다 위키데이터(장소)가 있는데 다르면 다른 곳."""
+    def wd(x):
+        return x.get("wikidata") if x.get("wikidataIsPlace") else None
+    return next((m for m in merged if same_name_key(m["name"]) == same_name_key(a["name"])
+                 and not (wd(m) and wd(a) and wd(m) != wd(a))
+                 and km((m["lat"], m["lng"]), (a["lat"], a["lng"])) < SAME_NAME_KM), None)
 
 
 def clean_attractions():
@@ -177,8 +203,7 @@ def clean_attractions():
     # 2) 이름이 같고 200m 안이면 하나로 (위키데이터가 한쪽에만 붙은 경우)
     merged = []
     for a in sorted(by_key.values(), key=lambda x: -x.get("sitelinks", 0)):
-        dup = next((m for m in merged if norm(m["name"]) == norm(a["name"])
-                    and km((m["lat"], m["lng"]), (a["lat"], a["lng"])) < 0.2), None)
+        dup = same_place(merged, a)
         if dup:
             dup["areas"] = sorted(set(dup["areas"]) | set(a["areas"]))
             continue
@@ -220,7 +245,7 @@ def main():
         f"점심 예산 있음 {sum(1 for t in tabelog if t['budgetLunchMax'])}, 저녁 1만엔 이하 {sum(1 for t in tabelog if t['budgetDinnerMax'] and t['budgetDinnerMax'] <= 9999)}",
         f"[체인점] {len(chains)}곳 (건너뜀 {dict(c_skip)})",
         f"  종류 {dict(Counter(c['category'] for c in chains))}, 도시별 {dict(Counter(c['city'] for c in chains).most_common())}",
-        f"[관광지] 원본 {a_src} → 중복 합친 뒤 {len(attractions) + len(excluded)} → 민감 장소 제외 {len(excluded)} → {len(attractions)}곳 (역사 안내 표시 {noted})",
+        f"[관광지] 원본 {a_src} → 중복 합친 뒤 {len(attractions) + len(excluded)} → 제외(민감·폐관·관람 불가) {len(excluded)} → {len(attractions)}곳 (역사 안내 표시 {noted})",
         f"  종류 {dict(Counter(a['kind'] for a in attractions).most_common())}",
         f"  인기도 있음(위키데이터 장소) {sum(1 for a in attractions if a['popularity'])}, 한국어 이름 {sum(1 for a in attractions if a['nameKo'])}",
         "  제외된 곳:", *[f"    - {e}" for e in excluded],
