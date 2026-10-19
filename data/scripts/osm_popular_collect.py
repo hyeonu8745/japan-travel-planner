@@ -71,10 +71,19 @@ out center tags;"""
     return [x for x in (row_of(e, city) for e in overpass(q)) if x]
 
 
-def score(r):
-    """이름으로 찾은 후보 중 고르기: 위키데이터 → 관광 태그 → 면·관계(큰 곳)"""
+BAD_PICK = {"tourism": ("hotel", "hostel", "guest_house", "apartment", "motel"),
+            "amenity": ("school", "kindergarten", "parking", "parking_entrance", "bus_station", "university", "college", "clinic"),
+            "highway": ("bus_stop",)}
+
+
+def score(r, pats=()):
+    """이름으로 찾은 후보 중 고르기: 호텔·학교·주차장 아님 → 이름이 정확히 같음 → 위키데이터 → 관광 태그 → 면·관계
+    (10-19: キャナルシティ 가 근처 호텔, ももち浜 이 초등학교로 잡혔던 것)"""
     t = r["tags"]
-    return (bool(r.get("wikidata")), any(k in t for k in ("tourism", "historic")) or t.get("amenity") in ("place_of_worship", "marketplace"),
+    bad = any(t.get(k) in v for k, v in BAD_PICK.items()) or "railway" in t
+    exact = any(key(r["name"]) == key(p) for p in pats)
+    return (not bad, exact, bool(r.get("wikidata")),
+            any(k in t for k in ("tourism", "historic", "leisure", "shop")) or t.get("amenity") in ("place_of_worship", "marketplace"),
             r["osmId"].startswith(("relation", "way")))
 
 
@@ -92,18 +101,29 @@ def must_see_missing():
     return out
 
 
+def save(data):
+    DST.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
 def main():
-    data = {"sweep": [], "mustSee": []}
+    """도시 하나·꼭 가는 관광지 한 줄마다 저장 (10-19: 마지막에만 저장해서 연결이 끊기자 다 잃었다). 다시 실행하면 받은 건 건너뜀."""
+    data = json.loads(DST.read_text(encoding="utf-8")) if DST.exists() else {}
+    data.setdefault("sweep", []); data.setdefault("mustSee", []); data.setdefault("doneCities", [])
     for n, (city, (lat, lng, r)) in enumerate(CITY_RADIUS.items(), 1):
+        if city in data["doneCities"]:
+            continue
         try:
             rows = sweep(city, lat, lng, r)
         except Exception as e:  # noqa: BLE001
-            print(f"[{n}/{len(CITY_RADIUS)}] {city} 실패: {e}")
+            print(f"[{n}/{len(CITY_RADIUS)}] {city} 실패: {e} → 다시 실행하면 이 도시부터")
             continue
-        data["sweep"] += rows
+        data["sweep"] = [x for x in data["sweep"] if x["city"] != city] + rows
+        data["doneCities"].append(city)
+        save(data)
         print(f"[{n}/{len(CITY_RADIUS)}] {city}: 위키데이터 있는 관광지 {len(rows)}")
         time.sleep(8)
-    missing = must_see_missing()
+    done_rows = {(m["city"], m["pattern"]) for m in data["mustSee"] if m.get("pick") is not None or m.get("candidates") == 0}
+    missing = [x for x in must_see_missing() if (x[0], x[1]) not in done_rows]
     print(f"꼭 가는 관광지 중 데이터에 없는 곳 {len(missing)} → 이름으로 찾기")
     for city, pats, ko in missing:
         lat, lng, r = CITY_RADIUS[city]
@@ -112,10 +132,14 @@ def main():
         try:
             cands = [x for x in (row_of(e, city) for e in overpass(q)) if x]
         except Exception as e:  # noqa: BLE001
-            print(f"  {city} {ko} 실패: {e}")
-            cands = []
-        best = max(cands, key=score) if cands else None
+            print(f"  {city} {ko} 실패: {e} → 다시 실행하면 이어서")
+            continue
+        ps = pats.split("|")
+        good = [c for c in cands if score(c, ps)[0]]
+        best = max(good, key=lambda c: score(c, ps)) if good else None
+        data["mustSee"] = [m for m in data["mustSee"] if (m["city"], m["pattern"]) != (city, pats)]
         data["mustSee"].append({"city": city, "pattern": pats, "ko": ko, "pick": best, "candidates": len(cands)})
+        save(data)
         print(f"  {city:11s} {ko:20s} → {best['name'] + ' ' + best['osmId'] if best else '못 찾음'}")
         time.sleep(3)
     # 위키 링크 수 (인기도)
@@ -138,7 +162,7 @@ def main():
         time.sleep(1)
     for x in data["sweep"] + [m["pick"] for m in data["mustSee"] if m["pick"]]:
         x["sitelinks"] = links.get(x.get("wikidata"), 0)
-    DST.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    save(data)
     print(f"저장: {DST} (위키데이터 관광지 {len(data['sweep'])}, 위키 링크 8 이상 {sum(1 for x in data['sweep'] if x['sitelinks'] >= 8)}, "
           f"이름으로 찾음 {sum(1 for m in data['mustSee'] if m['pick'])}/{len(data['mustSee'])})")
 
