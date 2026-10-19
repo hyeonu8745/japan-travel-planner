@@ -26,7 +26,21 @@ ATTR = ROOT / "data" / "processed" / "clean_attractions.json"
 MEDIA = ROOT / "data" / "extra" / "attraction_media.json"
 DST = ROOT / "data" / "extra" / "attraction_media_geo.json"
 API = "https://commons.wikimedia.org/w/api.php"
-UA = "TabiMate-student-project/1.0 (commons geo photos; non-commercial)"
+def contact():
+    """위키미디어 User-Agent 정책: 요청에 연락처(이메일·저장소 주소)가 있어야 한다 (없으면 429로 막힘, 10-19).
+    .env 의 WIKIMEDIA_CONTACT 를 읽는다. 값은 코드·로그에 남기지 않는다."""
+    import os
+    v = os.environ.get("WIKIMEDIA_CONTACT")
+    env = ROOT / ".env"
+    if not v and env.exists():
+        for line in env.read_text(encoding="utf-8", errors="ignore").splitlines():
+            if line.strip().startswith("WIKIMEDIA_CONTACT="):
+                v = line.split("=", 1)[1].strip().strip('"').strip("'")
+    return v
+
+
+CONTACT = contact()
+UA = f"TabiMate-student-project/1.0 ({CONTACT}; non-commercial study) python-urllib"
 PHOTO_EXT = (".jpg", ".jpeg", ".png", ".webp")
 BAD_WORDS = re.compile(r"(?i)map|地図|案内図|logo|ロゴ|sign|看板|案内板|plan|平面図|diagram|icon|flag|旗|stamp|スタンプ|ticket|パンフ")
 WIDE_KINDS = {"VIEW", "PARK", "CASTLE", "THEME"}
@@ -100,6 +114,10 @@ def strip_html(s):
 
 
 def main():
+    if not CONTACT:
+        print("위키미디어는 연락처가 없는 요청을 막아요. .env 에 한 줄 추가한 뒤 다시 실행하세요:\n"
+              "  WIKIMEDIA_CONTACT=본인 이메일 (또는 GitHub 저장소 주소)")
+        return
     attrs = json.loads(ATTR.read_text(encoding="utf-8"))
     media = json.loads(MEDIA.read_text(encoding="utf-8")) if MEDIA.exists() else {}
     geo = json.loads(DST.read_text(encoding="utf-8")) if DST.exists() else {}
