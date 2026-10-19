@@ -416,6 +416,29 @@ def apply_views(out, rules, views=None):
     return added
 
 
+# ---------- 관광지 사진 (위키데이터 대표 사진 → 위키미디어 위치 검색, 10-19) ----------
+PHOTO_KEYS = ("thumb", "width", "height", "credit", "license", "licenseUrl", "artist")
+
+
+def attach_photos(out, media=None, geo=None):
+    """photo 필드: 위키데이터 대표 사진(attraction_media.json) → 없으면 근처 사진(attraction_media_geo.json). 출처별 수."""
+    ext = ROOT / "data" / "extra"
+    if media is None:
+        f = ext / "attraction_media.json"
+        media = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+    if geo is None:
+        f = ext / "attraction_media_geo.json"
+        geo = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+    count = Counter()
+    for a in out:
+        m = media.get(a.get("wikidata") or "") or {}
+        g = geo.get(a.get("osmId") or "") or {}
+        src, pick = ("wikidata", m) if m.get("thumb") else (("nearby", g) if g.get("thumb") else (None, None))
+        a["photo"] = {**{k: pick.get(k) for k in PHOTO_KEYS}, "source": src} if pick else None
+        count[src or "none"] += 1
+    return count
+
+
 # ---------- 관광지 공식 정보 (제미나이 조사, 10-17·18) ----------
 UNKNOWN = {"", "확인 못 함", "해당 없음", "-", "없음 (확인 못 함)"}
 
@@ -490,13 +513,14 @@ def clean_attractions():
     night = apply_night_spots(out, rules)
     views = apply_views(out, rules)
     official = apply_official_info(out)
-    return out, excluded, noted, len(src), night + (official, views)
+    photos = attach_photos(out)
+    return out, excluded, noted, len(src), night + (official, views, photos)
 
 
 def main():
     tabelog, t_drop = clean_tabelog()
     chains, c_skip = clean_chains()
-    attractions, excluded, noted, a_src, (n_tag, n_add, n_miss, n_official, n_views) = clean_attractions()
+    attractions, excluded, noted, a_src, (n_tag, n_add, n_miss, n_official, n_views, n_photos) = clean_attractions()
     facilities, f_drop = clean_facilities()
     for name, data in (("clean_restaurants_tabelog", tabelog), ("clean_restaurants_chain", chains),
                        ("clean_attractions", attractions), ("clean_facilities", facilities)):
@@ -518,6 +542,7 @@ def main():
         f"  인기도 있음(위키데이터 장소) {sum(1 for a in attractions if a['popularity'])}, 한국어 이름 {sum(1 for a in attractions if a['nameKo'])}",
         f"  야경 명소 표시 {n_tag}, 새로 추가 {n_add}, 좌표 없음 {len(n_miss)} {n_miss}",
         f"  전망 명소 보충 추가 {n_views} (osm_views.json)",
+        f"  사진: 위키데이터 {n_photos['wikidata']}, 근처 사진 {n_photos['nearby']}, 없음 {n_photos['none']}",
         f"  공식 정보(제미나이 조사) 붙임 {n_official}, 운영시간(OSM) 있음 {sum(1 for a in attractions if a['openingHours'])}",
         f"[편의시설] {len(facilities)}곳 (제외 {dict(f_drop)})",
         f"  종류 {dict(Counter(x['type'] for x in facilities).most_common())}",

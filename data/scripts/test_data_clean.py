@@ -181,6 +181,18 @@ def test_전망_명소_보충은_이름만_있는_곳_안내판_망루_같은_os
     assert dc.apply_views(out, RULES, views) == 1 and out[-1]["name"] == "スカイワードあさひ"
 
 
+def test_사진은_위키데이터_먼저_없으면_근처_사진():
+    out = [dict(_a("A"), osmId="node/1", wikidata="Q1"), dict(_a("B"), osmId="node/2", wikidata="Q2"),
+           dict(_a("C"), osmId="node/3"), dict(_a("D"), osmId="node/4")]
+    media = {"Q1": {"thumb": "https://a/1.jpg", "license": "CC0", "artist": "x"}, "Q2": {}}
+    geo = {"node/2": {"thumb": "https://b/2.jpg", "license": "CC BY-SA 4.0"}, "node/3": {"image": "c.jpg", "thumb": None}}
+    c = dc.attach_photos(out, media, geo)
+    assert out[0]["photo"]["source"] == "wikidata" and out[0]["photo"]["thumb"] == "https://a/1.jpg"
+    assert out[1]["photo"]["source"] == "nearby" and out[1]["photo"]["license"] == "CC BY-SA 4.0"
+    assert out[2]["photo"] is None and out[3]["photo"] is None
+    assert dict(c) == {"wikidata": 1, "nearby": 1, "none": 2}
+
+
 if __name__ == "__main__":
     n = 0
     for k, f in list(globals().items()):
