@@ -365,6 +365,10 @@ def apply_night_spots(out, rules):
 
 # ---------- 전망 명소 보충 (osm_view_collect.py, 10-18) ----------
 VIEW_NEAR_KM = 0.15   # 이 안에 이미 관광지가 있고 이름이 서로 포함되면 같은 곳으로 본다
+# 10-19 수집 결과 검토: 어디인지 알 수 없는 이름, 화재 감시 망루, 등산로 안내판은 뺀다
+VIEW_GENERIC = re.compile(r"^((頂上|山頂|[東西南北]側?|中央)?展望(台|所|デッキ|塔|タワー|室|ロビー)(\s*[(（].*[)）])?|火の見櫓|(?i:observation (deck|tower)))$")
+VIEW_SIGN = re.compile(r"\d+(\.\d+)?\s*(km|ｋｍ|m|ｍ)|[←→⇔]|分岐|からの|から見える|コース")
+VIEW_BAD_WIKIDATA = {"北斎富嶽三十六景"}   # 전망 지점에 그림 작품 위키데이터가 잘못 붙은 곳
 
 
 def load_views():
@@ -375,9 +379,14 @@ def load_views():
 def apply_views(out, rules, views=None):
     """전망 지점·전망 타워를 VIEW 관광지로 추가. 이미 있는 곳(같은 위키데이터, 같은 이름 500m, 150m 안 이름 포함)은 건너뜀. 추가 수."""
     have_wd = {a["wikidata"] for a in out if a.get("wikidata")}
+    have_osm = {a.get("osmId") for a in out}
     added = 0
     for v in (load_views() if views is None else views):
-        if not in_city(v["city"], v["lat"], v["lng"]):
+        name = norm(v["name"])
+        tags = v.get("tags") or {}
+        if (v["osmId"] in have_osm or not in_city(v["city"], v["lat"], v["lng"])
+                or tags.get("tourism") == "information" or VIEW_GENERIC.match(name) or VIEW_SIGN.search(name)
+                or name in VIEW_BAD_WIKIDATA):
             continue
         if v.get("wikidata") and v["wikidata"] in have_wd:
             continue
@@ -402,6 +411,7 @@ def apply_views(out, rules, views=None):
         })
         if v.get("wikidata"):
             have_wd.add(v["wikidata"])
+        have_osm.add(v["osmId"])
         added += 1
     return added
 

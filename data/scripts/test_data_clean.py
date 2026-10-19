@@ -168,6 +168,19 @@ def test_전망_명소_보충은_이미_있는_곳을_건너뛴다():
     assert new["areas"] == ["tokyo_x"] and new["nightView"] is False
 
 
+def test_전망_명소_보충은_이름만_있는_곳_안내판_망루_같은_osm을_뺀다():
+    out = [dict(_a("名古屋テレビ塔", "nagoya", 35.1723, 136.9083), osmId="way/51778897")]
+    bad = [("way/51778897", "名古屋テレビ塔", {}),                                  # 같은 OSM 요소 (야경 명소로 이미 들어감)
+           ("node/11", "展望台", {"tourism": "viewpoint"}), ("node/12", "展望デッキ (北ターミナル)", {}),
+           ("node/13", "頂上展望台", {}), ("node/14", "火の見櫓", {"man_made": "tower"}), ("node/15", "Observation deck", {}),
+           ("node/16", "片江展望台1.0km 油山バス停1.4km", {}), ("node/17", "梅林 油山山頂 片江展望台 分岐", {}),
+           ("node/18", "大岩山展望所", {"tourism": "information"}), ("node/19", "北斎富嶽三十六景", {"tourism": "viewpoint"})]
+    views = [{"osmId": o, "city": "nagoya", "name": n, "lat": 35.17, "lng": 136.90, "wikidata": None, "tags": t} for o, n, t in bad]
+    views.append({"osmId": "node/20", "city": "nagoya", "name": "スカイワードあさひ", "lat": 35.2178, "lng": 137.0228,
+                  "wikidata": None, "tags": {"man_made": "tower", "tower:type": "observation"}})
+    assert dc.apply_views(out, RULES, views) == 1 and out[-1]["name"] == "スカイワードあさひ"
+
+
 if __name__ == "__main__":
     n = 0
     for k, f in list(globals().items()):
