@@ -1,4 +1,4 @@
-"""유명 관광지 보충 수집 (10-19). 인터넷이 되는 PC에서 한 번 실행 (10~20분).
+"""유명 관광지 보충 수집 (10-19). 인터넷이 되는 PC에서 한 번 실행 (천천히 요청해서 40분~1시간. 끊겨도 다시 실행하면 이어서).
 
     프로젝트 루트에서:  python data/scripts/osm_popular_collect.py
 
@@ -9,6 +9,7 @@
 출력  data/extra/osm_popular.json  → data_clean.py 가 합친다 → extra_collect.py wiki 로 새 관광지 사진
 """
 import json
+import math
 import re
 import sys
 import time
@@ -25,9 +26,17 @@ ROOT = Path(__file__).resolve().parents[2]
 DST = ROOT / "data" / "extra" / "osm_popular.json"
 MUST = ROOT / "data" / "scripts" / "must_see.tsv"
 ATTR = ROOT / "data" / "processed" / "clean_attractions.json"
-OVERPASS = "https://overpass-api.de/api/interpreter"
+OVERPASS_SERVERS = [   # 한 곳이 응답 없으면 다음 서버로 (10-19: overpass-api.de 가 연결 시간 초과)
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+]
 WIKIDATA = "https://www.wikidata.org/w/api.php"
 UA = "TabiMate-student-project/1.0 (osm popular attractions)"
+PAUSE_QUERY = 30    # 큰 요청 사이 쉬는 초 (10-19: 도쿄 3,440곳 등을 연달아 받다가 서버에 막힘 → 천천히)
+PAUSE_NAME = 8      # 이름 검색 사이
+TILE_KM = 12        # 반경이 이보다 큰 도시는 4조각으로 나눠 작은 요청으로
 KEEP_TAGS = ("tourism", "historic", "amenity", "religion", "leisure", "shop", "highway", "place", "website", "opening_hours", "fee")
 
 
@@ -35,17 +44,22 @@ def key(s):
     return re.sub(r"[\s・･()（）「」]", "", unicodedata.normalize("NFKC", s or "")).lower()
 
 
-def overpass(q, tries=4):
+def overpass(q, tries=8):
+    """서버를 돌아가며 시도. 한 바퀴 돌 때마다 더 오래 쉰다."""
+    last = None
     for i in range(tries):
+        server = OVERPASS_SERVERS[i % len(OVERPASS_SERVERS)]
         try:
-            req = urllib.request.Request(OVERPASS, data=urllib.parse.urlencode({"data": q}).encode(), headers={"User-Agent": UA})
+            req = urllib.request.Request(server, data=urllib.parse.urlencode({"data": q}).encode(), headers={"User-Agent": UA})
             with urllib.request.urlopen(req, timeout=300) as r:
                 return json.loads(r.read().decode())["elements"]
         except Exception as e:  # noqa: BLE001
-            if i == tries - 1:
-                raise
-            print(f"  다시 시도 {i + 1}/{tries - 1} ({e})")
-            time.sleep(20 * (i + 1))
+            last = e
+            host = server.split("/")[2]
+            wait = 10 if (i + 1) % len(OVERPASS_SERVERS) else 60
+            print(f"  다시 시도 {i + 1}/{tries - 1} ({host}: {str(e)[:60]}) → {wait}초 뒤 다음 서버")
+            time.sleep(wait)
+    raise last
 
 
 def row_of(e, city):
@@ -58,9 +72,18 @@ def row_of(e, city):
             "wikidata": t.get("wikidata"), "kind": kind_of(t), "tags": {k: t[k] for k in KEEP_TAGS if k in t}}
 
 
-def sweep(city, lat, lng, r):
+def pieces(lat, lng, r):
+    """반경이 크면 사분면 4조각(각 조각을 덮는 원)으로. 조각마다 (lat, lng, 반경km)"""
+    if r <= TILE_KM:
+        return [(lat, lng, r)]
+    dlat = (r / 2) / 111.0
+    dlng = (r / 2) / (111.0 * math.cos(math.radians(lat)))
+    return [(lat + a * dlat, lng + b * dlng, r * 0.75) for a in (-1, 1) for b in (-1, 1)]
+
+
+def sweep_query(lat, lng, r):
     a = f"(around:{int(r * 1000)},{lat},{lng})"
-    q = f"""[out:json][timeout:240][maxsize:268435456];
+    return f"""[out:json][timeout:180][maxsize:134217728];
 (
   nwr["wikidata"]["tourism"~"^(attraction|museum|viewpoint|theme_park|zoo|aquarium|gallery)$"]{a};
   nwr["wikidata"]["historic"~"^(castle|monument|memorial|ruins|archaeological_site|building|city_gate|temple|shrine)$"]{a};
@@ -68,7 +91,6 @@ def sweep(city, lat, lng, r):
   nwr["wikidata"]["leisure"~"^(park|garden)$"]{a};
 );
 out center tags;"""
-    return [x for x in (row_of(e, city) for e in overpass(q)) if x]
 
 
 BAD_PICK = {"tourism": ("hotel", "hostel", "guest_house", "apartment", "motel"),
@@ -109,19 +131,25 @@ def main():
     """도시 하나·꼭 가는 관광지 한 줄마다 저장 (10-19: 마지막에만 저장해서 연결이 끊기자 다 잃었다). 다시 실행하면 받은 건 건너뜀."""
     data = json.loads(DST.read_text(encoding="utf-8")) if DST.exists() else {}
     data.setdefault("sweep", []); data.setdefault("mustSee", []); data.setdefault("doneCities", [])
+    seen = {x["osmId"] for x in data["sweep"]}
     for n, (city, (lat, lng, r)) in enumerate(CITY_RADIUS.items(), 1):
-        if city in data["doneCities"]:
-            continue
-        try:
-            rows = sweep(city, lat, lng, r)
-        except Exception as e:  # noqa: BLE001
-            print(f"[{n}/{len(CITY_RADIUS)}] {city} 실패: {e} → 다시 실행하면 이 도시부터")
-            continue
-        data["sweep"] = [x for x in data["sweep"] if x["city"] != city] + rows
-        data["doneCities"].append(city)
-        save(data)
-        print(f"[{n}/{len(CITY_RADIUS)}] {city}: 위키데이터 있는 관광지 {len(rows)}")
-        time.sleep(8)
+        parts = pieces(lat, lng, r)
+        for t, (plat, plng, pr) in enumerate(parts):
+            tag = f"{city}#{t}"
+            if tag in data["doneCities"] or city in data["doneCities"]:
+                continue
+            try:
+                rows = [x for x in (row_of(e, city) for e in overpass(sweep_query(plat, plng, pr))) if x]
+            except Exception as e:  # noqa: BLE001
+                print(f"[{n}/{len(CITY_RADIUS)}] {city} 조각 {t + 1}/{len(parts)} 실패: {e} → 다시 실행하면 여기부터")
+                return save(data)
+            new_rows = [x for x in rows if x["osmId"] not in seen]
+            seen |= {x["osmId"] for x in new_rows}
+            data["sweep"] += new_rows
+            data["doneCities"].append(tag)
+            save(data)
+            print(f"[{n}/{len(CITY_RADIUS)}] {city} 조각 {t + 1}/{len(parts)}: {len(rows)}곳 (새로 {len(new_rows)})")
+            time.sleep(PAUSE_QUERY)
     done_rows = {(m["city"], m["pattern"]) for m in data["mustSee"] if m.get("pick") is not None or m.get("candidates") == 0}
     missing = [x for x in must_see_missing() if (x[0], x[1]) not in done_rows]
     print(f"꼭 가는 관광지 중 데이터에 없는 곳 {len(missing)} → 이름으로 찾기")
@@ -141,7 +169,7 @@ def main():
         data["mustSee"].append({"city": city, "pattern": pats, "ko": ko, "pick": best, "candidates": len(cands)})
         save(data)
         print(f"  {city:11s} {ko:20s} → {best['name'] + ' ' + best['osmId'] if best else '못 찾음'}")
-        time.sleep(3)
+        time.sleep(PAUSE_NAME)
     # 위키 링크 수 (인기도)
     qids = sorted({x["wikidata"] for x in data["sweep"]} | {m["pick"]["wikidata"] for m in data["mustSee"] if m["pick"] and m["pick"].get("wikidata")})
     links = {}
