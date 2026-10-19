@@ -1,0 +1,221 @@
+# 도시별 꼭 가는 관광지 점검 목록 (10-19). city<TAB>찾을 이름(| 로 여러 표기)<TAB>한국어 설명
+tokyo	浅草寺	센소지
+tokyo	雷門	가미나리몬
+tokyo	東京スカイツリー	스카이트리
+tokyo	東京タワー	도쿄 타워
+tokyo	渋谷スクランブル|スクランブル交差点	시부야 스크램블 교차로
+tokyo	Shibuya Sky|SHIBUYA SKY|渋谷スカイ	시부야 스카이
+tokyo	新宿御苑	신주쿠 교엔
+tokyo	東京都庁	도쿄도청 전망대
+tokyo	上野恩賜公園|上野公園	우에노 공원
+tokyo	東京国立博物館	도쿄 국립박물관
+tokyo	アメ横|アメヤ横丁	아메요코
+tokyo	築地場外市場|築地	쓰키지 장외시장
+tokyo	豊洲市場	도요스 시장
+tokyo	チームラボ	팀랩
+tokyo	皇居東御苑|皇居	고쿄
+tokyo	秋葉原	아키하바라
+tokyo	竹下通り	다케시타 거리
+tokyo	表参道	오모테산도
+tokyo	お台場|台場	오다이바
+tokyo	六本木ヒルズ|東京シティビュー	롯폰기 힐스
+tokyo	谷中銀座	야나카 긴자
+tokyo	浜離宮	하마리큐
+tokyo	サンシャイン	선샤인 시티
+tokyo	両国国技館	료고쿠 국기관
+tokyo	江戸東京博物館	에도도쿄 박물관
+kyoto	清水寺	기요미즈데라
+kyoto	伏見稲荷	후시미이나리
+kyoto	金閣寺|鹿苑寺	금각사
+kyoto	銀閣寺|慈照寺	은각사
+kyoto	嵐山|竹林	아라시야마 대나무숲
+kyoto	渡月橋	도게쓰쿄
+kyoto	八坂神社	야사카 신사
+kyoto	祇園|花見小路	기온·하나미코지
+kyoto	二条城	니조성
+kyoto	錦市場	니시키 시장
+kyoto	三十三間堂	산주산겐도
+kyoto	東寺	도지
+kyoto	哲学の道	철학의 길
+kyoto	平安神宮	헤이안 신궁
+kyoto	龍安寺	료안지
+kyoto	天龍寺	덴류지
+kyoto	南禅寺	난젠지
+kyoto	京都御所	교토 고쇼
+kyoto	二年坂|三年坂|産寧坂	니넨자카·산넨자카
+kyoto	京都タワー	교토 타워
+osaka	大阪城	오사카성
+osaka	道頓堀	도톤보리
+osaka	通天閣	쓰텐카쿠
+osaka	梅田スカイビル|空中庭園	우메다 공중정원
+osaka	あべのハルカス|ハルカス300	아베노 하루카스
+osaka	海遊館	가이유칸
+osaka	黒門市場	구로몬 시장
+osaka	ユニバーサル・スタジオ|USJ|Universal Studios	유니버설 스튜디오
+osaka	心斎橋	신사이바시
+osaka	新世界	신세카이
+osaka	四天王寺	시텐노지
+osaka	住吉大社	스미요시 타이샤
+osaka	天保山|大観覧車	덴포잔
+osaka	中之島	나카노시마
+osaka	法善寺	호젠지
+kobe	北野異人館|異人館	기타노 이진칸
+kobe	神戸ポートタワー	포트 타워
+kobe	メリケンパーク	메리켄 파크
+kobe	南京町	난킨마치
+kobe	ハーバーランド	하버랜드
+kobe	生田神社	이쿠타 신사
+kobe	布引ハーブ園	누노비키 허브원
+kobe	六甲山|掬星台|天覧台	롯코산·마야산 야경
+kobe	有馬温泉	아리마 온천
+nara	東大寺	도다이지
+nara	奈良公園	나라 공원
+nara	春日大社	가스가 타이샤
+nara	興福寺	고후쿠지
+nara	ならまち	나라마치
+nara	平城宮跡	헤이조궁터
+nara	元興寺	간고지
+nara	若草山	와카쿠사야마
+nara	依水園	이스이엔
+yokohama	中華街	차이나타운
+yokohama	山下公園	야마시타 공원
+yokohama	みなとみらい	미나토미라이
+yokohama	赤レンガ倉庫	아카렌가 창고
+yokohama	コスモクロック|コスモワールド	코스모 클록
+yokohama	ランドマークタワー|スカイガーデン	랜드마크 타워
+yokohama	大さん橋	오산바시
+yokohama	カップヌードルミュージアム	컵누들 뮤지엄
+yokohama	三渓園	산케이엔
+yokohama	横浜マリンタワー	마린 타워
+yokohama	山手	야마테 서양관
+fukuoka	太宰府天満宮	다자이후 텐만구
+fukuoka	櫛田神社	구시다 신사
+fukuoka	中洲|屋台	나카스 포장마차
+fukuoka	大濠公園	오호리 공원
+fukuoka	福岡タワー	후쿠오카 타워
+fukuoka	キャナルシティ	캐널시티
+fukuoka	福岡城|舞鶴公園	후쿠오카성터
+fukuoka	天神	텐진
+fukuoka	住吉神社	스미요시 신사
+fukuoka	マリンワールド	마린월드
+fukuoka	ももち浜|百道浜	모모치 해변
+sapporo	大通公園	오도리 공원
+sapporo	さっぽろテレビ塔	TV 타워
+sapporo	札幌市時計台|時計台	시계탑
+sapporo	藻岩山	모이와야마
+sapporo	二条市場	니조 시장
+sapporo	すすきの	스스키노
+sapporo	北海道庁旧本庁舎|赤れんが庁舎	구 도청사
+sapporo	サッポロビール博物館	삿포로 맥주 박물관
+sapporo	白い恋人パーク	시로이 코이비토 파크
+sapporo	羊ヶ丘	히쓰지가오카 전망대
+sapporo	大倉山	오쿠라야마
+sapporo	狸小路	다누키코지
+sapporo	モエレ沼公園	모에레누마 공원
+nagoya	名古屋城	나고야성
+nagoya	熱田神宮	아쓰타 신궁
+nagoya	大須観音	오스칸논
+nagoya	大須商店街	오스 상점가
+nagoya	オアシス21	오아시스21
+nagoya	名古屋テレビ塔|MIRAI TOWER	미라이 타워
+nagoya	トヨタ産業技術記念館	도요타 산업기술기념관
+nagoya	名古屋港水族館	나고야항 수족관
+nagoya	徳川園|徳川美術館	도쿠가와엔
+nagoya	リニア・鉄道館	리니어 철도관
+nagoya	ノリタケの森	노리타케의 숲
+nagoya	レゴランド	레고랜드
+hiroshima	原爆ドーム	원폭돔
+hiroshima	平和記念公園	평화기념공원
+hiroshima	平和記念資料館	평화기념자료관
+hiroshima	広島城	히로시마성
+hiroshima	縮景園	슛케이엔
+hiroshima	おりづるタワー	오리즈루 타워
+hiroshima	厳島神社	이쓰쿠시마 신사 (미야지마)
+hiroshima	弥山	미센
+hiroshima	本通|本通り	혼도리 상점가
+naha	首里城	슈리성
+naha	国際通り	국제거리
+naha	牧志公設市場	마키시 시장
+naha	波上宮	나미노우에구
+naha	識名園	시키나엔
+naha	玉陵	다마우둔
+naha	壺屋	쓰보야 도자기 거리
+naha	ウミカジテラス	우미카지 테라스
+naha	福州園	후쿠슈엔
+kanazawa	兼六園	겐로쿠엔
+kanazawa	金沢城	가나자와성
+kanazawa	ひがし茶屋街	히가시차야가이
+kanazawa	近江町市場	오미초 시장
+kanazawa	21世紀美術館|２１世紀美術館	21세기 미술관
+kanazawa	長町武家屋敷	나가마치 무사 저택
+kanazawa	妙立寺	닌자데라
+kanazawa	主計町	가즈에마치
+kanazawa	にし茶屋街	니시차야가이
+kanazawa	鈴木大拙館	스즈키 다이세쓰관
+kanazawa	尾山神社	오야마 신사
+hakone	大涌谷	오와쿠다니
+hakone	芦ノ湖	아시노코
+hakone	箱根神社	하코네 신사
+hakone	彫刻の森	조각의 숲
+hakone	箱根湯本	하코네유모토
+hakone	ポーラ美術館	폴라 미술관
+hakone	強羅公園	고라 공원
+hakone	箱根ロープウェイ|ロープウェイ	로프웨이
+hakone	海賊船|箱根観光船	해적선
+hakone	恩賜箱根公園	온시하코네 공원
+hakone	箱根関所	하코네 관소
+kamakura	鶴岡八幡宮	쓰루가오카 하치만구
+kamakura	高徳院|大仏	가마쿠라 대불
+kamakura	長谷寺	하세데라
+kamakura	小町通り	고마치도리
+kamakura	江の島|江ノ島	에노시마
+kamakura	報国寺	호코쿠지 (대나무 숲)
+kamakura	建長寺	겐초지
+kamakura	円覚寺	엔가쿠지
+kamakura	明月院	메이게쓰인
+kamakura	銭洗弁財天	제니아라이벤텐
+kamakura	鎌倉高校前	가마쿠라고교마에 (슬램덩크 건널목)
+takayama	高山陣屋	다카야마 진야
+takayama	古い町並|さんまち|三町	옛 거리
+takayama	宮川朝市	미야가와 아침 시장
+takayama	飛騨の里	히다노사토
+takayama	高山祭屋台会館|屋台会館	야타이 회관
+takayama	日枝神社	히에 신사
+takayama	中橋	나카바시
+takayama	飛騨国分寺	히다 고쿠분지
+otaru	小樽運河	오타루 운하
+otaru	堺町通り|堺町	사카이마치 거리
+otaru	小樽オルゴール堂	오르골당
+otaru	北一硝子	기타이치 유리
+otaru	天狗山	덴구야마
+otaru	旧日本銀行小樽支店|金融資料館	금융자료관
+otaru	三角市場	산카쿠 시장
+otaru	小樽市総合博物館	종합박물관
+yufuin	金鱗湖	긴린코
+yufuin	湯の坪街道	유노쓰보 거리
+yufuin	湯布院フローラルビレッジ|フローラルビレッジ	플로럴 빌리지
+yufuin	由布院駅	유후인역
+yufuin	狭霧台	사기리다이
+yufuin	宇奈岐日女神社	우나기히메 신사
+yufuin	由布岳	유후다케
+beppu	海地獄	우미지고쿠
+beppu	血の池地獄	지노이케지고쿠
+beppu	地獄|地獄めぐり	지옥 순례
+beppu	竹瓦温泉	다케가와라 온천
+beppu	別府タワー	벳푸 타워
+beppu	鉄輪	간나와 온천
+beppu	ラクテンチ	라쿠텐치
+beppu	別府ロープウェイ|鶴見岳	쓰루미다케 로프웨이
+beppu	明礬	묘반 온천
+beppu	アフリカンサファリ	아프리칸 사파리
+kawaguchiko	新倉山浅間公園|忠霊塔	아라쿠라야마 센겐 공원
+kawaguchiko	大石公園	오이시 공원
+kawaguchiko	河口湖	가와구치코
+kawaguchiko	富士急ハイランド	후지큐 하이랜드
+kawaguchiko	天上山|カチカチ山|ロープウェイ	가치카치야마 로프웨이
+kawaguchiko	忍野八海	오시노 핫카이
+kawaguchiko	北口本宮冨士浅間神社	기타구치혼구 후지센겐 신사
+kawaguchiko	河口湖音楽と森の美術館|オルゴールの森	오르골의 숲
+kawaguchiko	西湖いやしの里根場|根場	이야시노사토
+kawaguchiko	富士山世界遺産センター	후지산 세계유산센터
+kawaguchiko	本町通り|ローソン	혼초도리 (후지산 뷰 거리)

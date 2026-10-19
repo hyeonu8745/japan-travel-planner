@@ -205,6 +205,39 @@ def test_영어_이름으로_한번_더_들어간_플로럴_빌리지는_뺀다(
     assert not excluded("湯布院フローラルビレッジ", nameEn="Yufuin Floral Village")
 
 
+def test_유명_관광지_보충은_약한_항목을_고치고_새_곳은_추가한다():
+    out = [dict(_a("伏見稲荷大社", "kyoto", 34.9671, 135.7727), osmId="node/1", kind="VIEW", popularity=0),
+           dict(_a("清水寺", "kyoto", 34.9949, 135.7850), osmId="way/2", wikidata="Q1", popularity=77)]
+    sweep = [
+        {"osmId": "relation/10", "city": "kyoto", "name": "伏見稲荷大社", "lat": 34.9677, "lng": 135.7792,
+         "wikidata": "Q100", "kind": "SHRINE", "sitelinks": 60, "tags": {"amenity": "place_of_worship"}},       # 약한 항목 고침
+        {"osmId": "way/11", "city": "kyoto", "name": "鹿苑寺", "nameEn": "Kinkaku-ji", "lat": 35.0394, "lng": 135.7292,
+         "wikidata": "Q200", "kind": "TEMPLE", "sitelinks": 70, "tags": {"amenity": "place_of_worship"}},       # 새로
+        {"osmId": "way/12", "city": "kyoto", "name": "小さな祠", "lat": 35.0, "lng": 135.75,
+         "wikidata": "Q300", "kind": "SHRINE", "sitelinks": 2, "tags": {}},                                    # 링크 적음
+        {"osmId": "way/13", "city": "kyoto", "name": "清水寺本堂", "lat": 34.995, "lng": 135.785,
+         "wikidata": "Q1", "kind": "TEMPLE", "sitelinks": 77, "tags": {}},                                     # 같은 위키데이터
+        {"osmId": "way/14", "city": "kyoto", "name": "京都霊山護國神社", "lat": 35.0, "lng": 135.78,
+         "wikidata": "Q400", "kind": "SHRINE", "sitelinks": 9, "tags": {}},                                    # 민감 장소
+    ]
+    added, up = dc.apply_popular(out, RULES, sweep, [])
+    assert (added, up) == (1, 1)
+    assert out[0]["wikidata"] == "Q100" and out[0]["kind"] == "SHRINE" and out[0]["popularity"] == 60
+    assert out[-1]["name"] == "鹿苑寺" and out[-1]["popularity"] == 70
+
+
+def test_꼭_가는_관광지는_인기도_하한과_표시를_붙인다():
+    out = [dict(_a("黒門市場", "osaka"), popularity=0), dict(_a("黒門市場 入口", "osaka"), popularity=0),
+           dict(_a("東大寺", "nara"), wikidata="Q5", popularity=60)]
+    rows = [{"city": "osaka", "patterns": [dc.night_key("黒門市場")], "ko": "구로몬 시장"},
+            {"city": "nara", "patterns": [dc.night_key("東大寺")], "ko": "도다이지"},
+            {"city": "nara", "patterns": [dc.night_key("若草山")], "ko": "와카쿠사야마"}]
+    hit, miss = dc.apply_must_see(out, rows)
+    assert hit == 2 and miss == ["nara:와카쿠사야마"]
+    assert out[0]["mustSee"] and out[0]["popularity"] == dc.MUST_SEE_FLOOR and not out[1]["mustSee"]
+    assert out[2]["popularity"] == 60   # 원래 높으면 그대로
+
+
 if __name__ == "__main__":
     n = 0
     for k, f in list(globals().items()):

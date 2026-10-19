@@ -420,6 +420,103 @@ def apply_views(out, rules, views=None):
     return added
 
 
+# ---------- 유명 관광지 보충·꼭 가는 관광지 (osm_popular_collect.py, must_see.tsv, 10-19) ----------
+POPULAR_MIN_LINKS = 8   # 위키 링크 수가 이 이상인 곳만 보충 (전체 관광지 상위 10%가 7)
+POPULAR_SAME_KM = 1.5   # 같은 이름이면 이 거리 안은 같은 곳 (큰 절·신사는 경내가 넓어 점 위치가 수백 m 차이)
+MUST_SEE_FLOOR = 10     # 꼭 가는 관광지 목록에 있는 곳의 인기도 하한
+MUST_SEE = SCRIPTS / "must_see.tsv"
+
+
+def load_popular():
+    f = ROOT / "data" / "extra" / "osm_popular.json"
+    if not f.exists():
+        return [], []
+    d = json.loads(f.read_text(encoding="utf-8"))
+    return d.get("sweep", []), [m for m in d.get("mustSee", []) if m.get("pick")]
+
+
+def _new_attraction(v, out, r):
+    near = min((a for a in out if a["city"] == v["city"]), key=lambda a: km((a["lat"], a["lng"]), (v["lat"], v["lng"])), default=None)
+    t = v.get("tags") or {}
+    return {
+        "osmId": v["osmId"], "name": v["name"], "nameJa": v.get("nameJa"), "nameEn": v.get("nameEn"),
+        "nameKo": (v.get("nameKo") or "").split(";")[0].strip() or None,
+        "kind": v.get("kind") or "ATTRACTION", "lat": v["lat"], "lng": v["lng"],
+        "areas": near["areas"][:1] if near else [v["city"]], "city": v["city"],
+        "wikidata": v.get("wikidata"), "popularity": v.get("sitelinks", 0),
+        "openingHours": t.get("opening_hours"), "website": t.get("website"), "fee": t.get("fee"),
+        "historyNote": r["reason"] if r and r["action"] == "NOTE" else None,
+        "nightView": False, "nightInfo": None, "officialInfo": None,
+    }
+
+
+def apply_popular(out, rules, sweep=None, must=None):
+    """위키 링크 수 POPULAR_MIN_LINKS 이상인 관광지와 꼭 가는 관광지(이름으로 찾은 곳)를 합친다.
+    이미 있는 곳(같은 osmId·위키데이터)은 건너뛰고, 같은 이름 500m 안에 위키데이터 없는 약한 항목이 있으면 그 항목을 고친다
+    (예: 伏見稲荷大社 가 전망 지점(인기도 0)으로만 있던 것). (추가 수, 고친 수)"""
+    if sweep is None or must is None:
+        s0, m0 = load_popular()
+        sweep = s0 if sweep is None else sweep
+        must = m0 if must is None else must
+    cands = [v for v in sweep if v.get("sitelinks", 0) >= POPULAR_MIN_LINKS] + [m["pick"] for m in must]
+    have_wd = {a["wikidata"]: a for a in out if a.get("wikidata")}
+    have_osm = {a.get("osmId") for a in out}
+    added = upgraded = 0
+    for v in sorted(cands, key=lambda x: -x.get("sitelinks", 0)):
+        if v["osmId"] in have_osm or not in_city(v["city"], v["lat"], v["lng"]) or (v.get("wikidata") and v["wikidata"] in have_wd):
+            continue
+        r = sensitive_of(v, rules)
+        if r and r["action"] == "EXCLUDE":
+            continue
+        weak = next((a for a in out if a["city"] == v["city"] and same_name_key(a["name"]) == same_name_key(v["name"])
+                     and km((a["lat"], a["lng"]), (v["lat"], v["lng"])) < POPULAR_SAME_KM), None)
+        if weak:
+            if not weak.get("wikidata") and v.get("wikidata"):
+                weak.update({"wikidata": v["wikidata"], "popularity": max(weak.get("popularity") or 0, v.get("sitelinks", 0)),
+                             "kind": v.get("kind") or weak["kind"]})
+                weak["nameEn"] = weak.get("nameEn") or v.get("nameEn")
+                weak["nameKo"] = weak.get("nameKo") or (v.get("nameKo") or "").split(";")[0].strip() or None
+                have_wd[v["wikidata"]] = weak
+                upgraded += 1
+            continue
+        a = _new_attraction(v, out, r)
+        out.append(a)
+        have_osm.add(v["osmId"])
+        if v.get("wikidata"):
+            have_wd[v["wikidata"]] = a
+        added += 1
+    return added, upgraded
+
+
+def load_must_see():
+    if not MUST_SEE.exists():
+        return []
+    rows = []
+    for line in MUST_SEE.read_text(encoding="utf-8").splitlines():
+        if line.strip() and not line.startswith("#"):
+            c = (line.split("\t") + ["", ""])[:3]
+            rows.append({"city": c[0], "patterns": [night_key(p) for p in c[1].split("|") if p], "ko": c[2]})
+    return rows
+
+
+def apply_must_see(out, rows=None):
+    """꼭 가는 관광지 목록의 각 줄마다, 이름이 맞는 관광지 중 인기도가 가장 높은 곳에 mustSee 표시 + 인기도 하한. (표시 수, 못 찾은 줄)"""
+    for a in out:
+        a.setdefault("mustSee", False)
+    hit, missing = 0, []
+    for row in (load_must_see() if rows is None else rows):
+        cands = [a for a in out if a["city"] == row["city"] and any(
+            p in night_key(a["name"]) + "|" + night_key(a.get("nameJa")) + "|" + night_key(a.get("nameEn")) for p in row["patterns"])]
+        if not cands:
+            missing.append(f"{row['city']}:{row['ko']}")
+            continue
+        best = max(cands, key=lambda a: (bool(a.get("wikidata")), a.get("popularity") or 0))
+        best["mustSee"] = True
+        best["popularity"] = max(best.get("popularity") or 0, MUST_SEE_FLOOR)
+        hit += 1
+    return hit, missing
+
+
 # ---------- 관광지 사진 (위키데이터 대표 사진 → 위키미디어 위치 검색, 10-19) ----------
 PHOTO_KEYS = ("thumb", "width", "height", "credit", "license", "licenseUrl", "artist")
 PHOTO_EXCLUDE = SCRIPTS / "photo_exclude.tsv"   # 쓰지 않을 사진 파일 이름 (10-19 사진 검사: 공사 중 등)
@@ -537,15 +634,17 @@ def clean_attractions():
         noted += bool(r)
     night = apply_night_spots(out, rules)
     views = apply_views(out, rules)
+    popular = apply_popular(out, rules)
+    must = apply_must_see(out)
     official = apply_official_info(out)
     photos = attach_photos(out)
-    return out, excluded, noted, len(src), night + (official, views, photos)
+    return out, excluded, noted, len(src), night + (official, views, photos, popular, must)
 
 
 def main():
     tabelog, t_drop = clean_tabelog()
     chains, c_skip = clean_chains()
-    attractions, excluded, noted, a_src, (n_tag, n_add, n_miss, n_official, n_views, n_photos) = clean_attractions()
+    attractions, excluded, noted, a_src, (n_tag, n_add, n_miss, n_official, n_views, n_photos, (n_pop, n_up), (n_must, must_miss)) = clean_attractions()
     facilities, f_drop = clean_facilities()
     for name, data in (("clean_restaurants_tabelog", tabelog), ("clean_restaurants_chain", chains),
                        ("clean_attractions", attractions), ("clean_facilities", facilities)):
@@ -562,11 +661,13 @@ def main():
         f"점심 예산 있음 {sum(1 for t in tabelog if t['budgetLunchMax'])}, 저녁 1만엔 이하 {sum(1 for t in tabelog if t['budgetDinnerMax'] and t['budgetDinnerMax'] <= 9999)}",
         f"[체인점] {len(chains)}곳 (건너뜀 {dict(c_skip)})",
         f"  종류 {dict(Counter(c['category'] for c in chains))}, 도시별 {dict(Counter(c['city'] for c in chains).most_common())}",
-        f"[관광지] 원본 {a_src} → 중복 합친 뒤 {len(attractions) - n_add - n_views + len(excluded)} → 제외(민감·폐관·관람 불가) {len(excluded)} → 야경 추가 {n_add} → 전망 보충 {n_views} → {len(attractions)}곳 (역사 안내 표시 {noted})",
+        f"[관광지] 원본 {a_src} → 중복 합친 뒤 {len(attractions) - n_add - n_views - n_pop + len(excluded)} → 제외(민감·폐관·관람 불가) {len(excluded)} → 야경 추가 {n_add} → 전망 보충 {n_views} → 유명 보충 {n_pop} → {len(attractions)}곳 (역사 안내 표시 {noted})",
         f"  종류 {dict(Counter(a['kind'] for a in attractions).most_common())}",
         f"  인기도 있음(위키데이터 장소) {sum(1 for a in attractions if a['popularity'])}, 한국어 이름 {sum(1 for a in attractions if a['nameKo'])}",
         f"  야경 명소 표시 {n_tag}, 새로 추가 {n_add}, 좌표 없음 {len(n_miss)} {n_miss}",
         f"  전망 명소 보충 추가 {n_views} (osm_views.json)",
+        f"  유명 관광지 보충 추가 {n_pop}, 약한 항목 고침 {n_up} (osm_popular.json)",
+        f"  꼭 가는 관광지 {n_must}곳 표시, 못 찾음 {len(must_miss)} {must_miss}",
         f"  사진: 위키데이터 {n_photos['wikidata']}, 근처 사진 {n_photos['nearby']}, 없음 {n_photos['none']}",
         f"  공식 정보(제미나이 조사) 붙임 {n_official}, 운영시간(OSM) 있음 {sum(1 for a in attractions if a['openingHours'])}",
         f"[편의시설] {len(facilities)}곳 (제외 {dict(f_drop)})",
