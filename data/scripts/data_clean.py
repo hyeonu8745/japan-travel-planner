@@ -291,6 +291,9 @@ def same_place(merged, a):
 
 # ---------- 야경 명소 (10-18) ----------
 NIGHT_SKIP = {"灰ヶ峰", "アメリカンビレッジ", "箱根ロープウェイ"}  # 구레시·차탄초(도시 밖), 로프웨이는 밤에 운행 안 함
+# 야경 명소는 도시별 대표로 고른 곳인데, 전망대 요소에 위키데이터가 없어 인기도 0인 곳이 많다
+# (空中庭園展望台·小樽運河·福岡タワー 등 26곳, 10-19) → 인기도 하한. 전체 상위 10%가 7.
+NIGHT_POP_FLOOR = 10
 
 
 def night_key(s):
@@ -340,6 +343,7 @@ def apply_night_spots(out, rules):
         m = match_night(cands, sp["name"])
         if m:
             m["nightView"], m["nightInfo"] = True, info
+            m["popularity"] = max(m.get("popularity") or 0, NIGHT_POP_FLOOR)
             tagged += 1
             continue
         pick = osm.get((sp["city"], sp["name"]))
@@ -355,7 +359,7 @@ def apply_night_spots(out, rules):
             "osmId": pick["osmId"], "name": sp["name"], "nameJa": None, "nameEn": None, "nameKo": None,
             "kind": "VIEW", "lat": pick["lat"], "lng": pick["lng"],
             "areas": near["areas"][:1] if near else [sp["city"]], "city": sp["city"],
-            "wikidata": None, "popularity": 0, "openingHours": None, "website": sp["url"], "fee": None,
+            "wikidata": None, "popularity": NIGHT_POP_FLOOR, "openingHours": None, "website": sp["url"], "fee": None,
             "historyNote": r["reason"] if r and r["action"] == "NOTE" else None,
             "nightView": True, "nightInfo": info,
         })

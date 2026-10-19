@@ -116,6 +116,7 @@ def test_데이터에_없는_야경_명소는_OSM_좌표로_추가하고_도시_
     assert tower["kind"] == "VIEW" and tower["nightView"] and tower["nightInfo"]["fee"] == "800엔"
     assert tower["areas"] == ["fukuoka_x"]                     # 가장 가까운 관광지의 지역을 따름
     assert out[0]["nightView"] is True                          # 기존 관광지에 표시
+    assert out[0]["popularity"] == dc.NIGHT_POP_FLOOR and tower["popularity"] == dc.NIGHT_POP_FLOOR   # 인기도 하한
 
 
 def test_야경_제외_목록():
