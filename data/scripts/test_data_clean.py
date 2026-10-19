@@ -193,6 +193,17 @@ def test_사진은_위키데이터_먼저_없으면_근처_사진():
     assert dict(c) == {"wikidata": 1, "nearby": 1, "none": 2}
 
 
+def test_사진_주소는_upload_주소로_바꾸고_추적용_꼬리는_뗀다():
+    u = "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/64/Tokyo_Skytree_2023.jpg/960px-Tokyo_Skytree_2023.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo"
+    assert dc.clean_thumb(u) == "https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Tokyo_Skytree_2023.jpg/960px-Tokyo_Skytree_2023.jpg"
+    assert dc.clean_thumb(None) is None
+
+
+def test_영어_이름으로_한번_더_들어간_플로럴_빌리지는_뺀다():
+    assert excluded("floral village")
+    assert not excluded("湯布院フローラルビレッジ", nameEn="Yufuin Floral Village")
+
+
 if __name__ == "__main__":
     n = 0
     for k, f in list(globals().items()):

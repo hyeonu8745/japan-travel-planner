@@ -418,6 +418,22 @@ def apply_views(out, rules, views=None):
 
 # ---------- 관광지 사진 (위키데이터 대표 사진 → 위키미디어 위치 검색, 10-19) ----------
 PHOTO_KEYS = ("thumb", "width", "height", "credit", "license", "licenseUrl", "artist")
+PHOTO_EXCLUDE = SCRIPTS / "photo_exclude.tsv"   # 쓰지 않을 사진 파일 이름 (10-19 사진 검사: 공사 중 등)
+
+
+def clean_thumb(url):
+    """API 가 준 thumb.wikimedia.org 주소(추적용 utm 붙음)를 오래 써 온 upload.wikimedia.org 주소로. 경로는 같다."""
+    if not url:
+        return url
+    url = url.split("?", 1)[0]
+    return url.replace("https://thumb.wikimedia.org/wikipedia/commons/thumb/", "https://upload.wikimedia.org/wikipedia/commons/thumb/")
+
+
+def load_photo_exclude():
+    if not PHOTO_EXCLUDE.exists():
+        return set()
+    return {line.split("\t")[0].strip() for line in PHOTO_EXCLUDE.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.startswith("#")}
 
 
 def attach_photos(out, media=None, geo=None):
@@ -430,11 +446,16 @@ def attach_photos(out, media=None, geo=None):
         f = ext / "attraction_media_geo.json"
         geo = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
     count = Counter()
+    skip = load_photo_exclude()
     for a in out:
         m = media.get(a.get("wikidata") or "") or {}
         g = geo.get(a.get("osmId") or "") or {}
+        if m.get("image") in skip:
+            m = {}
+        if g.get("image") in skip:
+            g = {}
         src, pick = ("wikidata", m) if m.get("thumb") else (("nearby", g) if g.get("thumb") else (None, None))
-        a["photo"] = {**{k: pick.get(k) for k in PHOTO_KEYS}, "source": src} if pick else None
+        a["photo"] = {**{k: pick.get(k) for k in PHOTO_KEYS}, "thumb": clean_thumb(pick.get("thumb")), "source": src} if pick else None
         count[src or "none"] += 1
     return count
 
