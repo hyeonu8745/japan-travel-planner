@@ -274,6 +274,11 @@ def test_꼭_가는_곳의_위키데이터가_다른_이름에_잘못_붙어_있
     assert dc.apply_popular(out2, [], sweep=[], must=must2)[0] == 0
 
 
+def test_스가모_형무소_터는_안내가_아니라_뺀다():
+    # 10-28: NOTE 줄이 EXCLUDE 줄보다 앞에 있어서 巣鴨プリズン跡 가 안내만 붙고 남아 있었다 (첫 번째로 맞는 줄 적용)
+    assert excluded("巣鴨プリズン跡") and excluded("永久平和を願って")
+
+
 if __name__ == "__main__":
     n = 0
     for k, f in list(globals().items()):
