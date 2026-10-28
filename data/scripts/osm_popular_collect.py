@@ -149,6 +149,8 @@ def main():
     seen = {x["osmId"] for x in data["sweep"]}
     tiles = all_tiles()
     todo = [k for k in tiles if k not in data["doneCities"]]
+    if "--links" in sys.argv:
+        todo = []
     print(f"격자 칸 {len(tiles)}개 중 남은 칸 {len(todo)}개 (칸마다 저장)")
     for n, k in enumerate(todo, 1):
         plat, plng, pr = tiles[k]
@@ -173,6 +175,8 @@ def main():
         time.sleep(PAUSE_QUERY)
     done_rows = {(m["city"], m["pattern"]) for m in data["mustSee"] if m.get("pick") is not None or m.get("candidates") == 0}
     missing = [x for x in must_see_missing() if (x[0], x[1]) not in done_rows]
+    if "--links" in sys.argv:   # 10-28: Overpass 가 막혀도 위키 링크 수(인기도)만 받기
+        missing = []
     print(f"꼭 가는 관광지 중 데이터에 없는 곳 {len(missing)} → 이름으로 찾기")
     for city, pats, ko in missing:
         lat, lng, r = CITY_RADIUS[city]

@@ -471,6 +471,11 @@ def _new_attraction(v, out, r):
     }
 
 
+def _name_overlap(a, b):
+    a, b = same_name_key(a), same_name_key(b)
+    return bool(a) and bool(b) and (a in b or b in a)
+
+
 def apply_popular(out, rules, sweep=None, must=None):
     """위키 링크 수 POPULAR_MIN_LINKS 이상인 관광지와 꼭 가는 관광지(이름으로 찾은 곳)를 합친다.
     이미 있는 곳(같은 osmId·위키데이터)은 건너뛰고, 같은 이름 500m 안에 위키데이터 없는 약한 항목이 있으면 그 항목을 고친다
@@ -480,12 +485,23 @@ def apply_popular(out, rules, sweep=None, must=None):
         sweep = s0 if sweep is None else sweep
         must = m0 if must is None else must
     cands = [v for v in sweep if v.get("sitelinks", 0) >= POPULAR_MIN_LINKS] + [m["pick"] for m in must]
+    must_ids = {id(m["pick"]) for m in must}
     have_wd = {a["wikidata"]: a for a in out if a.get("wikidata")}
     have_osm = {a.get("osmId") for a in out}
     added = upgraded = 0
     for v in sorted(cands, key=lambda x: -x.get("sitelinks", 0)):
-        if v["osmId"] in have_osm or not in_city(v["city"], v["lat"], v["lng"]) or (v.get("wikidata") and v["wikidata"] in have_wd):
+        if v["osmId"] in have_osm or not in_city(v["city"], v["lat"], v["lng"]):
             continue
+        old = have_wd.get(v.get("wikidata")) if v.get("wikidata") else None
+        if old is not None:
+            # 꼭 가는 관광지인데 같은 위키데이터가 이름이 전혀 다른 곳에 잘못 붙어 있으면 (10-28: 興福寺 의 위키데이터가 国宝館 에)
+            # 잘못 붙은 쪽의 위키데이터를 떼고 꼭 가는 곳을 새로 넣는다
+            if id(v) in must_ids and not _name_overlap(old["name"], v["name"]):
+                old["wikidata"] = None
+                old["popularity"] = 0
+                old.pop("photo", None)
+            else:
+                continue
         r = sensitive_of(v, rules)
         if r and r["action"] == "EXCLUDE":
             continue

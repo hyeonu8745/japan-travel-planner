@@ -256,6 +256,20 @@ def test_직접_넣은_꼭_가는_관광지를_읽어_이름_검색_결과와_�
     assert hit == 1 and out[1]["mustSee"]
 
 
+def test_꼭_가는_곳의_위키데이터가_다른_이름에_잘못_붙어_있으면_떼고_새로_넣는다():
+    out = [{"osmId": "way/1", "name": "国宝館", "city": "nara", "lat": 34.6835, "lng": 135.8325, "areas": ["nara_park"],
+            "kind": "MUSEUM", "wikidata": "Q1070863", "popularity": 40}]
+    must = [{"city": "nara", "pattern": "興福寺", "ko": "고후쿠지", "pick": {"osmId": "way/2", "city": "nara", "name": "興福寺",
+             "lat": 34.6832, "lng": 135.8319, "wikidata": "Q1070863", "kind": "TEMPLE", "sitelinks": 40}}]
+    added, _ = dc.apply_popular(out, [], sweep=[], must=must)
+    assert added == 1 and out[0]["wikidata"] is None and out[1]["name"] == "興福寺" and out[1]["wikidata"] == "Q1070863"
+    # 이름이 겹치면(같은 곳) 그대로 건너뜀
+    out2 = [{"osmId": "way/3", "name": "東大寺", "city": "nara", "lat": 34.689, "lng": 135.84, "areas": ["nara_park"], "kind": "TEMPLE", "wikidata": "Q1"}]
+    must2 = [{"city": "nara", "pattern": "東大寺", "ko": "", "pick": {"osmId": "way/4", "city": "nara", "name": "東大寺 大仏殿",
+              "lat": 34.689, "lng": 135.84, "wikidata": "Q1", "kind": "TEMPLE"}}]
+    assert dc.apply_popular(out2, [], sweep=[], must=must2)[0] == 0
+
+
 if __name__ == "__main__":
     n = 0
     for k, f in list(globals().items()):
