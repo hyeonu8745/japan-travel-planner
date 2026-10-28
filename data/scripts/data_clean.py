@@ -547,7 +547,9 @@ def apply_must_see(out, rows=None):
         if not cands:
             missing.append(f"{row['city']}:{row['ko']}")
             continue
-        best = max(cands, key=lambda a: (bool(a.get("wikidata")), a.get("popularity") or 0))
+        # 이름이 목록의 표기와 똑같은 곳을 먼저 (10-28: 小樽運河 가 위키데이터 있는 小樽運河ターミナル 로 가던 것)
+        exact = lambda a: any(night_key(n) in row["patterns"] for n in (a["name"], a.get("nameJa"), a.get("nameEn")) if n)
+        best = max(cands, key=lambda a: (exact(a), bool(a.get("wikidata")), a.get("popularity") or 0))
         best["mustSee"] = True
         best["popularity"] = max(best.get("popularity") or 0, MUST_SEE_FLOOR)
         hit += 1

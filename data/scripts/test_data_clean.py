@@ -280,6 +280,13 @@ def test_스가모_형무소_터는_안내가_아니라_뺀다():
     assert excluded("呉市海事歴史科学館") and excluded("海上自衛隊呉史料館")   # 10-28 사용자 결정
 
 
+def test_꼭_가는_관광지는_이름이_똑같은_곳을_먼저_고른다():
+    out = [{"name": "小樽運河ターミナル", "city": "otaru", "wikidata": "Q1", "popularity": 10},
+           {"name": "小樽運河", "city": "otaru", "wikidata": None, "popularity": 3}]
+    dc.apply_must_see(out, [{"city": "otaru", "patterns": [dc.night_key("小樽運河")], "ko": "오타루 운하"}])
+    assert out[1]["mustSee"] and not out[0]["mustSee"]
+
+
 if __name__ == "__main__":
     n = 0
     for k, f in list(globals().items()):
