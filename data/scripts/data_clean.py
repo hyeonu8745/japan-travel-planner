@@ -432,7 +432,28 @@ def load_popular():
     if not f.exists():
         return [], []
     d = json.loads(f.read_text(encoding="utf-8"))
-    return d.get("sweep", []), [m for m in d.get("mustSee", []) if m.get("pick")]
+    must = [m for m in d.get("mustSee", []) if m.get("pick")]
+    have = {(m["city"], m["pattern"]) for m in must}
+    return d.get("sweep", []), must + [m for m in load_must_manual() if (m["city"], m["pattern"]) not in have]
+
+
+MUST_MANUAL = SCRIPTS / "must_see_manual.tsv"
+
+
+def load_must_manual(path=None):
+    """must_see_manual.tsv: Overpass 이름 검색이 끝내 안 된 꼭 가는 관광지를 직접 넣은 줄 (10-28). osm_popular.json 의 mustSee 와 같은 모양."""
+    path = MUST_MANUAL if path is None else path
+    if not path.exists():
+        return []
+    rows = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip() or line.startswith("#"):
+            continue
+        c = (line.split("\t") + [""] * 9)[:9]
+        rows.append({"city": c[0], "pattern": c[1], "ko": c[2], "manual": True, "pick": {
+            "osmId": c[6], "city": c[0], "name": c[3], "nameJa": None, "nameEn": None, "nameKo": c[2],
+            "lat": float(c[4]), "lng": float(c[5]), "wikidata": c[7] or None, "kind": c[8] or "ATTRACTION", "tags": {}}})
+    return rows
 
 
 def _new_attraction(v, out, r):

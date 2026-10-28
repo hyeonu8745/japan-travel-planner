@@ -238,6 +238,24 @@ def test_꼭_가는_관광지는_인기도_하한과_표시를_붙인다():
     assert out[2]["popularity"] == 60   # 원래 높으면 그대로
 
 
+
+
+def test_직접_넣은_꼭_가는_관광지를_읽어_이름_검색_결과와_합친다(tmp_path=None):
+    import tempfile
+    d = Path(tempfile.mkdtemp())
+    f = d / "m.tsv"
+    f.write_text("# 주석\nbeppu\t海地獄\t우미지고쿠\t海地獄\t33.31\t131.46\tway/1\tQ1\tATTRACTION\n"
+                 "yufuin\t湯の坪街道\t유노쓰보 거리\t湯の坪街道\t33.26\t131.36\tmanual/x\t\t\n", encoding="utf-8")
+    rows = dc.load_must_manual(f)
+    assert [r["pick"]["name"] for r in rows] == ["海地獄", "湯の坪街道"]
+    assert rows[0]["pick"]["wikidata"] == "Q1" and rows[1]["pick"]["wikidata"] is None and rows[1]["pick"]["kind"] == "ATTRACTION"
+    out = [{"osmId": "way/9", "name": "別府タワー", "city": "beppu", "lat": 33.28, "lng": 131.50, "areas": ["beppu"], "kind": "VIEW"}]
+    added, _ = dc.apply_popular(out, [], sweep=[], must=rows)
+    assert added == 2 and out[1]["nameKo"] == "우미지고쿠"
+    hit, missing = dc.apply_must_see(out, [{"city": "beppu", "patterns": [dc.night_key("海地獄")], "ko": "우미지고쿠"}])
+    assert hit == 1 and out[1]["mustSee"]
+
+
 if __name__ == "__main__":
     n = 0
     for k, f in list(globals().items()):

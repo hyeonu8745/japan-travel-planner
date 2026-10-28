@@ -1,0 +1,15 @@
+# 꼭 가는 관광지 중 Overpass 이름 검색이 끝내 안 된 곳을 직접 넣는 목록 (10-28).
+# 좌표는 우리 OSM 데이터(osm_popular sweep·편의시설·철도)에 있는 점을 먼저 쓰고, 없으면 지도에서 확인한 대표 지점.
+# city	must_see.tsv의 찾을 이름(그대로)	한국어	이름	lat	lng	osmId	wikidata	kind
+yufuin	由布院駅	유후인역	由布院駅	33.2633	131.3553	manual/yufuin-station		ATTRACTION
+yufuin	由布岳	유후다케	由布岳 正面登山口	33.2648886	131.3966219	way/160898589		VIEW
+yufuin	湯の坪街道	유노쓰보 거리	湯の坪街道	33.2655	131.3615	manual/yunotsubo-kaido		ATTRACTION
+beppu	海地獄	우미지고쿠	海地獄	33.3168291	131.4687339	way/418202285	Q135237471	ATTRACTION
+beppu	血の池地獄	지노이케지고쿠	血の池地獄	33.3271796	131.4781175	way/244615363	Q124459383	ATTRACTION
+beppu	竹瓦温泉	다케가와라 온천	竹瓦温泉	33.2774716	131.5059789	way/338231731		ATTRACTION
+beppu	鉄輪	간나와 온천	鉄輪温泉 (鉄輪むし湯)	33.316377	131.4780655	way/427361851		ATTRACTION
+beppu	別府ロープウェイ|鶴見岳	쓰루미다케 로프웨이	別府ロープウェイ	33.2860	131.4316	manual/beppu-ropeway		VIEW
+beppu	明礬	묘반 온천	明礬温泉	33.3268	131.4560	manual/myoban-onsen		ATTRACTION
+kawaguchiko	忍野八海	오시노 핫카이	忍野八海	35.4602407	138.8327032	node/4717364293	Q11072216	ATTRACTION
+kawaguchiko	西湖いやしの里根場|根場	이야시노사토	西湖いやしの里根場	35.4997	138.6795	manual/iyashinosato-nenba		MUSEUM
+kawaguchiko	天上山|カチカチ山|ロープウェイ	가치카치야마 로프웨이	~河口湖~ 富士山パノラマロープウェイ	35.5034	138.7713	way/22735769		VIEW
