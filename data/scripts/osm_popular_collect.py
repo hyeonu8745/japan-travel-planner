@@ -15,6 +15,7 @@ import re
 import sys
 import time
 import unicodedata
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -138,6 +139,44 @@ def must_see_missing():
     return out
 
 
+def wiki_contact():
+    """위키미디어 User-Agent 정책상 연락처 필요. .env 의 WIKIMEDIA_CONTACT (값은 출력하지 않음)."""
+    import os
+    v = os.environ.get("WIKIMEDIA_CONTACT")
+    env = ROOT / ".env"
+    if not v and env.exists():
+        for line in env.read_text(encoding="utf-8", errors="ignore").splitlines():
+            if line.strip().startswith("WIKIMEDIA_CONTACT="):
+                v = line.split("=", 1)[1].strip().strip('"').strip("'")
+    return v
+
+
+def wiki_entities(batch, tries=6):
+    """wbgetentities sitelinks. 429·503 이면 Retry-After(없으면 30·60·120·240·300초) 쉬고 다시. 끝내 안 되면 None."""
+    ua = f"TabiMate-student-project/1.0 ({wiki_contact()}; non-commercial study) python-urllib"
+    url = WIKIDATA + "?" + urllib.parse.urlencode({"action": "wbgetentities", "ids": "|".join(batch), "props": "sitelinks",
+                                                   "format": "json", "formatversion": 2, "maxlag": 5})
+    for i in range(tries):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": ua})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                data = json.loads(r.read().decode())
+            if (data.get("error") or {}).get("code") == "maxlag":
+                raise urllib.error.HTTPError(url, 503, "maxlag", {}, None)
+            return data.get("entities", {})
+        except urllib.error.HTTPError as e:
+            if e.code not in (429, 503):
+                print(f"  위키데이터 실패: {e}")
+                return {}
+            wait = int((e.headers or {}).get("Retry-After") or 0) or min(300, 30 * 2 ** i)
+            print(f"  위키데이터가 천천히 하라고 해서 {wait}초 쉼 ({e.code})")
+            time.sleep(wait)
+        except Exception as e:  # noqa: BLE001
+            print(f"  위키데이터 실패: {e} → {10 * (i + 1)}초 뒤 다시")
+            time.sleep(10 * (i + 1))
+    return None
+
+
 def save(data):
     DST.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
 
@@ -195,24 +234,28 @@ def main():
         save(data)
         print(f"  {city:11s} {ko:20s} → {best['name'] + ' ' + best['osmId'] if best else '못 찾음'}")
         time.sleep(PAUSE_NAME)
-    # 위키 링크 수 (인기도)
+    # 위키 링크 수 (인기도). 10-28: 연락처 없는 요청·빠른 요청이 429로 막혀서 → .env 연락처, 2초 간격, 429면 기다렸다 다시,
+    # 받은 것은 data["links"] 에 바로 저장(다시 실행하면 이어서)
     qids = sorted({x["wikidata"] for x in data["sweep"]} | {m["pick"]["wikidata"] for m in data["mustSee"] if m["pick"] and m["pick"].get("wikidata")})
-    links = {}
-    for i in range(0, len(qids), 50):
-        batch = qids[i:i + 50]
-        try:
-            req = urllib.request.Request(WIKIDATA + "?" + urllib.parse.urlencode(
-                {"action": "wbgetentities", "ids": "|".join(batch), "props": "sitelinks", "format": "json", "formatversion": 2}),
-                headers={"User-Agent": UA})
-            with urllib.request.urlopen(req, timeout=60) as r:
-                ents = json.loads(r.read().decode()).get("entities", {})
-            for q in batch:
-                links[q] = len((ents.get(q) or {}).get("sitelinks") or {})
-        except Exception as e:  # noqa: BLE001
-            print(f"  위키데이터 실패: {e}")
-        if (i // 50) % 10 == 0:
-            print(f"  인기도 {min(i + 50, len(qids))}/{len(qids)}")
-        time.sleep(1)
+    links = data.setdefault("links", {})
+    todo_q = [q for q in qids if q not in links]
+    print(f"인기도: 위키데이터 {len(qids)}곳 중 남은 {len(todo_q)}곳")
+    if todo_q and not wiki_contact():
+        print("위키데이터는 연락처가 없는 요청을 막아요. .env 의 WIKIMEDIA_CONTACT 를 확인하세요.")
+        return
+    for i in range(0, len(todo_q), 50):
+        batch = todo_q[i:i + 50]
+        ents = wiki_entities(batch)
+        if ents is None:
+            print("  위키데이터가 계속 막아서 멈춤 → 잠시 뒤 다시 실행하면 이어서")
+            save(data)
+            return
+        for q in batch:
+            links[q] = len((ents.get(q) or {}).get("sitelinks") or {})
+        save(data)
+        if (i // 50) % 10 == 0 or i + 50 >= len(todo_q):
+            print(f"  인기도 {min(i + 50, len(todo_q))}/{len(todo_q)}")
+        time.sleep(2)
     for x in data["sweep"] + [m["pick"] for m in data["mustSee"] if m["pick"]]:
         x["sitelinks"] = links.get(x.get("wikidata"), 0)
     save(data)

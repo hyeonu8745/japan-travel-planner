@@ -28,6 +28,21 @@ def test_이름이_정확히_같은_곳을_먼저():
                  c("way/3", "金閣寺", {"amenity": "place_of_worship"})], ["金閣寺"]) == "金閣寺"
 
 
+def test_위키데이터가_계속_429면_쉬었다가_끝내_None():
+    import urllib.error
+    calls, sleeps = [], []
+    def fake_open(req, timeout=0):
+        calls.append(req.full_url)
+        raise urllib.error.HTTPError(req.full_url, 429, "Too Many", {"Retry-After": "7"}, None)
+    old_open, old_sleep = op.urllib.request.urlopen, op.time.sleep
+    op.urllib.request.urlopen, op.time.sleep = fake_open, sleeps.append
+    try:
+        assert op.wiki_entities(["Q1", "Q2"], tries=3) is None
+    finally:
+        op.urllib.request.urlopen, op.time.sleep = old_open, old_sleep
+    assert len(calls) == 3 and sleeps == [7, 7, 7] and "maxlag=5" in calls[0]
+
+
 if __name__ == "__main__":
     k = 0
     for name, f in list(globals().items()):
