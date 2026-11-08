@@ -6,7 +6,6 @@ import com.example.japantravelplanner.itinerary.dto.ItineraryResponseDto;
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
 import com.example.japantravelplanner.restaurant.repository.RestaurantRepository;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -40,16 +39,10 @@ public class KoreanNameService {
     /** 실패한 키 → 다시 물어도 되는 시각 */
     private final Map<String, Instant> failedUntil = new ConcurrentHashMap<>();
 
-    @Autowired   // 생성자가 두 개(시계를 받는 테스트용)라 Spring이 쓸 생성자를 지정한다
+    /** @param clock 서버 시계 (ClockConfig). 실패한 이름을 다시 묻지 않는 시간 계산에 쓴다 */
     public KoreanNameService(KoreanNameTranslator translator, AttractionRepository attractionRepository,
                              RestaurantRepository restaurantRepository, KoreanNameProperties props,
-                             PlatformTransactionManager transactionManager) {
-        this(translator, attractionRepository, restaurantRepository, props, transactionManager, Clock.systemUTC());
-    }
-
-    KoreanNameService(KoreanNameTranslator translator, AttractionRepository attractionRepository,
-                      RestaurantRepository restaurantRepository, KoreanNameProperties props,
-                      PlatformTransactionManager transactionManager, Clock clock) {
+                             PlatformTransactionManager transactionManager, Clock clock) {
         this.translator = translator;
         this.attractionRepository = attractionRepository;
         this.restaurantRepository = restaurantRepository;

@@ -5,7 +5,6 @@ import com.example.japantravelplanner.trip.repository.TripRepository;
 import com.example.japantravelplanner.trip.service.TripAccess;
 import lombok.extern.slf4j.Slf4j;
 import org.locationtech.jts.geom.Point;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -39,16 +38,12 @@ public class WeatherService {
     private final Clock clock;
     private final Map<String, Cached> cache = new ConcurrentHashMap<>();
 
-    @Autowired   // 생성자가 두 개(테스트용 시계)라 Spring이 쓸 생성자를 지정한다 (10-11 사고 사례)
-    public WeatherService(TripRepository tripRepository, WeatherClient client, WeatherProperties props) {
-        this(tripRepository, client, props, Clock.system(JST));
-    }
-
-    WeatherService(TripRepository tripRepository, WeatherClient client, WeatherProperties props, Clock clock) {
+    /** @param clock 서버 시계 (ClockConfig). "오늘"은 일본 날짜로 본다 */
+    public WeatherService(TripRepository tripRepository, WeatherClient client, WeatherProperties props, Clock clock) {
         this.tripRepository = tripRepository;
         this.client = client;
         this.props = props;
-        this.clock = clock;
+        this.clock = clock.withZone(JST);
     }
 
     public WeatherResponseDto get(Long userId, Long tripId) {
@@ -130,7 +125,7 @@ public class WeatherService {
                 ? client.forecast(lat, lng, from, to) : client.archive(lat, lng, from, to);
         if (result.isEmpty()) return Map.of();   // 실패는 캐시하지 않는다 (다음 조회 때 다시)
         Map<LocalDate, DailyWeather> byDate = new HashMap<>();
-        result.get().forEach(w -> byDate.put(w.date(), w));
+        result.orElseThrow().forEach(w -> byDate.put(w.date(), w));
         Duration ttl = forecast ? Duration.ofMinutes(props.getForecastCacheMinutes())
                 : Duration.ofHours(props.getArchiveCacheHours());
         cache.put(key, new Cached(Map.copyOf(byDate), now.plus(ttl)));

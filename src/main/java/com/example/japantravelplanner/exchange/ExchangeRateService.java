@@ -2,7 +2,6 @@ package com.example.japantravelplanner.exchange;
 
 import com.example.japantravelplanner.itinerary.meal.MealProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -30,19 +29,14 @@ public class ExchangeRateService {
     private final Clock clock;
     private volatile Instant retryAt = Instant.EPOCH;
 
-    @Autowired   // 생성자가 두 개(테스트용 시계)라 Spring이 쓸 생성자를 지정한다 (10-11 사고 사례)
+    /** @param clock 서버 시계 (ClockConfig). "오늘"은 한국 날짜로 본다 */
     public ExchangeRateService(ExchangeRateClient client, ExchangeRateRepository repository,
-                               ExchangeRateProperties props, MealProperties mealProperties) {
-        this(client, repository, props, mealProperties, Clock.system(KST));
-    }
-
-    ExchangeRateService(ExchangeRateClient client, ExchangeRateRepository repository,
-                        ExchangeRateProperties props, MealProperties mealProperties, Clock clock) {
+                               ExchangeRateProperties props, MealProperties mealProperties, Clock clock) {
         this.client = client;
         this.repository = repository;
         this.props = props;
         this.mealProperties = mealProperties;
-        this.clock = clock;
+        this.clock = clock.withZone(KST);
     }
 
     public synchronized ExchangeRate current() {
@@ -51,32 +45,37 @@ public class ExchangeRateService {
 
         Optional<ExchangeRateRecord> latest = repository.findFirstByOrderByFetchedAtDesc();
         LocalDate today = LocalDate.now(clock);
-        if (latest.isPresent() && !latest.get().getFetchedAt().toLocalDate().isBefore(today)) {
-            return latest.get().toRate();   // 오늘 이미 받았다
-        }
-        if (Instant.now(clock).isBefore(retryAt)) {
-            return latest.map(ExchangeRateRecord::toRate).orElse(fixed);   // 조금 전에 실패했다
-        }
+        return latest
+                .filter(r -> !r.getFetchedAt().toLocalDate().isBefore(today))   // 오늘 이미 받았다
+                .map(ExchangeRateRecord::toRate)
+                .orElseGet(() -> refresh(today, latest.map(ExchangeRateRecord::toRate).orElse(fixed)));
+    }
 
-        Optional<ExchangeRate> fetched = fetch(today);
-        if (fetched.isPresent()) {
-            ExchangeRate rate = fetched.get();
-            repository.save(ExchangeRateRecord.of(rate.krwPerYen(), rate.date(), rate.source(), LocalDateTime.now(clock)));
-            log.info("[Exchange] 환율 {}원/엔 ({} {})", rate.krwPerYen(), rate.date(), rate.source());
-            return rate;
+    /** 오늘 값을 새로 받는다. 실패하면 마지막 값(없으면 고정값)을 쓰고 잠시 동안 다시 묻지 않는다 */
+    private ExchangeRate refresh(LocalDate today, ExchangeRate fallback) {
+        if (Instant.now(clock).isBefore(retryAt)) {
+            return fallback;   // 조금 전에 실패했다
         }
-        retryAt = Instant.now(clock).plusSeconds(props.getRetryAfterMinutes() * 60L);
-        ExchangeRate fallback = latest.map(ExchangeRateRecord::toRate).orElse(fixed);
-        log.warn("[Exchange] 환율을 받지 못해 {} 값 사용 ({}원/엔)", fallback.source(), fallback.krwPerYen());
-        return fallback;
+        return fetch(today)
+                .map(rate -> {
+                    repository.save(ExchangeRateRecord.of(rate.krwPerYen(), rate.date(), rate.source(), LocalDateTime.now(clock)));
+                    log.info("[Exchange] 환율 {}원/엔 ({} {})", rate.krwPerYen(), rate.date(), rate.source());
+                    return rate;
+                })
+                .orElseGet(() -> {
+                    retryAt = Instant.now(clock).plusSeconds(props.getRetryAfterMinutes() * 60L);
+                    log.warn("[Exchange] 환율을 받지 못해 {} 값 사용 ({}원/엔)", fallback.source(), fallback.krwPerYen());
+                    return fallback;
+                });
     }
 
     private Optional<ExchangeRate> fetch(LocalDate today) {
         try {
             for (int i = 0; i <= props.getLookbackDays(); i++) {
                 LocalDate date = today.minusDays(i);   // 그날 값이 비어 있으면(주말·11시 전) 전날로
-                Optional<Double> value = client.koreaexim(date).filter(this::sane);
-                if (value.isPresent()) return Optional.of(new ExchangeRate(value.get(), date, ExchangeRate.KOREAEXIM));
+                Optional<ExchangeRate> found = client.koreaexim(date).filter(this::sane)
+                        .map(value -> new ExchangeRate(value, date, ExchangeRate.KOREAEXIM));
+                if (found.isPresent()) return found;
             }
         } catch (ExchangeRateClient.Unavailable e) {
             log.info("[Exchange] 수출입은행 사용 불가 ({}), Frankfurter로", e.getMessage());
