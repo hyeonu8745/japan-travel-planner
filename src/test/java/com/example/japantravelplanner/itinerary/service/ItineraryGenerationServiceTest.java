@@ -2,28 +2,35 @@ package com.example.japantravelplanner.itinerary.service;
 
 import com.example.japantravelplanner.attraction.entity.Attraction;
 import com.example.japantravelplanner.attraction.repository.AttractionRepository;
+import com.example.japantravelplanner.chat.entity.ChatMessage;
+import com.example.japantravelplanner.chat.entity.ChatRole;
+import com.example.japantravelplanner.chat.repository.ChatMessageRepository;
+import com.example.japantravelplanner.exchange.ExchangeRate;
+import com.example.japantravelplanner.exchange.ExchangeRateService;
 import com.example.japantravelplanner.global.exception.ConflictException;
 import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.global.exception.TooManyRequestsException;
 import com.example.japantravelplanner.itinerary.dictionary.PlaceTypeLabels;
-import com.example.japantravelplanner.exchange.ExchangeRate;
-import com.example.japantravelplanner.exchange.ExchangeRateService;
 import com.example.japantravelplanner.itinerary.dto.ItineraryConfirmResponseDto;
 import com.example.japantravelplanner.itinerary.dto.ItineraryResponseDto;
 import com.example.japantravelplanner.itinerary.entity.Itinerary;
 import com.example.japantravelplanner.itinerary.entity.ItinerarySource;
+import com.example.japantravelplanner.itinerary.meal.FoodFilter;
 import com.example.japantravelplanner.itinerary.meal.MealBudget;
-import com.example.japantravelplanner.itinerary.meal.MealProperties;
 import com.example.japantravelplanner.itinerary.narration.ItineraryNarrator;
 import com.example.japantravelplanner.itinerary.narration.TripBrief;
 import com.example.japantravelplanner.itinerary.planner.ScheduledDay;
 import com.example.japantravelplanner.itinerary.planner.StopType;
 import com.example.japantravelplanner.itinerary.planner.TravelOptions;
+import com.example.japantravelplanner.itinerary.reason.ReasonCode;
+import com.example.japantravelplanner.itinerary.reason.ReasonContext;
+import com.example.japantravelplanner.itinerary.reason.ReasonContextLoader;
 import com.example.japantravelplanner.itinerary.repository.ItineraryRepository;
 import com.example.japantravelplanner.itinerary.travel.LegMode;
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
 import com.example.japantravelplanner.restaurant.match.RestaurantMatchService;
 import com.example.japantravelplanner.restaurant.repository.RestaurantRepository;
+import com.example.japantravelplanner.trip.entity.Interest;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.trip.entity.TripStatus;
 import com.example.japantravelplanner.trip.repository.TripPreferenceRepository;
@@ -33,14 +40,6 @@ import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
-import com.example.japantravelplanner.chat.entity.ChatMessage;
-import com.example.japantravelplanner.chat.entity.ChatRole;
-import com.example.japantravelplanner.chat.repository.ChatMessageRepository;
-import com.example.japantravelplanner.itinerary.meal.FoodFilter;
-import com.example.japantravelplanner.itinerary.reason.ReasonCode;
-import com.example.japantravelplanner.itinerary.reason.ReasonContext;
-import com.example.japantravelplanner.itinerary.reason.ReasonContextLoader;
-import com.example.japantravelplanner.trip.entity.Interest;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 
@@ -119,7 +118,7 @@ class ItineraryGenerationServiceTest {
 
         service = new ItineraryGenerationService(tripRepository, preferenceRepository, itineraryRepository,
                 attractionRepository, restaurantRepository, locator, planner, narrator, typeLabels,
-                new MealProperties(), lock, matchService, reasonContextLoader, chatMessageRepository,
+                lock, matchService, reasonContextLoader, chatMessageRepository,
                 koreanNames, exchangeRates, transactionManager);
     }
 

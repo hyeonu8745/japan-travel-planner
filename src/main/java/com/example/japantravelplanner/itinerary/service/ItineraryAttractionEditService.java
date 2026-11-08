@@ -2,7 +2,6 @@ package com.example.japantravelplanner.itinerary.service;
 
 import com.example.japantravelplanner.attraction.entity.Attraction;
 import com.example.japantravelplanner.attraction.repository.AttractionRepository;
-import com.example.japantravelplanner.global.exception.ConflictException;
 import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.global.util.GeoUtils;
 import com.example.japantravelplanner.itinerary.candidate.AttractionScorer;
@@ -10,8 +9,8 @@ import com.example.japantravelplanner.itinerary.candidate.NightSpots;
 import com.example.japantravelplanner.itinerary.candidate.ScoredAttraction;
 import com.example.japantravelplanner.itinerary.candidate.Shelter;
 import com.example.japantravelplanner.itinerary.dictionary.PlaceTypeLabels;
-import com.example.japantravelplanner.itinerary.dto.AttractionCandidatesResponseDto.CandidateDto;
 import com.example.japantravelplanner.itinerary.dto.AttractionCandidatesResponseDto;
+import com.example.japantravelplanner.itinerary.dto.AttractionCandidatesResponseDto.CandidateDto;
 import com.example.japantravelplanner.itinerary.dto.ItineraryResponseDto;
 import com.example.japantravelplanner.itinerary.dto.RainPlanDto;
 import com.example.japantravelplanner.itinerary.entity.DroppedPlace;
@@ -19,10 +18,10 @@ import com.example.japantravelplanner.itinerary.entity.Itinerary;
 import com.example.japantravelplanner.itinerary.entity.ItineraryDay;
 import com.example.japantravelplanner.itinerary.entity.ItinerarySource;
 import com.example.japantravelplanner.itinerary.entity.ItineraryStop;
+import com.example.japantravelplanner.itinerary.planner.DayScheduler;
 import com.example.japantravelplanner.itinerary.planner.DayScheduler.RetimeItem;
 import com.example.japantravelplanner.itinerary.planner.DayScheduler.Retimed;
 import com.example.japantravelplanner.itinerary.planner.DayScheduler.RetimedStop;
-import com.example.japantravelplanner.itinerary.planner.DayScheduler;
 import com.example.japantravelplanner.itinerary.planner.StayTimes;
 import com.example.japantravelplanner.itinerary.planner.StopType;
 import com.example.japantravelplanner.itinerary.planner.TravelOptions;
@@ -34,7 +33,6 @@ import com.example.japantravelplanner.itinerary.travel.TravelMatrix;
 import com.example.japantravelplanner.itinerary.travel.TravelPoint;
 import com.example.japantravelplanner.itinerary.travel.TravelProperties;
 import com.example.japantravelplanner.itinerary.travel.TravelTimeService;
-import com.example.japantravelplanner.restaurant.entity.Restaurant;
 import com.example.japantravelplanner.restaurant.repository.RestaurantRepository;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.trip.entity.TripPreference;
@@ -43,10 +41,8 @@ import com.example.japantravelplanner.trip.repository.TripRepository;
 import com.example.japantravelplanner.trip.service.TripAccess;
 import lombok.extern.slf4j.Slf4j;
 import org.locationtech.jts.geom.Point;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -55,7 +51,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -81,9 +76,6 @@ public class ItineraryAttractionEditService {
     /** 바꾸려는 장소에서 이 거리(미터) 안이면 다른 지역이라도 후보가 된다 (지역을 나눌 때 쓰는 기준과 같다) */
     static final double NEARBY_METERS = 3000;
 
-    /** Itinerary의 (여행, 버전 번호) 유일 제약 이름 */
-    private static final String VERSION_UNIQUE_CONSTRAINT = "uk_itineraries_trip_version";
-
     private final TripRepository tripRepository;
     private final TripPreferenceRepository preferenceRepository;
     private final ItineraryRepository itineraryRepository;
@@ -96,10 +88,7 @@ public class ItineraryAttractionEditService {
     private final TravelProperties travelProperties;
     private final DayScheduler dayScheduler;
     private final PlaceTypeLabels typeLabels;
-    private final GenerationLock lock;
-    private final ReasonContextLoader reasonContextLoader;
-    private final TransactionTemplate readTransaction;
-    private final TransactionTemplate writeTransaction;
+    private final ItineraryVersions versions;
 
     public ItineraryAttractionEditService(TripRepository tripRepository,
                                           TripPreferenceRepository preferenceRepository,
@@ -128,17 +117,14 @@ public class ItineraryAttractionEditService {
         this.travelProperties = travelProperties;
         this.dayScheduler = dayScheduler;
         this.typeLabels = typeLabels;
-        this.lock = lock;
-        this.reasonContextLoader = reasonContextLoader;
-        this.readTransaction = new TransactionTemplate(transactionManager);
-        this.readTransaction.setReadOnly(true);
-        this.writeTransaction = new TransactionTemplate(transactionManager);
+        this.versions = new ItineraryVersions(itineraryRepository, stopRepository, restaurantRepository, typeLabels,
+                reasonContextLoader, lock, transactionManager);
     }
 
     // ===================== 후보 조회 =====================
 
     public AttractionCandidatesResponseDto candidates(Long userId, Long tripId, Long stopId) {
-        return readTransaction.execute(status -> {
+        return versions.read(() -> {
             Target target = load(userId, tripId, stopId);
             List<ScoredAttraction> found = findCandidates(target).stream().limit(CANDIDATE_LIMIT).toList();
             return toCandidatesResponse(target, found);
@@ -176,14 +162,7 @@ public class ItineraryAttractionEditService {
     // ===================== 교체 =====================
 
     public ItineraryResponseDto replace(Long userId, Long tripId, Long stopId, Long attractionId) {
-        if (!lock.tryAcquire(tripId)) {
-            throw new ConflictException("이미 일정을 만들거나 고치고 있어요. 잠시만 기다려주세요.");
-        }
-        try {
-            return writeTransaction.execute(status -> doReplace(userId, tripId, stopId, attractionId));
-        } finally {
-            lock.release(tripId);
-        }
+        return versions.locked(tripId, () -> doReplace(userId, tripId, stopId, attractionId));
     }
 
     private ItineraryResponseDto doReplace(Long userId, Long tripId, Long stopId, Long attractionId) {
@@ -201,19 +180,19 @@ public class ItineraryAttractionEditService {
         int stay = stayOf(replacement, target);
 
         Itinerary latest = target.latest();
-        Itinerary next = Itinerary.create(target.trip(), latest.getVersionNo() + 1, latest.getKrwPerYen(),
-                ItinerarySource.EDITED, replaceNote(target, replacement)).copyExchangeRateFrom(latest);
+        Itinerary next = ItineraryVersions.next(target.trip(), latest, ItinerarySource.EDITED,
+                replaceNote(target, replacement));
         for (ItineraryDay day : latest.getDays()) {
             boolean edited = day.getDayNumber() == target.day().getDayNumber();
-            next.addDay(edited ? retimedDay(target, replacement, stay) : copyDay(day));
+            next.addDay(edited ? retimedDay(target, replacement, stay) : DayCopies.copyDay(day, Map.of()));
         }
 
-        saveNewVersion(next);
+        versions.save(next);
         target.trip().markEdited();
 
         log.info("[Itinerary] 관광지 교체 tripId={} version={} DAY{} {} → {}", tripId, next.getVersionNo(),
                 target.day().getDayNumber(), stop.getAttraction().getName(), replacement.getName());
-        return toResponse(next);
+        return versions.toResponse(next);
     }
 
     /** 변경 이력에 보여줄 한 줄: "DAY2 관광지: なだれ坂 → 旧芝離宮" (저녁 뒤 장소면 "야경") */
@@ -238,7 +217,7 @@ public class ItineraryAttractionEditService {
 
         // 시간 안내는 새로 계산한 것으로 바꾸고, 나머지 안내(휴일 등)는 그대로 둔다
         List<String> warnings = day.getWarnings().stream()
-                .filter(w -> !isTimeWarning(w))
+                .filter(w -> !DayCopies.isTimeWarning(w))
                 .collect(Collectors.toCollection(ArrayList::new));
         warnings.addAll(retimed.warnings());
 
@@ -247,64 +226,19 @@ public class ItineraryAttractionEditService {
                 .filter(d -> !replacedNames.contains(d.getName()))
                 .collect(Collectors.toCollection(ArrayList::new));
 
-        ItineraryDay copy = ItineraryDay.create(day.getDayNumber(), day.getDate(), day.getZone(),
-                day.getWindowStart(), day.getWindowEnd(), null, dropped, warnings);
+        ItineraryDay copy = DayCopies.emptyCopy(day, null, dropped, warnings);
 
         List<ItineraryStop> stops = day.getStops();
         for (int i = 0; i < stops.size(); i++) {
             ItineraryStop s = stops.get(i);
-            RetimedStop timed = retimed.stops().get(i);
+            var stop = DayCopies.timed(DayCopies.sameAs(s), retimed.stops().get(i));
             Swap swap = swaps.get(s);
-            copy.addStop(ItineraryStop.builder()
-                    .stopOrder(s.getStopOrder())
-                    .type(s.getType())
-                    .attraction(swap != null ? swap.attraction() : s.getAttraction())
-                    .restaurant(s.getRestaurant())
-                    .arrivalTime(timed.arrival())
-                    .departureTime(timed.departure())
-                    .stayMinutes(swap != null ? swap.stay() : s.getStayMinutes())
-                    .waitMinutes(timed.waitMinutes())
-                    .travelMode(timed.travelIn().mode())
-                    .travelMinutes(timed.travelIn().minutes())
-                    .travelDistanceMeters(timed.travelIn().distanceMeters())
-                    .travelEstimated(timed.travelIn().estimated())
-                    .budgetRelaxed(s.isBudgetRelaxed())
-                    .genreRepeated(s.isGenreRepeated())
-                    .alternativeRestaurantIds(s.getAlternativeRestaurantIds())
-                    .build());
+            if (swap != null) {
+                stop.attraction(swap.attraction()).stayMinutes(swap.stay());
+            }
+            copy.addStop(stop.build());
         }
         return copy;
-    }
-
-    /** 바뀌지 않은 날: 그대로 복사 */
-    private ItineraryDay copyDay(ItineraryDay day) {
-        ItineraryDay copy = ItineraryDay.create(day.getDayNumber(), day.getDate(), day.getZone(),
-                day.getWindowStart(), day.getWindowEnd(), day.getDescription(),
-                new ArrayList<>(day.getDropped()), new ArrayList<>(day.getWarnings()));
-        for (ItineraryStop s : day.getStops()) {
-            copy.addStop(ItineraryStop.builder()
-                    .stopOrder(s.getStopOrder())
-                    .type(s.getType())
-                    .attraction(s.getAttraction())
-                    .restaurant(s.getRestaurant())
-                    .arrivalTime(s.getArrivalTime())
-                    .departureTime(s.getDepartureTime())
-                    .stayMinutes(s.getStayMinutes())
-                    .waitMinutes(s.getWaitMinutes())
-                    .travelMode(s.getTravelMode())
-                    .travelMinutes(s.getTravelMinutes())
-                    .travelDistanceMeters(s.getTravelDistanceMeters())
-                    .travelEstimated(s.isTravelEstimated())
-                    .budgetRelaxed(s.isBudgetRelaxed())
-                    .genreRepeated(s.isGenreRepeated())
-                    .alternativeRestaurantIds(s.getAlternativeRestaurantIds())
-                    .build());
-        }
-        return copy;
-    }
-
-    private static boolean isTimeWarning(String warning) {
-        return warning.startsWith("점심 시간이") || warning.startsWith("저녁 시간이") || warning.startsWith("일정이 ");
     }
 
     /**
@@ -334,20 +268,6 @@ public class ItineraryAttractionEditService {
         return (int) Duration.between(java.time.LocalTime.MIDNIGHT, last).toMinutes();
     }
 
-    private void saveNewVersion(Itinerary next) {
-        try {
-            itineraryRepository.saveAndFlush(next);
-        } catch (DataIntegrityViolationException e) {
-            Throwable cause = e.getMostSpecificCause();
-            String message = cause.getMessage() == null ? "" : cause.getMessage();
-            if (message.contains(VERSION_UNIQUE_CONSTRAINT)) {
-                throw new ConflictException("일정이 동시에 바뀌었어요. 화면을 새로고침해주세요.");
-            }
-            log.error("[Itinerary] 새 버전 저장이 DB에서 거절됨 (동시성 문제가 아님): {}", message);
-            throw e;
-        }
-    }
-
     // ===================== 비 오는 날 대안 (10-16) =====================
 
     /**
@@ -356,44 +276,35 @@ public class ItineraryAttractionEditService {
      * 식당과 순서는 그대로, 시각만 다시 계산한다. 저장하지 않는다
      */
     public RainPlanDto rainPlan(Long userId, Long tripId, int dayNumber) {
-        return readTransaction.execute(status -> toRainPlanDto(planRain(userId, tripId, dayNumber)));
+        return versions.read(() -> toRainPlanDto(planRain(userId, tripId, dayNumber)));
     }
 
     /** 미리보기와 같은 계산으로 새 버전(EDITED) 하나를 만든다. version이 지금 일정과 다르면 409 */
     public ItineraryResponseDto applyRainPlan(Long userId, Long tripId, int dayNumber, Integer version) {
-        if (!lock.tryAcquire(tripId)) {
-            throw new ConflictException("이미 일정을 만들거나 고치고 있어요. 잠시만 기다려주세요.");
-        }
-        try {
-            return writeTransaction.execute(status -> {
-                RainPlan plan = planRain(userId, tripId, dayNumber);
-                if (version != null && version != plan.latest().getVersionNo()) {
-                    throw new ConflictException("일정이 바뀌었어요. 화면을 새로고침해주세요.");
-                }
-                if (plan.swaps().isEmpty()) {
-                    throw new IllegalArgumentException("이 날은 실내로 바꿀 관광지가 없어요.");
-                }
-                Itinerary latest = plan.latest();
-                Itinerary next = Itinerary.create(plan.trip(), latest.getVersionNo() + 1, latest.getKrwPerYen(),
-                        ItinerarySource.EDITED, rainNote(dayNumber, plan.swaps())).copyExchangeRateFrom(latest);
-                for (ItineraryDay day : latest.getDays()) {
-                    next.addDay(day.getDayNumber() == dayNumber ? retimedDay(plan.base(), plan.swaps()) : copyDay(day));
-                }
-                saveNewVersion(next);
-                plan.trip().markEdited();
-                log.info("[Itinerary] 비 오는 날 대안 적용 tripId={} version={} DAY{} {}곳", tripId, next.getVersionNo(),
-                        dayNumber, plan.swaps().size());
-                return toResponse(next);
-            });
-        } finally {
-            lock.release(tripId);
-        }
+        return versions.locked(tripId, () -> {
+            RainPlan plan = planRain(userId, tripId, dayNumber);
+            ItineraryVersions.checkVersion(plan.latest(), version);
+            if (plan.swaps().isEmpty()) {
+                throw new IllegalArgumentException("이 날은 실내로 바꿀 관광지가 없어요.");
+            }
+            Itinerary latest = plan.latest();
+            Itinerary next = ItineraryVersions.next(plan.trip(), latest, ItinerarySource.EDITED,
+                    rainNote(dayNumber, plan.swaps()));
+            for (ItineraryDay day : latest.getDays()) {
+                next.addDay(day.getDayNumber() == dayNumber
+                        ? retimedDay(plan.base(), plan.swaps()) : DayCopies.copyDay(day, Map.of()));
+            }
+            versions.save(next);
+            plan.trip().markEdited();
+            log.info("[Itinerary] 비 오는 날 대안 적용 tripId={} version={} DAY{} {}곳", tripId, next.getVersionNo(),
+                    dayNumber, plan.swaps().size());
+            return versions.toResponse(next);
+        });
     }
 
     private RainPlan planRain(Long userId, Long tripId, int dayNumber) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
-        Itinerary latest = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
-                .orElseThrow(() -> new NotFoundException("아직 만들어진 일정이 없습니다."));
+        Itinerary latest = versions.latest(tripId);
         ItineraryDay day = latest.getDays().stream().filter(d -> d.getDayNumber() == dayNumber).findFirst()
                 .orElseThrow(() -> new NotFoundException(dayNumber + "일차 일정이 없어요."));
 
@@ -524,19 +435,10 @@ public class ItineraryAttractionEditService {
 
     private Target load(Long userId, Long tripId, Long stopId) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
-        ItineraryStop stop = stopRepository.findById(stopId)
-                .orElseThrow(() -> new NotFoundException("일정 항목을 찾을 수 없습니다."));
-        ItineraryDay day = stop.getDay();
-        Itinerary itinerary = day.getItinerary();
-        if (!Objects.equals(tripId, itinerary.getTrip().getId())) {
-            throw new NotFoundException("일정 항목을 찾을 수 없습니다.");   // 다른 여행의 항목인지는 알려주지 않는다
-        }
-
-        Itinerary latest = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
-                .orElseThrow(() -> new NotFoundException("아직 만들어진 일정이 없습니다."));
-        if (!Objects.equals(latest.getId(), itinerary.getId())) {
-            throw new ConflictException("일정이 바뀌었어요. 화면을 새로고침해주세요.");
-        }
+        ItineraryVersions.LatestStop found = versions.latestStop(tripId, stopId);
+        Itinerary latest = found.latest();
+        ItineraryDay day = found.day();
+        ItineraryStop stop = found.stop();
         if (stop.getType() != StopType.ATTRACTION) {
             throw new IllegalArgumentException("관광지 항목만 바꿀 수 있어요. 식당은 식당 교체를 이용해주세요.");
         }
@@ -562,16 +464,6 @@ public class ItineraryAttractionEditService {
         return new Target(trip, latest, day, stop, night, options, hotel, previous);
     }
 
-
-    // 식당 대안 후보는 id만 저장되어 있어서, 일정 전체의 대안을 한 번에 조회해서 풀어준다
-    private ItineraryResponseDto toResponse(Itinerary itinerary) {
-        Set<Long> ids = ItineraryResponseDto.alternativeRestaurantIds(itinerary);
-        Map<Long, Restaurant> alternatives = ids.isEmpty() ? Map.of()
-                : restaurantRepository.findAllById(ids).stream()
-                  .collect(Collectors.toMap(Restaurant::getId, Function.identity()));
-        return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels, alternatives,
-                reasonContextLoader.load(itinerary.getTrip()));
-    }
 
     // ===================== 좌표·계산 =====================
 

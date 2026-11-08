@@ -8,14 +8,12 @@ import com.example.japantravelplanner.chat.repository.ChatMessageRepository;
 import com.example.japantravelplanner.exchange.ExchangeRate;
 import com.example.japantravelplanner.exchange.ExchangeRateService;
 import com.example.japantravelplanner.global.exception.ConflictException;
-import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.global.exception.TooManyRequestsException;
 import com.example.japantravelplanner.itinerary.dictionary.PlaceTypeLabels;
 import com.example.japantravelplanner.itinerary.dto.ItineraryConfirmResponseDto;
 import com.example.japantravelplanner.itinerary.dto.ItineraryResponseDto;
 import com.example.japantravelplanner.itinerary.entity.Itinerary;
 import com.example.japantravelplanner.itinerary.entity.ItinerarySource;
-import com.example.japantravelplanner.itinerary.meal.MealProperties;
 import com.example.japantravelplanner.itinerary.naming.KoreanNameService;
 import com.example.japantravelplanner.itinerary.narration.ItineraryNarrator;
 import com.example.japantravelplanner.itinerary.narration.TripBrief;
@@ -38,18 +36,14 @@ import com.example.japantravelplanner.trip.service.TripAccess;
 import lombok.extern.slf4j.Slf4j;
 import org.locationtech.jts.geom.Point;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * 일정을 만들어서 저장한다.
@@ -68,8 +62,6 @@ public class ItineraryGenerationService {
 
     static final int DAILY_GENERATION_LIMIT = 5;
 
-    /** Itinerary의 (여행, 버전 번호) 유일 제약 이름 */
-    private static final String VERSION_UNIQUE_CONSTRAINT = "uk_itineraries_trip_version";
 
     // 여행 하나당 24시간 안에 AI로 만들 수 있는 횟수 (AI 비용 대책). 요금제별로 바꿀 수 있게 설정으로 뺐다
     @Value("${app.itinerary.daily-generation-limit:5}")
@@ -84,15 +76,12 @@ public class ItineraryGenerationService {
     private final ItineraryPlanner planner;
     private final ItineraryNarrator narrator;
     private final PlaceTypeLabels typeLabels;
-    private final MealProperties mealProperties;
-    private final GenerationLock lock;
     private final RestaurantMatchService restaurantMatchService;
     private final ReasonContextLoader reasonContextLoader;
     private final ChatMessageRepository chatMessageRepository;
     private final KoreanNameService koreanNames;
     private final ExchangeRateService exchangeRates;
-    private final TransactionTemplate readTransaction;
-    private final TransactionTemplate writeTransaction;
+    private final ItineraryVersions versions;
 
     public ItineraryGenerationService(TripRepository tripRepository,
                                       TripPreferenceRepository preferenceRepository,
@@ -103,7 +92,6 @@ public class ItineraryGenerationService {
                                       ItineraryPlanner planner,
                                       ItineraryNarrator narrator,
                                       PlaceTypeLabels typeLabels,
-                                      MealProperties mealProperties,
                                       GenerationLock lock,
                                       RestaurantMatchService restaurantMatchService,
                                       ReasonContextLoader reasonContextLoader,
@@ -120,30 +108,24 @@ public class ItineraryGenerationService {
         this.planner = planner;
         this.narrator = narrator;
         this.typeLabels = typeLabels;
-        this.mealProperties = mealProperties;
-        this.lock = lock;
         this.restaurantMatchService = restaurantMatchService;
         this.reasonContextLoader = reasonContextLoader;
         this.chatMessageRepository = chatMessageRepository;
         this.koreanNames = koreanNames;
         this.exchangeRates = exchangeRates;
-        this.readTransaction = new TransactionTemplate(transactionManager);
-        this.readTransaction.setReadOnly(true);
-        this.writeTransaction = new TransactionTemplate(transactionManager);
+        this.versions = new ItineraryVersions(itineraryRepository, null, restaurantRepository, typeLabels,
+                reasonContextLoader, lock, transactionManager);
     }
 
     // ===================== 생성 =====================
 
     public ItineraryResponseDto generate(Long userId, Long tripId) {
-        if (!lock.tryAcquire(tripId)) {
-            throw new ConflictException("이미 일정을 만들고 있어요. 잠시만 기다려주세요.");
-        }
-        try {
+        return versions.locked(tripId, "이미 일정을 만들고 있어요. 잠시만 기다려주세요.", () -> {
             // ⓪ 환율: 오늘 값이 없으면 외부 API (트랜잭션 밖). 실패해도 마지막 값·고정값으로 계속 (10-12)
             ExchangeRate rate = exchangeRates.current();
 
             // ① 계산 (숙소 좌표를 처음 찾으면 여행에 저장하므로 쓰기 트랜잭션)
-            Planned planned = writeTransaction.execute(status -> plan(userId, tripId, rate));
+            Planned planned = versions.write(() -> plan(userId, tripId, rate));
 
             // ①-1 고른 식당을 Google에서 확인 (트랜잭션 밖). 찾지 못함·폐업이 나오면 그 식당은 후보에서 빠지므로 다시 계산한다.
             // 마지막으로 다시 계산해서 새로 고른 식당은 확인 전이라도 통과 (다음 생성 때 확인)
@@ -151,7 +133,7 @@ public class ItineraryGenerationService {
                 int excluded = restaurantMatchService.verify(chosenRestaurantIds(planned.result()));
                 if (excluded == 0) break;
                 log.info("[Itinerary] 폐업 의심 식당 {}곳을 빼고 다시 계산 tripId={}", excluded, tripId);
-                planned = writeTransaction.execute(status -> plan(userId, tripId, rate));
+                planned = versions.write(() -> plan(userId, tripId, rate));
             }
 
             // ①-2 한국어 이름: 처음 쓰는 장소·식당만 AI로 만들어 저장 (트랜잭션 밖). 설명 AI가 같은 이름을 쓰게 설명보다 먼저
@@ -163,10 +145,8 @@ public class ItineraryGenerationService {
                     finalPlan.brief(), finalPlan.result().days(), typeLabels::toVisibleLabels);
 
             // ③ 저장
-            return writeTransaction.execute(status -> save(userId, tripId, finalPlan, descriptions, rate));
-        } finally {
-            lock.release(tripId);
-        }
+            return versions.write(() -> save(userId, tripId, finalPlan, descriptions, rate));
+        });
     }
 
     private Planned plan(Long userId, Long tripId, ExchangeRate rate) {
@@ -201,20 +181,8 @@ public class ItineraryGenerationService {
                 attractionRepository::getReferenceById, restaurantRepository::getReferenceById)
                 .withExchangeRate(rate.date(), rate.source());
 
-        try {
-            itineraryRepository.saveAndFlush(itinerary);
-        } catch (DataIntegrityViolationException e) {
-            // 같은 버전 번호로 동시에 저장하려 한 경우만 409로 안내한다 (잠금은 서버 한 대 안에서만 막아준다).
-            // 그 밖의 DB 거절(허용 값 제약 등)은 동시성 문제가 아니므로 원인을 로그에 남기고 그대로 던진다.
-            // 교체·되돌리기와 같은 기준이다 (예전에 전부 409로 바꿔서 CHECK 제약 문제의 원인이 가려졌다)
-            Throwable cause = e.getMostSpecificCause();
-            String message = cause.getMessage() == null ? "" : cause.getMessage();
-            if (message.contains(VERSION_UNIQUE_CONSTRAINT)) {
-                throw new ConflictException("일정이 동시에 만들어졌어요. 잠시 후 다시 확인해주세요.");
-            }
-            log.error("[Itinerary] 일정 저장이 DB에서 거절됨 (동시성 문제가 아님): {}", message);
-            throw e;
-        }
+        // 같은 버전 번호로 동시에 저장한 경우만 409 (교체·되돌리기와 같은 기준)
+        versions.save(itinerary, "일정이 동시에 만들어졌어요. 잠시 후 다시 확인해주세요.");
         // AI로 새로 만든 일정은 사용자가 [완성]을 누를 때까지 확인 대기 (10-12, 프론트 요청)
         trip.setStatus(TripStatus.AWAITING_CONFIRMATION);
 
@@ -225,19 +193,17 @@ public class ItineraryGenerationService {
 
         log.info("[Itinerary] 저장 tripId={} version={} 일수={} 설명={}일", tripId, version,
                 planned.result().days().size(), descriptions.size());
-        return toResponse(itinerary, reasons);
+        return versions.toResponse(itinerary, reasons);
     }
 
     // ===================== 조회 =====================
 
     /** 가장 최근 버전의 일정 */
     public ItineraryResponseDto getLatest(Long userId, Long tripId) {
-        return readTransaction.execute(status -> {
+        return versions.read(() -> {
             TripAccess.owned(tripRepository, userId, tripId);
-            Itinerary itinerary = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
-                    .orElseThrow(() -> new NotFoundException("아직 만들어진 일정이 없습니다."));
-            return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels, Map.of(),
-                    reasonContextLoader.load(itinerary.getTrip()));
+            // 11-08: 수정 응답과 같게 식당 대안도 풀어서 준다 (예전에는 빈 값이라 새로고침하면 대안이 사라졌다)
+            return versions.toResponse(versions.latest(tripId));
         });
     }
 
@@ -249,11 +215,8 @@ public class ItineraryGenerationService {
      * 일정이 없거나, 조건을 바꾼 뒤 일정을 다시 맞추지 못한 상태(READY_TO_GENERATE 등)면 409
      */
     public ItineraryConfirmResponseDto confirm(Long userId, Long tripId) {
-        if (!lock.tryAcquire(tripId)) {
-            throw new ConflictException("일정을 만들거나 고치는 중이에요. 끝난 뒤에 다시 눌러 주세요.");
-        }
-        try {
-            return writeTransaction.execute(status -> {
+        return versions.locked(tripId, "일정을 만들거나 고치는 중이에요. 끝난 뒤에 다시 눌러 주세요.", () ->
+            versions.write(() -> {
                 Trip trip = TripAccess.owned(tripRepository, userId, tripId);
                 Itinerary latest = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
                         .orElseThrow(() -> new ConflictException("아직 만들어진 일정이 없어요. 일정을 먼저 만들어 주세요."));
@@ -264,22 +227,9 @@ public class ItineraryGenerationService {
                     throw new ConflictException("여행 조건이 바뀌어 일정을 다시 만들어야 해요. 일정을 다시 만든 뒤 완성해 주세요.");
                 }
                 return new ItineraryConfirmResponseDto(tripId, trip.getStatus(),
-                        toResponse(latest, reasonContextLoader.load(trip)));
-            });
-        } finally {
-            lock.release(tripId);
-        }
+                        versions.toResponse(latest, reasonContextLoader.load(trip)));
+            }));
     }
-
-    // 식당 대안 후보는 id만 저장되어 있어서, 일정 전체의 대안을 한 번에 조회해서 풀어준다
-    private ItineraryResponseDto toResponse(Itinerary itinerary, ReasonContext reasons) {
-        Set<Long> ids = ItineraryResponseDto.alternativeRestaurantIds(itinerary);
-        Map<Long, Restaurant> alternatives = ids.isEmpty() ? Map.of()
-                : restaurantRepository.findAllById(ids).stream()
-                  .collect(Collectors.toMap(Restaurant::getId, Function.identity()));
-        return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels, alternatives, reasons);
-    }
-
 
     /** 일정에 들어간 식당 (다음 후보는 빼고 실제로 고른 곳만) */
     static Set<Long> chosenRestaurantIds(ItineraryPlanner.Result result) {

@@ -1,13 +1,12 @@
 package com.example.japantravelplanner.itinerary.service;
 
 import com.example.japantravelplanner.attraction.policy.SensitivePlaces;
-import com.example.japantravelplanner.global.util.GeoUtils;
-import com.example.japantravelplanner.trip.service.TripAccess;
-
 import com.example.japantravelplanner.global.exception.ConflictException;
 import com.example.japantravelplanner.global.exception.NotFoundException;
+import com.example.japantravelplanner.global.util.GeoUtils;
 import com.example.japantravelplanner.itinerary.dictionary.PlaceTypeLabels;
 import com.example.japantravelplanner.itinerary.dto.ItineraryResponseDto;
+import com.example.japantravelplanner.itinerary.dto.ItineraryVersionDto;
 import com.example.japantravelplanner.itinerary.dto.StopCandidatesResponseDto;
 import com.example.japantravelplanner.itinerary.dto.StopCandidatesResponseDto.CandidateDto;
 import com.example.japantravelplanner.itinerary.entity.Itinerary;
@@ -19,14 +18,16 @@ import com.example.japantravelplanner.itinerary.meal.FoodFilterResolver;
 import com.example.japantravelplanner.itinerary.meal.Meal;
 import com.example.japantravelplanner.itinerary.meal.MealBudget;
 import com.example.japantravelplanner.itinerary.meal.MealBudgetCalculator;
+import com.example.japantravelplanner.itinerary.meal.RegularHoliday;
 import com.example.japantravelplanner.itinerary.meal.RestaurantCandidate;
 import com.example.japantravelplanner.itinerary.meal.RestaurantFinder;
+import com.example.japantravelplanner.itinerary.naming.GenreLabels;
 import com.example.japantravelplanner.itinerary.planner.DayScheduler;
 import com.example.japantravelplanner.itinerary.planner.DayScheduler.RetimeItem;
 import com.example.japantravelplanner.itinerary.planner.DayScheduler.Retimed;
-import com.example.japantravelplanner.itinerary.planner.DayScheduler.RetimedStop;
 import com.example.japantravelplanner.itinerary.planner.StopType;
 import com.example.japantravelplanner.itinerary.planner.TravelOptions;
+import com.example.japantravelplanner.itinerary.reason.ReasonContextLoader;
 import com.example.japantravelplanner.itinerary.repository.ItineraryRepository;
 import com.example.japantravelplanner.itinerary.repository.ItineraryStopRepository;
 import com.example.japantravelplanner.itinerary.travel.TravelLeg;
@@ -42,27 +43,20 @@ import com.example.japantravelplanner.trip.entity.TripPreference;
 import com.example.japantravelplanner.trip.entity.TripStatus;
 import com.example.japantravelplanner.trip.repository.TripPreferenceRepository;
 import com.example.japantravelplanner.trip.repository.TripRepository;
+import com.example.japantravelplanner.trip.service.TripAccess;
 import lombok.extern.slf4j.Slf4j;
 import org.locationtech.jts.geom.Point;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import com.example.japantravelplanner.itinerary.reason.ReasonContextLoader;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
-import com.example.japantravelplanner.itinerary.meal.RegularHoliday;
-import com.example.japantravelplanner.itinerary.naming.GenreLabels;
-import com.example.japantravelplanner.itinerary.dto.ItineraryVersionDto;
-import java.time.LocalDate;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -105,11 +99,8 @@ public class ItineraryEditService {
     private final TravelProperties travelProperties;
     private final DayScheduler dayScheduler;
     private final PlaceTypeLabels typeLabels;
-    private final GenerationLock lock;
     private final RestaurantMatchService restaurantMatchService;
-    private final ReasonContextLoader reasonContextLoader;
-    private final TransactionTemplate readTransaction;
-    private final TransactionTemplate writeTransaction;
+    private final ItineraryVersions versions;
 
     public ItineraryEditService(TripRepository tripRepository,
                                 TripPreferenceRepository preferenceRepository,
@@ -141,19 +132,16 @@ public class ItineraryEditService {
         this.travelProperties = travelProperties;
         this.dayScheduler = dayScheduler;
         this.typeLabels = typeLabels;
-        this.lock = lock;
         this.restaurantMatchService = restaurantMatchService;
-        this.reasonContextLoader = reasonContextLoader;
-        this.readTransaction = new TransactionTemplate(transactionManager);
-        this.readTransaction.setReadOnly(true);
-        this.writeTransaction = new TransactionTemplate(transactionManager);
+        this.versions = new ItineraryVersions(itineraryRepository, stopRepository, restaurantRepository, typeLabels,
+                reasonContextLoader, lock, transactionManager);
     }
 
     // ===================== 변경 이력 =====================
 
     /** 이 여행의 모든 버전 (최신이 먼저). 일정을 아직 안 만들었으면 빈 목록 */
     public List<ItineraryVersionDto> versions(Long userId, Long tripId) {
-        return readTransaction.execute(status -> {
+        return versions.read(() -> {
             TripAccess.owned(tripRepository, userId, tripId);
             List<Itinerary> all = itineraryRepository.findByTripIdOrderByVersionNoDesc(tripId);
             int latestNo = all.isEmpty() ? 0 : all.get(0).getVersionNo();
@@ -166,11 +154,11 @@ public class ItineraryEditService {
 
     /** 특정 버전의 일정 (보기만 가능. 옛 버전의 항목은 고칠 수 없다) */
     public ItineraryResponseDto version(Long userId, Long tripId, int versionNo) {
-        return readTransaction.execute(status -> {
+        return versions.read(() -> {
             TripAccess.owned(tripRepository, userId, tripId);
             Itinerary itinerary = itineraryRepository.findByTripIdAndVersionNo(tripId, versionNo)
                     .orElseThrow(() -> new NotFoundException("해당 버전의 일정을 찾을 수 없습니다."));
-            return toResponse(itinerary);
+            return versions.toResponse(itinerary);
         });
     }
 
@@ -179,14 +167,7 @@ public class ItineraryEditService {
      * 옛 버전에 저장된 AI 설명이 그 버전의 식당과 맞으므로 설명도 그대로 돌아온다.
      */
     public ItineraryResponseDto restore(Long userId, Long tripId, int versionNo) {
-        if (!lock.tryAcquire(tripId)) {
-            throw new ConflictException("이미 일정을 만들거나 고치고 있어요. 잠시만 기다려주세요.");
-        }
-        try {
-            return writeTransaction.execute(status -> doRestore(userId, tripId, versionNo));
-        } finally {
-            lock.release(tripId);
-        }
+        return versions.locked(tripId, () -> doRestore(userId, tripId, versionNo));
     }
 
     /** 야스쿠니 등 민감 장소(SensitivePlaces)가 들어 있는 버전인지 */
@@ -197,8 +178,7 @@ public class ItineraryEditService {
 
     private ItineraryResponseDto doRestore(Long userId, Long tripId, int versionNo) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
-        Itinerary latest = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
-                .orElseThrow(() -> new NotFoundException("아직 만들어진 일정이 없습니다."));
+        Itinerary latest = versions.latest(tripId);
         Itinerary old = itineraryRepository.findByTripIdAndVersionNo(tripId, versionNo)
                 .orElseThrow(() -> new NotFoundException("해당 버전의 일정을 찾을 수 없습니다."));
         if (old.getVersionNo() == latest.getVersionNo()) {
@@ -208,38 +188,19 @@ public class ItineraryEditService {
             throw new ConflictException("이 버전에는 지금은 추천하지 않는 장소가 있어 되돌릴 수 없어요. 일정을 다시 만들어 주세요.");
         }
 
+        // 환율도 그 버전의 것으로 (그 버전의 예산 표시와 맞게)
         Itinerary next = Itinerary.create(trip, latest.getVersionNo() + 1, old.getKrwPerYen(),
                 ItinerarySource.RESTORED, "버전 " + old.getVersionNo() + "(으)로 되돌렸어요").copyExchangeRateFrom(old);
         for (ItineraryDay day : old.getDays()) {
-            next.addDay(copyDay(day, Map.of()));   // 같은 음식 표시도 그 버전의 값 그대로
+            next.addDay(DayCopies.copyDay(day, Map.of()));   // 같은 음식 표시도 그 버전의 값 그대로
         }
 
-        saveNewVersion(next);
+        versions.save(next);
         trip.markEdited();   // 확인 대기(완성 전)면 그대로
 
         log.info("[Itinerary] 버전 복원 tripId={} 버전 {} → 새 버전 {}", tripId, old.getVersionNo(), next.getVersionNo());
-        return toResponse(next);
+        return versions.toResponse(next);
     }
-
-    /**
-     * 새 버전을 저장한다. 같은 버전 번호로 동시에 저장하려 한 경우(유일 제약)만 409로 안내한다
-     * (잠금은 서버 한 대 안에서만 막아준다). 그 밖의 DB 거절(허용 값 제약 등)은 동시성 문제가 아니므로
-     * 원인을 로그에 남기고 그대로 던진다. 전부 409로 바꾸면 진짜 원인이 가려진다.
-     */
-    private void saveNewVersion(Itinerary next) {
-        try {
-            itineraryRepository.saveAndFlush(next);
-        } catch (DataIntegrityViolationException e) {
-            Throwable cause = e.getMostSpecificCause();
-            String message = cause.getMessage() == null ? "" : cause.getMessage();
-            if (message.contains(VERSION_UNIQUE_CONSTRAINT)) {
-                throw new ConflictException("일정이 동시에 바뀌었어요. 화면을 새로고침해주세요.");
-            }
-            log.error("[Itinerary] 새 버전 저장이 DB에서 거절됨 (동시성 문제가 아님): {}", message);
-            throw e;
-        }
-    }
-
 
     // ===================== 후보 조회 =====================
 
@@ -252,7 +213,7 @@ public class ItineraryEditService {
      *                     (RestaurantFinder.findWanted). 비어 있으면 보통 후보
      */
     public StopCandidatesResponseDto candidates(Long userId, Long tripId, Long stopId, Set<String> wantedGenres) {
-        return readTransaction.execute(status -> {
+        return versions.read(() -> {
             Target target = load(userId, tripId, stopId);
             Search search = search(target, CANDIDATE_LIMIT, wantedGenres);
             return toCandidatesResponse(target, search);
@@ -290,17 +251,12 @@ public class ItineraryEditService {
     // ===================== 교체 =====================
 
     public ItineraryResponseDto replace(Long userId, Long tripId, Long stopId, Long restaurantId) {
-        if (!lock.tryAcquire(tripId)) {
-            throw new ConflictException("이미 일정을 만들거나 고치고 있어요. 잠시만 기다려주세요.");
-        }
-        try {
+        return versions.locked(tripId, ItineraryVersions.BUSY_MESSAGE, () -> {
             // 고른 식당이 아직 Google에서 확인 전이면 먼저 확인한다 (트랜잭션 밖, 1건). 폐업 의심이면 아래 doReplace에서 막힌다.
             // Google이 실패하면 기록 없이 통과 (일정 생성과 같은 원칙)
             restaurantMatchService.verify(Set.of(restaurantId));
-            return writeTransaction.execute(status -> doReplace(userId, tripId, stopId, restaurantId));
-        } finally {
-            lock.release(tripId);
-        }
+            return versions.write(() -> doReplace(userId, tripId, stopId, restaurantId));
+        });
     }
 
     private ItineraryResponseDto doReplace(Long userId, Long tripId, Long stopId, Long restaurantId) {
@@ -319,27 +275,28 @@ public class ItineraryEditService {
         Restaurant replacement = chosen.restaurant();
 
         // 바뀐 식당 기준으로 모든 끼니의 "앞 끼니와 같은 음식" 표시를 다시 판단한다 (다음 끼니도 달라질 수 있다)
-        Map<ItineraryStop, Boolean> repeated = genreRepeatedFlags(target.latest(), stop, replacement);
+        Map<Object, Boolean> repeated = DayCopies.genreRepeatedFlags(target.latest(), null, List.of(),
+                key -> key == stop ? replacement : ((ItineraryStop) key).getRestaurant());
 
         Itinerary latest = target.latest();
-        Itinerary next = Itinerary.create(target.trip(), latest.getVersionNo() + 1, latest.getKrwPerYen(),
-                ItinerarySource.EDITED, replaceNote(target.day(), stop, replacement)).copyExchangeRateFrom(latest);
+        Itinerary next = ItineraryVersions.next(target.trip(), latest, ItinerarySource.EDITED,
+                replaceNote(target.day(), stop, replacement));
         TravelPoint hotel = hotelPoint(target.trip());
         for (ItineraryDay day : latest.getDays()) {
             boolean edited = day.getDayNumber() == target.day().getDayNumber();
             next.addDay(edited
                     ? retimedDay(day, stop, chosen, repeated, hotel, target.options())
-                    : copyDay(day, repeated));
+                    : DayCopies.copyDay(day, repeated));
         }
 
-        saveNewVersion(next);
+        versions.save(next);
         target.trip().allowRestaurant(replacement.getId());   // 예전에 뺐던 곳을 다시 고르면(대안 목록 등) 빼기 해제
         target.trip().excludeRestaurant(stop.getRestaurant().getId());   // 바꾼 식당은 이 여행에서 다시 추천하지 않는다
         target.trip().markEdited();
 
         log.info("[Itinerary] 식당 교체 tripId={} version={} DAY{} {} → {}", tripId, next.getVersionNo(),
                 target.day().getDayNumber(), stop.getRestaurant().getName(), replacement.getName());
-        return toResponse(next);
+        return versions.toResponse(next);
     }
 
     /** 고른 식당이 이 자리의 후보인지 확인한다. 일정을 만들 때 저장해둔 대안은 후보로 인정한다 */
@@ -392,14 +349,7 @@ public class ItineraryEditService {
     /** @param keepAwaiting 조건을 바꾸기 전 여행이 확인 대기(완성 전)였으면 true → 다시 확인 대기로 둔다 */
     public Optional<ItineraryResponseDto> retimeForConditions(Long userId, Long tripId, String changeNote,
                                                               boolean keepAwaiting) {
-        if (!lock.tryAcquire(tripId)) {
-            throw new ConflictException("이미 일정을 만들거나 고치고 있어요. 잠시만 기다려주세요.");
-        }
-        try {
-            return writeTransaction.execute(status -> doRetimeForConditions(userId, tripId, changeNote, keepAwaiting));
-        } finally {
-            lock.release(tripId);
-        }
+        return versions.locked(tripId, () -> doRetimeForConditions(userId, tripId, changeNote, keepAwaiting));
     }
 
     private Optional<ItineraryResponseDto> doRetimeForConditions(Long userId, Long tripId, String changeNote,
@@ -414,19 +364,18 @@ public class ItineraryEditService {
         TravelOptions options = TravelOptions.of(trip, ItineraryPlanner.constraintsOf(preference), travelProperties);
         TravelPoint hotel = hotelPoint(trip);
 
-        Itinerary next = Itinerary.create(trip, latest.getVersionNo() + 1, latest.getKrwPerYen(),
-                ItinerarySource.EDITED, changeNote).copyExchangeRateFrom(latest);
+        Itinerary next = ItineraryVersions.next(trip, latest, ItinerarySource.EDITED, changeNote);
         for (ItineraryDay day : latest.getDays()) {
             next.addDay(retimedDay(day, null, null, Map.of(), hotel, options));
         }
 
-        saveNewVersion(next);
+        versions.save(next);
         // 조건 저장 때 READY_TO_GENERATE로 바꿔 두었다. 원래 확인 대기(완성 전)였으면 다시 확인 대기로 (10-12)
         trip.setStatus(keepAwaiting ? TripStatus.AWAITING_CONFIRMATION : TripStatus.EDITING);
 
         log.info("[Itinerary] 여행 조건 변경으로 시각 재계산 tripId={} 새 버전 {} ({})",
                 tripId, next.getVersionNo(), changeNote);
-        return Optional.of(toResponse(next));
+        return Optional.of(versions.toResponse(next));
     }
 
     // ===================== 새 버전 만들기 =====================
@@ -437,7 +386,7 @@ public class ItineraryEditService {
      * - 여행 조건 변경(target·chosen이 null): 장소는 그대로라 설명도 그대로 둔다 (설명에는 숫자 시각이 없다)
      */
     private ItineraryDay retimedDay(ItineraryDay day, ItineraryStop target, RestaurantCandidate chosen,
-                                    Map<ItineraryStop, Boolean> repeated, TravelPoint hotel, TravelOptions options) {
+                                    Map<Object, Boolean> repeated, TravelPoint hotel, TravelOptions options) {
         Restaurant replacement = chosen == null ? null : chosen.restaurant();
         List<ItineraryStop> stops = day.getStops();
 
@@ -449,7 +398,7 @@ public class ItineraryEditService {
 
         // 시간 안내는 새로 계산한 것으로 바꾼다. 휴일 안내는 식당이 바뀔 때만 다시 판단한다 (날짜는 그대로)
         List<String> warnings = day.getWarnings().stream()
-                .filter(w -> !isTimeWarning(w) && (replacement == null || !isHolidayWarning(w)))
+                .filter(w -> !DayCopies.isTimeWarning(w) && (replacement == null || !isHolidayWarning(w)))
                 .collect(Collectors.toCollection(ArrayList::new));
         warnings.addAll(retimed.warnings());
         // 사용자가 정기 휴일인 식당을 골랐으면 막지는 않고 알려준다 (임시 휴무와 공휴일은 알 수 없다)
@@ -457,58 +406,19 @@ public class ItineraryEditService {
             warnings.add(replacement.getName() + "은(는) 이 날이 정기 휴일이에요. 영업하는지 확인해주세요.");
         }
 
-        ItineraryDay copy = ItineraryDay.create(day.getDayNumber(), day.getDate(), day.getZone(),
-                day.getWindowStart(), day.getWindowEnd(), replacement == null ? day.getDescription() : null,
+        ItineraryDay copy = DayCopies.emptyCopy(day, replacement == null ? day.getDescription() : null,
                 new ArrayList<>(day.getDropped()), warnings);
 
         for (int i = 0; i < stops.size(); i++) {
             ItineraryStop s = stops.get(i);
-            RetimedStop timed = retimed.stops().get(i);
-            boolean isTarget = s == target;
-            copy.addStop(ItineraryStop.builder()
-                    .stopOrder(s.getStopOrder())
-                    .type(s.getType())
-                    .attraction(s.getAttraction())
-                    .restaurant(isTarget ? replacement : s.getRestaurant())
-                    .arrivalTime(timed.arrival())
-                    .departureTime(timed.departure())
-                    .stayMinutes(s.getStayMinutes())
-                    .waitMinutes(timed.waitMinutes())
-                    .travelMode(timed.travelIn().mode())
-                    .travelMinutes(timed.travelIn().minutes())
-                    .travelDistanceMeters(timed.travelIn().distanceMeters())
-                    .travelEstimated(timed.travelIn().estimated())
-                    .budgetRelaxed(isTarget ? chosen.budgetRelaxed() : s.isBudgetRelaxed())
-                    .genreRepeated(repeated.getOrDefault(s, s.isGenreRepeated()))
-                    .alternativeRestaurantIds(isTarget ? alternativesAfterReplace(s, replacement) : s.getAlternativeRestaurantIds())
-                    .build());
-        }
-        return copy;
-    }
-
-    /** 바뀌지 않은 날: 그대로 복사 (끼니의 "같은 음식" 표시만 다시 판단한 값으로) */
-    private ItineraryDay copyDay(ItineraryDay day, Map<ItineraryStop, Boolean> repeated) {
-        ItineraryDay copy = ItineraryDay.create(day.getDayNumber(), day.getDate(), day.getZone(),
-                day.getWindowStart(), day.getWindowEnd(), day.getDescription(),
-                new ArrayList<>(day.getDropped()), new ArrayList<>(day.getWarnings()));
-        for (ItineraryStop s : day.getStops()) {
-            copy.addStop(ItineraryStop.builder()
-                    .stopOrder(s.getStopOrder())
-                    .type(s.getType())
-                    .attraction(s.getAttraction())
-                    .restaurant(s.getRestaurant())
-                    .arrivalTime(s.getArrivalTime())
-                    .departureTime(s.getDepartureTime())
-                    .stayMinutes(s.getStayMinutes())
-                    .waitMinutes(s.getWaitMinutes())
-                    .travelMode(s.getTravelMode())
-                    .travelMinutes(s.getTravelMinutes())
-                    .travelDistanceMeters(s.getTravelDistanceMeters())
-                    .travelEstimated(s.isTravelEstimated())
-                    .budgetRelaxed(s.isBudgetRelaxed())
-                    .genreRepeated(repeated.getOrDefault(s, s.isGenreRepeated()))
-                    .alternativeRestaurantIds(s.getAlternativeRestaurantIds())
-                    .build());
+            var stop = DayCopies.timed(DayCopies.sameAs(s), retimed.stops().get(i))
+                    .genreRepeated(repeated.getOrDefault(s, s.isGenreRepeated()));
+            if (s == target) {
+                stop.restaurant(replacement)
+                        .budgetRelaxed(chosen.budgetRelaxed())
+                        .alternativeRestaurantIds(alternativesAfterReplace(s, replacement));
+            }
+            copy.addStop(stop.build());
         }
         return copy;
     }
@@ -523,34 +433,8 @@ public class ItineraryEditService {
         return alternatives.stream().limit(MAX_ALTERNATIVES).toList();
     }
 
-    /**
-     * 모든 끼니의 "바로 앞 끼니와 같은 음식" 표시를 다시 판단한다 (대표 장르가 겹치면 true).
-     * 일정을 만들 때와 같은 기준이고, 날짜를 넘어서 이어진다.
-     */
-    private static Map<ItineraryStop, Boolean> genreRepeatedFlags(Itinerary itinerary, ItineraryStop target,
-                                                                  Restaurant replacement) {
-        Map<ItineraryStop, Boolean> flags = new IdentityHashMap<>();
-        Set<String> previous = Set.of();
-        for (ItineraryDay day : itinerary.getDays()) {
-            for (ItineraryStop s : day.getStops()) {
-                if (s.getRestaurant() == null) {
-                    continue;
-                }
-                Restaurant r = s == target ? replacement : s.getRestaurant();
-                Set<String> main = RestaurantFinder.mainGenres(r.getGenre());
-                flags.put(s, !Collections.disjoint(main, previous));
-                previous = main;
-            }
-        }
-        return flags;
-    }
-
     private static boolean isHolidayWarning(String warning) {
         return warning.contains("정기 휴일");
-    }
-
-    private static boolean isTimeWarning(String warning) {
-        return warning.startsWith("점심 시간이") || warning.startsWith("저녁 시간이") || warning.startsWith("일정이 ");
     }
 
     // ===================== 후보 검색 =====================
@@ -648,19 +532,10 @@ public class ItineraryEditService {
 
     private Target load(Long userId, Long tripId, Long stopId) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
-        ItineraryStop stop = stopRepository.findById(stopId)
-                .orElseThrow(() -> new NotFoundException("일정 항목을 찾을 수 없습니다."));
-        ItineraryDay day = stop.getDay();
-        Itinerary itinerary = day.getItinerary();
-        if (!Objects.equals(tripId, itinerary.getTrip().getId())) {
-            throw new NotFoundException("일정 항목을 찾을 수 없습니다.");   // 다른 여행의 항목인지는 알려주지 않는다
-        }
-
-        Itinerary latest = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
-                .orElseThrow(() -> new NotFoundException("아직 만들어진 일정이 없습니다."));
-        if (!Objects.equals(latest.getId(), itinerary.getId())) {
-            throw new ConflictException("일정이 바뀌었어요. 화면을 새로고침해주세요.");
-        }
+        ItineraryVersions.LatestStop found = versions.latestStop(tripId, stopId);
+        Itinerary latest = found.latest();
+        ItineraryDay day = found.day();
+        ItineraryStop stop = found.stop();
         if (stop.getType() == StopType.ATTRACTION) {
             throw new IllegalArgumentException("식당(점심·저녁) 항목만 바꿀 수 있어요.");
         }
@@ -678,16 +553,6 @@ public class ItineraryEditService {
         FoodFilter filter = foodFilterResolver.resolve(constraints, trip.getAllergies());
 
         return new Target(trip, latest, day, stop, day.getStops().indexOf(stop), options, filter, budget);
-    }
-
-    // 식당 대안 후보는 id만 저장되어 있어서, 일정 전체의 대안을 한 번에 조회해서 풀어준다
-    private ItineraryResponseDto toResponse(Itinerary itinerary) {
-        Set<Long> ids = ItineraryResponseDto.alternativeRestaurantIds(itinerary);
-        Map<Long, Restaurant> alternatives = ids.isEmpty() ? Map.of()
-                : restaurantRepository.findAllById(ids).stream()
-                  .collect(Collectors.toMap(Restaurant::getId, Function.identity()));
-        return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels, alternatives,
-                reasonContextLoader.load(itinerary.getTrip()));
     }
 
     // ===================== 좌표·표시 =====================
