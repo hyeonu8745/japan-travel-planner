@@ -10,6 +10,7 @@ import com.example.japantravelplanner.itinerary.service.GenerationLock;
 import com.example.japantravelplanner.itinerary.service.ItineraryGenerationService;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.trip.repository.TripRepository;
+import com.example.japantravelplanner.trip.service.TripAccess;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -83,7 +84,7 @@ public class PosterService {
         TripPoster poster;
         try {
             Trip trip = readTransaction.execute(status -> {
-                Trip t = findTrip(userId, tripId);
+                Trip t = TripAccess.owned(tripRepository, userId, tripId);
                 posterRepository.findFirstByTripIdOrderByIdDesc(tripId)
                         .filter(p -> p.getStatus() == PosterStatus.GENERATING && !isStale(p))
                         .ifPresent(p -> {
@@ -100,7 +101,7 @@ public class PosterService {
                     itinerary, trip.getTitle(), trip.getStartDate(), props, options);
 
             poster = writeTransaction.execute(status -> {
-                TripPoster p = TripPoster.start(findTrip(userId, tripId), itinerary.version(), props.getModel(),
+                TripPoster p = TripPoster.start(TripAccess.owned(tripRepository, userId, tripId), itinerary.version(), props.getModel(),
                         options, LocalDateTime.now());
                 specs.forEach(spec -> p.addPage(TripPosterPage.of(spec.pageNo(), spec.kind(), spec.size(), spec.prompt())));
                 return posterRepository.save(p);
@@ -172,7 +173,7 @@ public class PosterService {
     /** 가장 최근 포스터 (그리는 중이면 장마다 상태) */
     public PosterResponseDto get(Long userId, Long tripId) {
         return writeTransaction.execute(status -> {
-            findTrip(userId, tripId);
+            TripAccess.owned(tripRepository, userId, tripId);
             TripPoster poster = posterRepository.findFirstByTripIdOrderByIdDesc(tripId)
                     .orElseThrow(() -> new NotFoundException("아직 만든 포스터가 없어요."));
             if (poster.getStatus() == PosterStatus.GENERATING && isStale(poster)) {
@@ -188,7 +189,7 @@ public class PosterService {
     /** 다 그려진 장의 PNG */
     public byte[] image(Long userId, Long tripId, Long posterId, int pageNo) {
         String path = readTransaction.execute(status -> {
-            findTrip(userId, tripId);
+            TripAccess.owned(tripRepository, userId, tripId);
             TripPoster poster = posterRepository.findByIdAndTripId(posterId, tripId)
                     .orElseThrow(() -> new NotFoundException("포스터를 찾을 수 없어요."));
             return poster.getPages().stream()
@@ -224,8 +225,4 @@ public class PosterService {
         return poster.getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(props.getStaleMinutes()));
     }
 
-    private Trip findTrip(Long userId, Long tripId) {
-        return tripRepository.findByIdAndUserId(tripId, userId)
-                .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
-    }
 }

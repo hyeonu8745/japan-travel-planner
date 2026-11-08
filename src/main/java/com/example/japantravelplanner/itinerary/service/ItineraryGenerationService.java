@@ -2,6 +2,9 @@ package com.example.japantravelplanner.itinerary.service;
 
 import com.example.japantravelplanner.attraction.entity.Attraction;
 import com.example.japantravelplanner.attraction.repository.AttractionRepository;
+import com.example.japantravelplanner.chat.entity.ChatMessage;
+import com.example.japantravelplanner.chat.entity.ChatRole;
+import com.example.japantravelplanner.chat.repository.ChatMessageRepository;
 import com.example.japantravelplanner.exchange.ExchangeRate;
 import com.example.japantravelplanner.exchange.ExchangeRateService;
 import com.example.japantravelplanner.global.exception.ConflictException;
@@ -11,12 +14,16 @@ import com.example.japantravelplanner.itinerary.dictionary.PlaceTypeLabels;
 import com.example.japantravelplanner.itinerary.dto.ItineraryConfirmResponseDto;
 import com.example.japantravelplanner.itinerary.dto.ItineraryResponseDto;
 import com.example.japantravelplanner.itinerary.entity.Itinerary;
+import com.example.japantravelplanner.itinerary.entity.ItinerarySource;
 import com.example.japantravelplanner.itinerary.meal.MealProperties;
+import com.example.japantravelplanner.itinerary.naming.KoreanNameService;
 import com.example.japantravelplanner.itinerary.narration.ItineraryNarrator;
 import com.example.japantravelplanner.itinerary.narration.TripBrief;
-import com.example.japantravelplanner.itinerary.naming.KoreanNameService;
 import com.example.japantravelplanner.itinerary.planner.ScheduledDay;
 import com.example.japantravelplanner.itinerary.planner.ScheduledStop;
+import com.example.japantravelplanner.itinerary.reason.PlanSummary;
+import com.example.japantravelplanner.itinerary.reason.ReasonContext;
+import com.example.japantravelplanner.itinerary.reason.ReasonContextLoader;
 import com.example.japantravelplanner.itinerary.repository.ItineraryRepository;
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
 import com.example.japantravelplanner.restaurant.match.RestaurantMatchService;
@@ -27,20 +34,14 @@ import com.example.japantravelplanner.trip.entity.TripPreference;
 import com.example.japantravelplanner.trip.entity.TripStatus;
 import com.example.japantravelplanner.trip.repository.TripPreferenceRepository;
 import com.example.japantravelplanner.trip.repository.TripRepository;
+import com.example.japantravelplanner.trip.service.TripAccess;
 import lombok.extern.slf4j.Slf4j;
 import org.locationtech.jts.geom.Point;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import com.example.japantravelplanner.chat.entity.ChatMessage;
-import com.example.japantravelplanner.chat.entity.ChatRole;
-import com.example.japantravelplanner.chat.repository.ChatMessageRepository;
-import com.example.japantravelplanner.itinerary.reason.PlanSummary;
-import com.example.japantravelplanner.itinerary.reason.ReasonContext;
-import com.example.japantravelplanner.itinerary.reason.ReasonContextLoader;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
-import com.example.japantravelplanner.itinerary.entity.ItinerarySource;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
@@ -169,7 +170,7 @@ public class ItineraryGenerationService {
     }
 
     private Planned plan(Long userId, Long tripId, ExchangeRate rate) {
-        Trip trip = findTrip(userId, tripId);
+        Trip trip = TripAccess.owned(tripRepository, userId, tripId);
 
         long recent = itineraryRepository.countByTripIdAndSourceAndCreatedAtAfter(
                 tripId, ItinerarySource.GENERATED, LocalDateTime.now().minusHours(24));
@@ -190,7 +191,7 @@ public class ItineraryGenerationService {
 
     private ItineraryResponseDto save(Long userId, Long tripId, Planned planned, Map<Integer, String> descriptions,
                                       ExchangeRate rate) {
-        Trip trip = findTrip(userId, tripId);
+        Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         int version = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
                 .map(latest -> latest.getVersionNo() + 1)
                 .orElse(1);
@@ -232,7 +233,7 @@ public class ItineraryGenerationService {
     /** 가장 최근 버전의 일정 */
     public ItineraryResponseDto getLatest(Long userId, Long tripId) {
         return readTransaction.execute(status -> {
-            findTrip(userId, tripId);
+            TripAccess.owned(tripRepository, userId, tripId);
             Itinerary itinerary = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
                     .orElseThrow(() -> new NotFoundException("아직 만들어진 일정이 없습니다."));
             return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels, Map.of(),
@@ -253,7 +254,7 @@ public class ItineraryGenerationService {
         }
         try {
             return writeTransaction.execute(status -> {
-                Trip trip = findTrip(userId, tripId);
+                Trip trip = TripAccess.owned(tripRepository, userId, tripId);
                 Itinerary latest = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
                         .orElseThrow(() -> new ConflictException("아직 만들어진 일정이 없어요. 일정을 먼저 만들어 주세요."));
                 if (trip.isAwaitingConfirmation()) {
@@ -279,10 +280,6 @@ public class ItineraryGenerationService {
         return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels, alternatives, reasons);
     }
 
-    private Trip findTrip(Long userId, Long tripId) {
-        return tripRepository.findByIdAndUserId(tripId, userId)
-                .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
-    }
 
     /** 일정에 들어간 식당 (다음 후보는 빼고 실제로 고른 곳만) */
     static Set<Long> chosenRestaurantIds(ItineraryPlanner.Result result) {

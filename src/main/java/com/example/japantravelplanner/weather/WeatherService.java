@@ -1,8 +1,8 @@
 package com.example.japantravelplanner.weather;
 
-import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.trip.repository.TripRepository;
+import com.example.japantravelplanner.trip.service.TripAccess;
 import lombok.extern.slf4j.Slf4j;
 import org.locationtech.jts.geom.Point;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,8 +52,7 @@ public class WeatherService {
     }
 
     public WeatherResponseDto get(Long userId, Long tripId) {
-        Trip trip = tripRepository.findByIdAndUserId(tripId, userId)
-                .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
+        Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         Point hotel = trip.getAccommodationLocation();
         double lat = hotel == null ? TOKYO_LAT : hotel.getY();
         double lng = hotel == null ? TOKYO_LNG : hotel.getX();

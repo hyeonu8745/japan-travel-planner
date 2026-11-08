@@ -73,7 +73,7 @@ public class ItineraryPlanner {
         int days = daysOf(trip);
 
         TravelOptions options = TravelOptions.of(trip, constraints, travelProperties);
-        TravelPoint hotelPoint = new TravelPoint(trip.getAccommodationName(), hotel.getY(), hotel.getX());
+        TravelPoint hotelPoint = TravelPoint.of(trip.getAccommodationName(), hotel);
 
         double foodRatio = preference == null ? DEFAULT_FOOD_RATIO : preference.getFoodBudgetRatio();
         MealBudget budget = krwPerYen == null

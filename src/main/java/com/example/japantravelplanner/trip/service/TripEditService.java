@@ -17,9 +17,9 @@ import com.example.japantravelplanner.poster.TripPoster;
 import com.example.japantravelplanner.poster.TripPosterRepository;
 import com.example.japantravelplanner.trip.dto.TripRequestDto;
 import com.example.japantravelplanner.trip.dto.TripResponseDto;
-import com.example.japantravelplanner.trip.dto.TripUpdateResponseDto;
 import com.example.japantravelplanner.trip.dto.TripUpdateResponseDto.ItineraryUpdate;
 import com.example.japantravelplanner.trip.dto.TripUpdateResponseDto.Result;
+import com.example.japantravelplanner.trip.dto.TripUpdateResponseDto;
 import com.example.japantravelplanner.trip.entity.Airport;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.trip.entity.TripStatus;
@@ -102,12 +102,12 @@ public class TripEditService {
         ItineraryUpdate update = syncItinerary(userId, tripId, saved);
 
         // ③ 상태가 바뀌었을 수 있으니 다시 읽어서 돌려준다
-        TripResponseDto trip = readTransaction.execute(status -> TripResponseDto.from(findTrip(userId, tripId)));
+        TripResponseDto trip = readTransaction.execute(status -> TripResponseDto.from(TripAccess.owned(tripRepository, userId, tripId)));
         return new TripUpdateResponseDto(trip, saved.change().fields(), update);
     }
 
     private Saved save(Long userId, Long tripId, TripRequestDto request) {
-        Trip trip = findTrip(userId, tripId);
+        Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         TripChange change = TripChange.between(trip, request);
         boolean hasItinerary = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId).isPresent();
         boolean wasAwaiting = trip.isAwaitingConfirmation();   // 완성 전이었는지 (시각만 다시 계산하면 그대로 둔다)
@@ -188,7 +188,7 @@ public class TripEditService {
         try {
             List<String> posterFiles = new ArrayList<>();
             writeTransaction.executeWithoutResult(status -> {
-                Trip trip = findTrip(userId, tripId);
+                Trip trip = TripAccess.owned(tripRepository, userId, tripId);
                 // 포스터(10-12)도 함께. 파일은 DB 삭제가 끝난 뒤 지운다
                 List<TripPoster> posters = posterRepository.findByTripId(tripId);
                 posters.forEach(p -> p.getPages().forEach(page -> posterFiles.add(page.getFilePath())));
@@ -206,10 +206,6 @@ public class TripEditService {
         }
     }
 
-    private Trip findTrip(Long userId, Long tripId) {
-        return tripRepository.findByIdAndUserId(tripId, userId)
-                .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
-    }
 
     /** ① 단계 결과 */
     private record Saved(TripChange change, boolean hasItinerary, boolean wasAwaiting) {

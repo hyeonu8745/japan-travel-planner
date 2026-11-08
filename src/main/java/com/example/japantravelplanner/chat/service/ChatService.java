@@ -7,20 +7,21 @@ import com.example.japantravelplanner.chat.ai.PreferenceChatResult;
 import com.example.japantravelplanner.chat.ai.PreferenceChatSchema;
 import com.example.japantravelplanner.chat.ai.PreferencePrompt;
 import com.example.japantravelplanner.chat.dto.ChatMessageResponseDto;
-import com.example.japantravelplanner.chat.edit.ItineraryChatEditService;
 import com.example.japantravelplanner.chat.dto.ChatReplyResponseDto;
 import com.example.japantravelplanner.chat.dto.PreferenceResponseDto;
+import com.example.japantravelplanner.chat.edit.ItineraryChatEditService;
 import com.example.japantravelplanner.chat.entity.ChatMessage;
 import com.example.japantravelplanner.chat.entity.ChatRole;
-import com.example.japantravelplanner.trip.entity.PreferenceConstraint;
 import com.example.japantravelplanner.chat.repository.ChatMessageRepository;
 import com.example.japantravelplanner.global.exception.AiServiceException;
 import com.example.japantravelplanner.global.exception.ConflictException;
 import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.global.exception.TooManyRequestsException;
 import com.example.japantravelplanner.trip.entity.*;
+import com.example.japantravelplanner.trip.entity.PreferenceConstraint;
 import com.example.japantravelplanner.trip.repository.TripPreferenceRepository;
 import com.example.japantravelplanner.trip.repository.TripRepository;
+import com.example.japantravelplanner.trip.service.TripAccess;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -100,8 +101,7 @@ public class ChatService {
     }
 
     private TripStatus checkTrip(Long userId, Long tripId) {
-        Trip trip = tripRepository.findByIdAndUserId(tripId, userId)
-                .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
+        Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         long recentCount = chatMessageRepository.countByTripUserIdAndRoleAndCreatedAtAfter(
                 userId, ChatRole.USER, LocalDateTime.now().minusHours(1));
         if (recentCount >= HOURLY_MESSAGE_LIMIT) {
@@ -111,8 +111,7 @@ public class ChatService {
     }
 
     private String buildContext(Long userId, Long tripId) {
-        Trip trip = tripRepository.findByIdAndUserId(tripId, userId)
-                .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
+        Trip trip = TripAccess.owned(tripRepository, userId, tripId);
 
         if (!CHAT_ALLOWED_STATUSES.contains(trip.getStatus())) {
             // checkTrip과 이 사이에 일정이 만들어진 경우
@@ -226,8 +225,7 @@ public class ChatService {
      */
     public List<ChatMessageResponseDto> getHistory(Long userId, Long tripId) {
         List<ChatMessageResponseDto> history = readTransaction.execute(status -> {
-            tripRepository.findByIdAndUserId(tripId, userId)
-                    .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
+            TripAccess.owned(tripRepository, userId, tripId);
             return chatMessageRepository.findByTripIdOrderByIdAsc(tripId).stream()
                     .map(ChatMessageResponseDto::from)
                     .toList();
@@ -235,8 +233,7 @@ public class ChatService {
         if (!history.isEmpty()) return history;
 
         return writeTransaction.execute(status -> {
-            Trip trip = tripRepository.findByIdAndUserId(tripId, userId)
-                    .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
+            Trip trip = TripAccess.owned(tripRepository, userId, tripId);
             // 동시에 두 번 열린 경우를 대비해 트랜잭션 안에서 다시 확인
             if (CHAT_ALLOWED_STATUSES.contains(trip.getStatus()) && !chatMessageRepository.existsByTripId(tripId)) {
                 saveGreeting(trip);
@@ -254,8 +251,7 @@ public class ChatService {
 
     public PreferenceResponseDto getPreference(Long userId, Long tripId) {
         return readTransaction.execute(status -> {
-            tripRepository.findByIdAndUserId(tripId, userId)
-                    .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
+            TripAccess.owned(tripRepository, userId, tripId);
             return tripPreferenceRepository.findByTripId(tripId)
                     .map(PreferenceResponseDto::from)
                     .orElseGet(PreferenceResponseDto::empty);

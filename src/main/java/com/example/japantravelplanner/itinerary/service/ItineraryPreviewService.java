@@ -1,6 +1,5 @@
 package com.example.japantravelplanner.itinerary.service;
 
-import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.itinerary.candidate.DayZone;
 import com.example.japantravelplanner.itinerary.candidate.ScoredAttraction;
 import com.example.japantravelplanner.itinerary.dictionary.PlaceTypeLabels;
@@ -14,6 +13,7 @@ import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.trip.entity.TripPreference;
 import com.example.japantravelplanner.trip.repository.TripPreferenceRepository;
 import com.example.japantravelplanner.trip.repository.TripRepository;
+import com.example.japantravelplanner.trip.service.TripAccess;
 import lombok.RequiredArgsConstructor;
 import org.locationtech.jts.geom.Point;
 import org.springframework.stereotype.Service;
@@ -42,7 +42,7 @@ public class ItineraryPreviewService {
     /** ②③ 날짜별 지역과 관광지 후보 */
     @Transactional
     public List<Map<String, Object>> previewCandidates(Long userId, Long tripId) {
-        Trip trip = findTrip(userId, tripId);
+        Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         List<PreferenceConstraint> constraints = constraintsOf(tripId);
         Point hotel = accommodationLocator.locate(trip);
 
@@ -63,7 +63,7 @@ public class ItineraryPreviewService {
     /** 끼니 후보 (한 지점 기준) */
     @Transactional(readOnly = true)
     public Map<String, Object> previewRestaurants(Long userId, Long tripId, double lat, double lng, Meal meal) {
-        Trip trip = findTrip(userId, tripId);
+        Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         TripPreference preference = preferenceRepository.findByTripId(tripId).orElse(null);
 
         double foodRatio = preference == null ? 0.4 : preference.getFoodBudgetRatio();
@@ -97,7 +97,7 @@ public class ItineraryPreviewService {
      */
     @Transactional
     public Map<String, Object> previewRoutes(Long userId, Long tripId, boolean narrate) {
-        Trip trip = findTrip(userId, tripId);
+        Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         TripPreference preference = preferenceRepository.findByTripId(tripId).orElse(null);
         Point hotel = accommodationLocator.locate(trip);
 
@@ -127,10 +127,6 @@ public class ItineraryPreviewService {
 
     // ── 공통 ──
 
-    private Trip findTrip(Long userId, Long tripId) {
-        return tripRepository.findByIdAndUserId(tripId, userId)
-                .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
-    }
 
     private List<PreferenceConstraint> constraintsOf(Long tripId) {
         return ItineraryPlanner.constraintsOf(preferenceRepository.findByTripId(tripId).orElse(null));
@@ -207,4 +203,4 @@ public class ItineraryPreviewService {
     private static double round2(double value) {
         return Math.round(value * 100) / 100.0;
     }
-}
+}

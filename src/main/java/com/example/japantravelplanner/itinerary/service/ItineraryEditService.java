@@ -1,6 +1,8 @@
 package com.example.japantravelplanner.itinerary.service;
 
 import com.example.japantravelplanner.attraction.policy.SensitivePlaces;
+import com.example.japantravelplanner.global.util.GeoUtils;
+import com.example.japantravelplanner.trip.service.TripAccess;
 
 import com.example.japantravelplanner.global.exception.ConflictException;
 import com.example.japantravelplanner.global.exception.NotFoundException;
@@ -152,7 +154,7 @@ public class ItineraryEditService {
     /** 이 여행의 모든 버전 (최신이 먼저). 일정을 아직 안 만들었으면 빈 목록 */
     public List<ItineraryVersionDto> versions(Long userId, Long tripId) {
         return readTransaction.execute(status -> {
-            findTrip(userId, tripId);
+            TripAccess.owned(tripRepository, userId, tripId);
             List<Itinerary> all = itineraryRepository.findByTripIdOrderByVersionNoDesc(tripId);
             int latestNo = all.isEmpty() ? 0 : all.get(0).getVersionNo();
             return all.stream()
@@ -165,7 +167,7 @@ public class ItineraryEditService {
     /** 특정 버전의 일정 (보기만 가능. 옛 버전의 항목은 고칠 수 없다) */
     public ItineraryResponseDto version(Long userId, Long tripId, int versionNo) {
         return readTransaction.execute(status -> {
-            findTrip(userId, tripId);
+            TripAccess.owned(tripRepository, userId, tripId);
             Itinerary itinerary = itineraryRepository.findByTripIdAndVersionNo(tripId, versionNo)
                     .orElseThrow(() -> new NotFoundException("해당 버전의 일정을 찾을 수 없습니다."));
             return toResponse(itinerary);
@@ -194,7 +196,7 @@ public class ItineraryEditService {
     }
 
     private ItineraryResponseDto doRestore(Long userId, Long tripId, int versionNo) {
-        Trip trip = findTrip(userId, tripId);
+        Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         Itinerary latest = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
                 .orElseThrow(() -> new NotFoundException("아직 만들어진 일정이 없습니다."));
         Itinerary old = itineraryRepository.findByTripIdAndVersionNo(tripId, versionNo)
@@ -238,10 +240,6 @@ public class ItineraryEditService {
         }
     }
 
-    private Trip findTrip(Long userId, Long tripId) {
-        return tripRepository.findByIdAndUserId(tripId, userId)
-                .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
-    }
 
     // ===================== 후보 조회 =====================
 
@@ -268,7 +266,7 @@ public class ItineraryEditService {
         // 앞 장소에서 각 후보까지의 이동 (이동 시간 표는 한 번만 만든다)
         List<TravelPoint> points = new ArrayList<>();
         points.add(search.previous());
-        search.found().forEach(c -> points.add(pointOf(c.restaurant())));
+        search.found().forEach(c -> points.add(TravelPoint.of(c.restaurant())));
         TravelMatrix matrix = travelTimeService.buildMatrix(points,
                 target.options().mode(), target.options().walkThresholdMinutes());
 
@@ -279,7 +277,7 @@ public class ItineraryEditService {
             TravelLeg leg = matrix.get(0, i + 1);
             candidates.add(new CandidateDto(r.getId(), r.getName(), r.getGenre(), r.getRatingVal(), r.getReviewCnt(),
                     budgetOf(r, search.meal()), r.getAddress(), r.getNearestStation(),
-                    lat(r.getLocation()), lng(r.getLocation()), c.distanceMeters(),
+                    GeoUtils.lat(r.getLocation()), GeoUtils.lng(r.getLocation()), c.distanceMeters(),
                     new ItineraryResponseDto.TravelDto(leg.mode(), leg.minutes(), leg.distanceMeters(), leg.estimated()),
                     overlaps(previousMeal, r.getGenre()), c.budgetRelaxed(),
                     r.getHoliday(), RegularHoliday.isClosedOn(r.getHoliday(), visitDate),
@@ -406,7 +404,7 @@ public class ItineraryEditService {
 
     private Optional<ItineraryResponseDto> doRetimeForConditions(Long userId, Long tripId, String changeNote,
                                                                   boolean keepAwaiting) {
-        Trip trip = findTrip(userId, tripId);
+        Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         Itinerary latest = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId).orElse(null);
         if (latest == null) {
             return Optional.empty();
@@ -445,7 +443,7 @@ public class ItineraryEditService {
 
         List<RetimeItem> items = new ArrayList<>();
         for (ItineraryStop s : stops) {
-            items.add(new RetimeItem(s.getType(), s == target ? pointOf(replacement) : pointOf(s), s.getStayMinutes()));
+            items.add(new RetimeItem(s.getType(), s == target ? TravelPoint.of(replacement) : TravelPoint.of(s), s.getStayMinutes()));
         }
         Retimed retimed = dayScheduler.retime(items, day.getWindowStart(), day.getWindowEnd(), hotel, options);
 
@@ -572,14 +570,14 @@ public class ItineraryEditService {
     /** 끼니를 찾는 기준점: 일정을 만들 때처럼 앞뒤 장소의 중간. 앞뒤가 없으면 있는 쪽, 둘 다 없으면 지금 식당 */
     private TravelPoint anchorOf(Target target) {
         List<ItineraryStop> stops = target.day().getStops();
-        TravelPoint before = target.index() > 0 ? pointOf(stops.get(target.index() - 1)) : null;
-        TravelPoint after = target.index() + 1 < stops.size() ? pointOf(stops.get(target.index() + 1)) : null;
+        TravelPoint before = target.index() > 0 ? TravelPoint.of(stops.get(target.index() - 1)) : null;
+        TravelPoint after = target.index() + 1 < stops.size() ? TravelPoint.of(stops.get(target.index() + 1)) : null;
         if (before != null && after != null) {
-            return new TravelPoint("끼니 기준(중간)", (before.lat() + after.lat()) / 2, (before.lng() + after.lng()) / 2);
+            return TravelPoint.midpoint("끼니 기준(중간)", before, after);
         }
         if (before != null) return before;
         if (after != null) return after;
-        return pointOf(target.stop());
+        return TravelPoint.of(target.stop());
     }
 
     private Search search(Target target, int limit, Set<String> wantedGenres) {
@@ -587,19 +585,19 @@ public class ItineraryEditService {
         int maxYen = target.budget().of(meal);
 
         List<ItineraryStop> stops = target.day().getStops();
-        TravelPoint before = target.index() > 0 ? pointOf(stops.get(target.index() - 1)) : null;
-        TravelPoint after = target.index() + 1 < stops.size() ? pointOf(stops.get(target.index() + 1)) : null;
+        TravelPoint before = target.index() > 0 ? TravelPoint.of(stops.get(target.index() - 1)) : null;
+        TravelPoint after = target.index() + 1 < stops.size() ? TravelPoint.of(stops.get(target.index() + 1)) : null;
 
         // 일정을 만들 때처럼 앞뒤 장소의 중간에서 찾는다. 앞뒤가 없으면 있는 쪽, 둘 다 없으면 지금 식당 근처
         TravelPoint anchor;
         if (before != null && after != null) {
-            anchor = new TravelPoint("끼니 기준(중간)", (before.lat() + after.lat()) / 2, (before.lng() + after.lng()) / 2);
+            anchor = TravelPoint.midpoint("끼니 기준(중간)", before, after);
         } else if (before != null) {
             anchor = before;
         } else if (after != null) {
             anchor = after;
         } else {
-            anchor = pointOf(target.stop());
+            anchor = TravelPoint.of(target.stop());
         }
         TravelPoint previous = before != null ? before : hotelPoint(target.trip());
 
@@ -649,7 +647,7 @@ public class ItineraryEditService {
     // ===================== 불러오기·검사 =====================
 
     private Target load(Long userId, Long tripId, Long stopId) {
-        Trip trip = findTrip(userId, tripId);
+        Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         ItineraryStop stop = stopRepository.findById(stopId)
                 .orElseThrow(() -> new NotFoundException("일정 항목을 찾을 수 없습니다."));
         ItineraryDay day = stop.getDay();
@@ -696,32 +694,12 @@ public class ItineraryEditService {
 
     private TravelPoint hotelPoint(Trip trip) {
         Point hotel = accommodationLocator.locate(trip);
-        return new TravelPoint(trip.getAccommodationName(), hotel.getY(), hotel.getX());
-    }
-
-    private static TravelPoint pointOf(ItineraryStop stop) {
-        return stop.getType() == StopType.ATTRACTION
-                ? new TravelPoint(stop.getAttraction().getName(),
-                stop.getAttraction().getLocation().getY(), stop.getAttraction().getLocation().getX())
-                : pointOf(stop.getRestaurant());
-    }
-
-    private static TravelPoint pointOf(Restaurant r) {
-        return new TravelPoint(r.getName(), r.getLocation().getY(), r.getLocation().getX());
+        return TravelPoint.of(trip.getAccommodationName(), hotel);
     }
 
     // 점심이면 점심 예산, 저녁이면 저녁 예산
     private static String budgetOf(Restaurant r, Meal meal) {
         return meal == Meal.LUNCH ? r.getBudgetLunch() : r.getBudgetDinner();
-    }
-
-    // JTS 좌표는 (경도 x, 위도 y) 순서
-    private static Double lat(Point point) {
-        return point == null ? null : point.getY();
-    }
-
-    private static Double lng(Point point) {
-        return point == null ? null : point.getX();
     }
 
     // ===================== 내부 자료 =====================

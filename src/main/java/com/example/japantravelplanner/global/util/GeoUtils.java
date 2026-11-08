@@ -1,6 +1,8 @@
 package com.example.japantravelplanner.global.util;
 
-/** 위경도 거리 계산 유틸 (Haversine 공식). */
+import org.locationtech.jts.geom.Point;
+
+/** 위경도 유틸: 거리 계산(Haversine 공식), JTS 점에서 위도·경도 꺼내기. */
 public final class GeoUtils {
 
     private static final double EARTH_RADIUS_METERS = 6_371_008.8;
@@ -17,5 +19,14 @@ public final class GeoUtils {
                 * Math.sin(dLng / 2) * Math.sin(dLng / 2);
 
         return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(a));
+    }
+
+    /** JTS 좌표는 (경도 x, 위도 y) 순서. 점이 없으면 null (응답 DTO용) */
+    public static Double lat(Point point) {
+        return point == null ? null : point.getY();
+    }
+
+    public static Double lng(Point point) {
+        return point == null ? null : point.getX();
     }
 }

@@ -1,15 +1,15 @@
 package com.example.japantravelplanner.trip.service;
 
+import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.trip.dto.TripRequestDto;
 import com.example.japantravelplanner.trip.dto.TripResponseDto;
 import com.example.japantravelplanner.trip.entity.Airport;
 import com.example.japantravelplanner.trip.entity.Trip;
-import com.example.japantravelplanner.user.entity.User;
 import com.example.japantravelplanner.trip.repository.TripRepository;
+import com.example.japantravelplanner.user.entity.User;
 import com.example.japantravelplanner.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import com.example.japantravelplanner.global.exception.NotFoundException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -73,8 +73,7 @@ public class TripService {
     }
 
     public TripResponseDto getTrip(Long userId, Long tripId) {
-        Trip trip = tripRepository.findByIdAndUserId(tripId, userId)
-                .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
+        Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         return TripResponseDto.from(trip);
     }
 }

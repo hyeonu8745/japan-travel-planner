@@ -1,23 +1,24 @@
 package com.example.japantravelplanner.itinerary.dto;
 
 import com.example.japantravelplanner.attraction.entity.Attraction;
+import com.example.japantravelplanner.global.util.GeoUtils;
 import com.example.japantravelplanner.itinerary.entity.DroppedPlace;
 import com.example.japantravelplanner.itinerary.entity.Itinerary;
 import com.example.japantravelplanner.itinerary.entity.ItineraryDay;
-import com.example.japantravelplanner.itinerary.planner.AirportPlan;
+import com.example.japantravelplanner.itinerary.entity.ItinerarySource;
 import com.example.japantravelplanner.itinerary.entity.ItineraryStop;
+import com.example.japantravelplanner.itinerary.meal.RegularHoliday;
+import com.example.japantravelplanner.itinerary.naming.GenreLabels;
+import com.example.japantravelplanner.itinerary.planner.AirportPlan;
 import com.example.japantravelplanner.itinerary.planner.DropReason;
 import com.example.japantravelplanner.itinerary.planner.StopType;
+import com.example.japantravelplanner.itinerary.reason.ReasonContext;
+import com.example.japantravelplanner.itinerary.reason.StopReason;
+import com.example.japantravelplanner.itinerary.reason.StopReasons;
 import com.example.japantravelplanner.itinerary.travel.LegMode;
 import com.example.japantravelplanner.itinerary.zone.TripZone;
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
 import com.example.japantravelplanner.trip.entity.Trip;
-import com.example.japantravelplanner.itinerary.entity.ItinerarySource;
-import com.example.japantravelplanner.itinerary.meal.RegularHoliday;
-import com.example.japantravelplanner.itinerary.naming.GenreLabels;
-import com.example.japantravelplanner.itinerary.reason.ReasonContext;
-import com.example.japantravelplanner.itinerary.reason.StopReason;
-import com.example.japantravelplanner.itinerary.reason.StopReasons;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -207,7 +208,7 @@ public record ItineraryResponseDto(
         List<DayDto> days = itinerary.getDays().stream()
                 .map(day -> toDay(day, typeLabels, alternatives, context, transfersOf(trip, day, lastDay))).toList();
         AccommodationDto accommodation = new AccommodationDto(trip.getAccommodationName(),
-                trip.getAccommodationAddress(), lat(trip.getAccommodationLocation()), lng(trip.getAccommodationLocation()));
+                trip.getAccommodationAddress(), GeoUtils.lat(trip.getAccommodationLocation()), GeoUtils.lng(trip.getAccommodationLocation()));
         return new ItineraryResponseDto(itinerary.getId(), trip.getId(), itinerary.getVersionNo(), itinerary.getSource(),
                 itinerary.getChangeNote(), itinerary.getKrwPerYen(), itinerary.getCreatedAt(), accommodation, days,
                 ExchangeRateDto.of(itinerary.getKrwPerYen(), itinerary.getExchangeRateDate(), itinerary.getExchangeRateSource()));
@@ -258,7 +259,7 @@ public record ItineraryResponseDto(
             Attraction a = stop.getAttraction();
             return new StopDto(stop.getId(), stop.getStopOrder(), stop.getType(), a.getName(),
                     stop.getArrivalTime(), stop.getDepartureTime(), stop.getStayMinutes(), stop.getWaitMinutes(),
-                    travel, lat(a.getLocation()), lng(a.getLocation()),
+                    travel, GeoUtils.lat(a.getLocation()), GeoUtils.lng(a.getLocation()),
                     new AttractionDto(a.getId(), typeLabels.apply(a.getTypes()), a.getRating(), a.getReviewCnt(),
                             a.getAddress(), a.getWard(), a.getPlaceId()),
                     null, List.of(), StopReasons.of(stop, reasons), a.getNameKo());
@@ -267,7 +268,7 @@ public record ItineraryResponseDto(
         Restaurant r = stop.getRestaurant();
         return new StopDto(stop.getId(), stop.getStopOrder(), stop.getType(), r.getName(),
                 stop.getArrivalTime(), stop.getDepartureTime(), stop.getStayMinutes(), stop.getWaitMinutes(),
-                travel, lat(r.getLocation()), lng(r.getLocation()),
+                travel, GeoUtils.lat(r.getLocation()), GeoUtils.lng(r.getLocation()),
                 null,
                 new RestaurantDto(r.getId(), r.getGenre(), r.getRatingVal(), budgetOf(r, stop.getType()), r.getAddress(),
                         stop.isBudgetRelaxed(), stop.isGenreRepeated(),
@@ -282,7 +283,7 @@ public record ItineraryResponseDto(
                 .map(alternatives::get)
                 .filter(java.util.Objects::nonNull)
                 .map(r -> new AlternativeDto(r.getId(), r.getName(), r.getGenre(), r.getRatingVal(),
-                        budgetOf(r, stop.getType()), r.getAddress(), lat(r.getLocation()), lng(r.getLocation()),
+                        budgetOf(r, stop.getType()), r.getAddress(), GeoUtils.lat(r.getLocation()), GeoUtils.lng(r.getLocation()),
                         r.getHoliday(), RegularHoliday.isClosedOn(r.getHoliday(), date),
                         r.getNameKo(), GenreLabels.of(r.getGenre())))
                 .toList();
@@ -301,12 +302,4 @@ public record ItineraryResponseDto(
         return new DroppedDto(dropped.getName(), dropped.getReason(), dropped.getReason().label());
     }
 
-    // JTS 좌표는 (경도 x, 위도 y) 순서
-    private static Double lat(org.locationtech.jts.geom.Point point) {
-        return point == null ? null : point.getY();
-    }
-
-    private static Double lng(org.locationtech.jts.geom.Point point) {
-        return point == null ? null : point.getX();
-    }
 }

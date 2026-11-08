@@ -27,7 +27,7 @@ public class ExcludedRestaurantService {
 
     @Transactional(readOnly = true)
     public List<ExcludedRestaurantDto> list(Long userId, Long tripId) {
-        Trip trip = findTrip(userId, tripId);
+        Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         return restaurantRepository.findAllById(trip.excludedRestaurants()).stream()
                 .map(r -> new ExcludedRestaurantDto(r.getId(), r.getName(), r.getNameKo(), GenreLabels.of(r.getGenre())))
                 .toList();
@@ -36,14 +36,10 @@ public class ExcludedRestaurantService {
     /** 빼기 해제 (목록에 없으면 404) */
     @Transactional
     public void allow(Long userId, Long tripId, Long restaurantId) {
-        Trip trip = findTrip(userId, tripId);
+        Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         if (!trip.allowRestaurant(restaurantId)) {
             throw new NotFoundException("다시 추천하지 않는 식당 목록에 없어요.");
         }
     }
 
-    private Trip findTrip(Long userId, Long tripId) {
-        return tripRepository.findByIdAndUserId(tripId, userId)
-                .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
-    }
 }

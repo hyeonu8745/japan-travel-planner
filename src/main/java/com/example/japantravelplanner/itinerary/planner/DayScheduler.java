@@ -406,7 +406,7 @@ public class DayScheduler {
         }
         Restaurant r = planned.chosen().restaurant();
         int index = points.size();
-        points.add(new TravelPoint(r.getName(), r.getLocation().getY(), r.getLocation().getX()));
+        points.add(TravelPoint.of(r));
         int stay = StayTimes.scaled(type == StopType.LUNCH ? StayTimes.LUNCH : StayTimes.DINNER, multiplier);
         return new Item(type, null, planned, index, stay, 0);
     }
@@ -512,4 +512,4 @@ public class DayScheduler {
             return timed.stream().mapToInt(t -> t.leg.minutes()).sum();
         }
     }
-}
+}

@@ -1,20 +1,21 @@
 package com.example.japantravelplanner.itinerary.budget;
 
-import com.example.japantravelplanner.itinerary.fare.FareProperties;
-import com.example.japantravelplanner.itinerary.fare.TransportEstimate;
-import com.example.japantravelplanner.itinerary.fare.TransportEstimator;
-import com.example.japantravelplanner.itinerary.travel.TravelProperties;
 import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.itinerary.entity.Itinerary;
 import com.example.japantravelplanner.itinerary.entity.ItineraryDay;
 import com.example.japantravelplanner.itinerary.entity.ItineraryStop;
+import com.example.japantravelplanner.itinerary.fare.FareProperties;
+import com.example.japantravelplanner.itinerary.fare.TransportEstimate;
+import com.example.japantravelplanner.itinerary.fare.TransportEstimator;
 import com.example.japantravelplanner.itinerary.planner.StopType;
 import com.example.japantravelplanner.itinerary.repository.ItineraryRepository;
+import com.example.japantravelplanner.itinerary.travel.TravelProperties;
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.trip.entity.TripPreference;
 import com.example.japantravelplanner.trip.repository.TripPreferenceRepository;
 import com.example.japantravelplanner.trip.repository.TripRepository;
+import com.example.japantravelplanner.trip.service.TripAccess;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,8 +41,7 @@ public class BudgetSummaryService {
 
     @Transactional(readOnly = true)
     public BudgetSummaryDto summarize(Long userId, Long tripId) {
-        Trip trip = tripRepository.findByIdAndUserId(tripId, userId)
-                .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
+        Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         Itinerary itinerary = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
                 .orElseThrow(() -> new NotFoundException("아직 만들어진 일정이 없습니다."));
         double foodRatio = preferenceRepository.findByTripId(tripId).map(TripPreference::getFoodBudgetRatio)

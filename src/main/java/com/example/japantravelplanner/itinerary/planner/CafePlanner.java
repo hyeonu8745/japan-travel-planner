@@ -48,7 +48,7 @@ public class CafePlanner {
 
         TravelPoint before = pointOf(stops.get(insertAt - 1));
         TravelPoint after = pointOf(stops.get(insertAt));
-        TravelPoint anchor = new TravelPoint("카페 기준(중간)", (before.lat() + after.lat()) / 2, (before.lng() + after.lng()) / 2);
+        TravelPoint anchor = TravelPoint.midpoint("카페 기준(중간)", before, after);
         List<RestaurantCandidate> cafes = restaurantFinder.findCafe(anchor.lat(), anchor.lng(), filter, usedRestaurantIds,
                 day.date(), props.getSearchRadii(), props.getMaxYen(), props.getDistancePenalty(), ALTERNATIVES + 1);
         if (cafes.isEmpty()) {
@@ -56,8 +56,7 @@ public class CafePlanner {
             return day;
         }
         RestaurantCandidate chosen = cafes.get(0);
-        TravelPoint cafePoint = new TravelPoint(chosen.restaurant().getName(),
-                chosen.restaurant().getLocation().getY(), chosen.restaurant().getLocation().getX());
+        TravelPoint cafePoint = TravelPoint.of(chosen.restaurant());
 
         List<RetimeItem> items = new ArrayList<>();
         for (int i = 0; i < stops.size(); i++) {
@@ -117,7 +116,7 @@ public class CafePlanner {
             return new TravelPoint(s.name(), s.attraction().lat(), s.attraction().lng());
         }
         var location = s.meal().chosen().restaurant().getLocation();
-        return new TravelPoint(s.name(), location.getY(), location.getX());
+        return TravelPoint.of(s.name(), location);
     }
 
     private static int minutes(LocalTime t) {
