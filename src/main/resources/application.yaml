@@ -11,9 +11,16 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
+  # 11-14 DB 구조는 Flyway(src/main/resources/db/migration)가 만든다. 테이블·컬럼을 바꿀 땐 V3__*.sql 처럼 새 파일을 더한다
+  # 원래 DB 는 V1 을 실행하지 않고 "버전 1"로 기록만 한 뒤 V2 부터 실행한다 (baseline-on-migrate)
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 1
+
   jpa:
     hibernate:
-      ddl-auto: update
+      # Hibernate 는 엔티티와 DB 구조가 맞는지 확인만 한다 (예전 update 는 제약을 마음대로 만들고 지우지 않았다)
+      ddl-auto: validate
     # SQL 로그는 아래 logging.level.org.hibernate.SQL 하나로 (show-sql 까지 켜면 같은 SQL 이 두 번 찍혔다, 11-08)
     properties:
       hibernate:

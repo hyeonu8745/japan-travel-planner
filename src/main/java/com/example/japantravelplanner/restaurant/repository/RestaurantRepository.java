@@ -58,8 +58,6 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, Long>, R
     List<Restaurant> findReviewSample(@Param("matched") com.example.japantravelplanner.restaurant.entity.GoogleMatchStatus matched,
                                       org.springframework.data.domain.Pageable pageable);
 
-    // 예산 파싱이 이미 실행됐는지 확인 (마이그레이션 Runner 중복 실행 방지용)
-    boolean existsByBudgetDinnerMinIsNotNull();
 
     /** 한국어 이름 저장 (이미 있으면 덮어쓰지 않는다) */
     @Modifying
