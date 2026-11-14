@@ -107,7 +107,7 @@ class AirportPlanTest {
         assertThat(DayWindow.of(true, false, LocalTime.of(14, 0), null, false,
                 AirportPlan.firstDayStart(withFlight), null).start()).isEqualTo(LocalTime.of(12, 35));
 
-        // 시각만 있고 공항이 없거나 모르는 공항이면 계산하지 않는다
+        // 시각만 있고 공항이 없거나, 여행 권역의 공항이 아니면(도쿄 여행에 간사이 공항) 계산하지 않는다
         assertThat(AirportPlan.firstDayStart(trip(null, LocalTime.of(10, 0), null, null))).isNull();
         assertThat(AirportPlan.lastDayEnd(trip(null, null, "KIX", LocalTime.of(18, 0)))).isNull();
     }

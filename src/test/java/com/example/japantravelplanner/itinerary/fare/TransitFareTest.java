@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.itinerary.fare;
 
+import com.example.japantravelplanner.trip.region.City;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -46,5 +47,15 @@ class TransitFareTest {
 
         assertThat(plan.passes()).containsExactly(new TransitFare.Pass(1, 2, 48, 1500));
         assertThat(plan.cost()).isEqualTo(1800);
+    }
+
+    @Test
+    void 지하철_운임은_도쿄만_있고_도쿄_값은_설정_그대로다() {
+        FareProperties props = new FareProperties();
+        FareProperties.CityFare tokyo = props.forCity(City.TOKYO).orElseThrow();
+        assertThat(tokyo.minBands()).isSameAs(props.getMetroBands());
+        assertThat(tokyo.maxBands()).isSameAs(props.getToeiBands());
+        assertThat(tokyo.pass72Yen()).isEqualTo(props.getPass72Yen());
+        assertThat(props.forCity(City.OSAKA)).isEmpty();
     }
 }

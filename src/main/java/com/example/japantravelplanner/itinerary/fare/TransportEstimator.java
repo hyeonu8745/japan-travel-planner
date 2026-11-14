@@ -8,6 +8,7 @@ import com.example.japantravelplanner.itinerary.travel.LegMode;
 import com.example.japantravelplanner.trip.entity.AirportAccess;
 import com.example.japantravelplanner.trip.entity.TransportMode;
 import com.example.japantravelplanner.trip.entity.Trip;
+import com.example.japantravelplanner.trip.region.City;
 import org.locationtech.jts.geom.Point;
 
 import java.util.ArrayList;
@@ -36,6 +37,9 @@ public final class TransportEstimator {
                                              int travelers, double walkLimitMeters, double transitDetour) {
         boolean rentalCar = trip.getTransportMode() == TransportMode.RENTAL_CAR;
         Point hotel = trip.getAccommodationLocation();
+        // 숙소 도시의 운임 (11-08). 확장 전에는 도쿄 값만 있어서, 값이 없는 도시도 도쿄 값으로 계산한다
+        FareProperties.CityFare fare = props.forCity(trip.getBaseCity())
+                .orElseGet(() -> props.forCity(City.TOKYO).orElseThrow());
 
         List<TransportEstimate.Day> days = new ArrayList<>();
         List<Integer> dayMaxFares = new ArrayList<>();
@@ -53,8 +57,8 @@ public final class TransportEstimator {
                 if (back != null) distances.add(back);
                 for (int d : distances) {
                     dayLegs++;
-                    dayMin += TransitFare.fare(props.getMetroBands(), d);
-                    dayMax += TransitFare.fare(props.getToeiBands(), d);
+                    dayMin += TransitFare.fare(fare.minBands(), d);
+                    dayMax += TransitFare.fare(fare.maxBands(), d);
                 }
             }
             legs += dayLegs;
@@ -64,7 +68,7 @@ public final class TransportEstimator {
             days.add(new TransportEstimate.Day(day.getDayNumber(), day.getDate(), dayLegs, dayMin, dayMax));
         }
 
-        TransitFare.PassPlan plan = TransitFare.bestPasses(dayMaxFares, props);
+        TransitFare.PassPlan plan = TransitFare.bestPasses(dayMaxFares, fare);
         boolean usePass = !plan.passes().isEmpty() && plan.savings() > 0;
         int passCost = usePass ? plan.cost() : max;
         TransportEstimate.Subway subway = new TransportEstimate.Subway(legs, min, max,
@@ -91,9 +95,9 @@ public final class TransportEstimator {
     }
 
     static TransportEstimate.Airport airport(Trip trip) {
-        TransportEstimate.Leg arrival = trip.arrivalAirportInfo().flatMap(AirportAccess::tokyo)
+        TransportEstimate.Leg arrival = trip.arrivalAirportInfo().flatMap(a -> AirportAccess.of(a, trip.getBaseCity()))
                 .map(TransportEstimator::leg).orElse(null);
-        TransportEstimate.Leg departure = trip.departureAirportInfo().flatMap(AirportAccess::tokyo)
+        TransportEstimate.Leg departure = trip.departureAirportInfo().flatMap(a -> AirportAccess.of(a, trip.getBaseCity()))
                 .map(TransportEstimator::leg).orElse(null);
         if (arrival == null && departure == null) return null;
         int min = (arrival == null ? 0 : arrival.cheapYen()) + (departure == null ? 0 : departure.cheapYen());

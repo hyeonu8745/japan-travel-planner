@@ -1,5 +1,8 @@
 package com.example.japantravelplanner.trip.entity;
 
+import com.example.japantravelplanner.trip.region.City;
+import com.example.japantravelplanner.trip.region.Region;
+import com.example.japantravelplanner.trip.region.RegionConverters;
 import com.example.japantravelplanner.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
@@ -36,6 +39,20 @@ public class Trip {
 
     private LocalDate startDate;
     private LocalDate endDate;
+
+    /**
+     * 권역과 숙소 도시 (11-08 리팩터링, 확장 계획 0-16). 날짜마다 도는 도시는 그날 지역(TripZone)의 도시다.
+     * 지금은 모두 수도권·도쿄. 예전 행(값 없음)도 도쿄로 읽는다.
+     */
+    @Convert(converter = RegionConverters.RegionConverter.class)
+    @Column(length = 20)
+    @Builder.Default
+    private Region region = Region.KANTO;
+
+    @Convert(converter = RegionConverters.CityConverter.class)
+    @Column(name = "base_city", length = 20)
+    @Builder.Default
+    private City baseCity = City.TOKYO;
 
     // 인원 수 (1~20)
     private Integer travelers;
@@ -127,13 +144,23 @@ public class Trip {
         return excludedRestaurantIds == null ? Set.of() : excludedRestaurantIds;
     }
 
-    /** 비행기 도착 정보가 다 있을 때만 (공항 + 시각) */
+    public Region getRegion() {
+        return region == null ? Region.KANTO : region;
+    }
+
+    public City getBaseCity() {
+        return baseCity == null ? City.TOKYO : baseCity;
+    }
+
+    /** 비행기 도착 정보가 다 있을 때만 (공항 + 시각). 여행 권역의 공항이 아니면 없는 것으로 본다 (11-08) */
     public java.util.Optional<Airport> arrivalAirportInfo() {
-        return arrivalFlightTime == null ? java.util.Optional.empty() : Airport.of(arrivalAirport);
+        return arrivalFlightTime == null ? java.util.Optional.empty()
+                : Airport.of(arrivalAirport).filter(a -> a.region() == getRegion());
     }
 
     public java.util.Optional<Airport> departureAirportInfo() {
-        return departureFlightTime == null ? java.util.Optional.empty() : Airport.of(departureAirport);
+        return departureFlightTime == null ? java.util.Optional.empty()
+                : Airport.of(departureAirport).filter(a -> a.region() == getRegion());
     }
 
     public boolean isAwaitingConfirmation() {
@@ -150,4 +177,4 @@ public class Trip {
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
-}
+}

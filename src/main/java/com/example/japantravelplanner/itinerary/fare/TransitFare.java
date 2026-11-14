@@ -1,5 +1,7 @@
 package com.example.japantravelplanner.itinerary.fare;
 
+import com.example.japantravelplanner.trip.region.City;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,6 +30,10 @@ public final class TransitFare {
      * @param dayFares 날짜 순서대로 그날 지하철 요금 (보수적으로 최대값을 넣는다)
      */
     public static PassPlan bestPasses(List<Integer> dayFares, FareProperties props) {
+        return bestPasses(dayFares, props.forCity(City.TOKYO).orElseThrow());
+    }
+
+    public static PassPlan bestPasses(List<Integer> dayFares, FareProperties.CityFare props) {
         int n = dayFares.size();
         int[] best = new int[n + 1];          // best[i] = i번째 날부터 끝까지 최소 비용
         int[] choice = new int[n + 1];        // 0 = 그날 요금, 1·2·3 = 그날부터 n일권
@@ -35,7 +41,7 @@ public final class TransitFare {
             best[i] = dayFares.get(i) + best[i + 1];
             choice[i] = 0;
             int[] lengths = {1, 2, 3};
-            int[] prices = {props.getPass24Yen(), props.getPass48Yen(), props.getPass72Yen()};
+            int[] prices = {props.pass24Yen(), props.pass48Yen(), props.pass72Yen()};
             for (int k = 0; k < 3; k++) {
                 int len = lengths[k];
                 if (i + len > n) continue;
@@ -58,7 +64,7 @@ public final class TransitFare {
                 i++;
                 continue;
             }
-            int price = len == 1 ? props.getPass24Yen() : len == 2 ? props.getPass48Yen() : props.getPass72Yen();
+            int price = len == 1 ? props.pass24Yen() : len == 2 ? props.pass48Yen() : props.pass72Yen();
             passes.add(new Pass(i + 1, i + len, len * 24, price));
             i += len;
         }

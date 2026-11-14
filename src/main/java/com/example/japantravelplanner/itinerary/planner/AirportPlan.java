@@ -13,7 +13,7 @@ import java.util.List;
  * 첫날: 비행기 도착 → 입국·짐 찾기 → 공항에서 숙소로 → 숙소에 짐 맡기기(체크인 전) → 관광 시작
  * 마지막 날: 아침 체크아웃·짐 맡기기 → (숙소 근처 쇼핑) → 숙소에서 짐 찾기 → 공항으로 → 비행기 출발
  *
- * 시각은 비행기 시각에서 앞뒤로 계산한다. 공항 ↔ 숙소 시간은 공항별 대표값({@link Airport#transferMinutes()}).
+ * 시각은 비행기 시각에서 앞뒤로 계산한다. 공항 ↔ 숙소 시간은 공항 + 도시별 대표값({@link Airport#transferMinutes}).
  * 일정 항목(stop)으로 저장하지 않고 응답에서 계산해 보여준다 (StopType을 늘리면 DB CHECK 제약 SQL이 필요하고,
  * 수정 서비스들이 이 항목을 옮기거나 지우지 않게 막아야 해서).
  * 분 단위 계산은 자정을 넘을 수 있으므로 시각으로 바꿀 때만 하루 안으로 접는다.
@@ -37,7 +37,7 @@ public final class AirportPlan {
     /** 첫날 관광을 시작할 수 있는 시각(분). 비행기 도착 정보가 없으면 null */
     public static Integer firstDayStart(Trip trip) {
         return trip.arrivalAirportInfo()
-                .map(a -> minutes(trip.getArrivalFlightTime()) + ARRIVAL_PROCESS + a.transferMinutes() + HOTEL_DROP)
+                .map(a -> minutes(trip.getArrivalFlightTime()) + ARRIVAL_PROCESS + a.transferMinutes(trip.getBaseCity()) + HOTEL_DROP)
                 .orElse(null);
     }
 
@@ -49,7 +49,7 @@ public final class AirportPlan {
     }
 
     private static int leaveHotel(Trip trip, Airport a) {
-        return minutes(trip.getDepartureFlightTime()) - a.beforeDepartureMinutes() - a.transferMinutes();
+        return minutes(trip.getDepartureFlightTime()) - a.beforeDepartureMinutes() - a.transferMinutes(trip.getBaseCity());
     }
 
     /** 첫날 일정표 앞에 붙는 공항 → 숙소 단계 */
@@ -58,10 +58,10 @@ public final class AirportPlan {
         trip.arrivalAirportInfo().ifPresent(a -> {
             int landed = minutes(trip.getArrivalFlightTime());
             int leave = landed + ARRIVAL_PROCESS;
-            int atHotel = leave + a.transferMinutes();
+            int atHotel = leave + a.transferMinutes(trip.getBaseCity());
             steps.add(new Step(time(landed), "FLIGHT_ARRIVAL", a.label() + " 도착", "BEFORE"));
             steps.add(new Step(time(leave), "AIRPORT_TO_HOTEL",
-                    a.label() + " → 숙소 (입국·짐 찾기 후, 대중교통 약 " + a.transferMinutes() + "분)", "BEFORE"));
+                    a.label() + " → 숙소 (입국·짐 찾기 후, 대중교통 약 " + a.transferMinutes(trip.getBaseCity()) + "분)", "BEFORE"));
             steps.add(new Step(time(atHotel), "HOTEL_DROP",
                     atHotel < CHECK_IN_HOUR * 60 ? "숙소에 짐 맡기기 (체크인 전)" : "숙소 체크인", "BEFORE"));
         });
@@ -81,7 +81,7 @@ public final class AirportPlan {
             steps.add(new Step(time(checkout), "CHECKOUT", "숙소 체크아웃 · 짐 맡기기", "BEFORE"));
             steps.add(new Step(time(pickup), "HOTEL_PICKUP", "숙소에서 짐 찾기", "AFTER"));
             steps.add(new Step(time(leave), "HOTEL_TO_AIRPORT",
-                    "숙소 → " + a.label() + " (대중교통 약 " + a.transferMinutes() + "분)", "AFTER"));
+                    "숙소 → " + a.label() + " (대중교통 약 " + a.transferMinutes(trip.getBaseCity()) + "분)", "AFTER"));
             steps.add(new Step(trip.getDepartureFlightTime(), "FLIGHT_DEPARTURE",
                     "비행기 출발 (공항에는 " + hours(a.beforeDepartureMinutes()) + " 전 도착, 면세품 환급 세관 확인 시간 포함)", "AFTER"));
         });

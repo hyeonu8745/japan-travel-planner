@@ -30,18 +30,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DayZonePlanner {
 
-    // 대화에서 지역을 알아보기 위한 별칭
-    private static final Map<TripZone, List<String>> ALIASES = Map.of(
-            TripZone.ASAKUSA_UENO, List.of("아사쿠사", "우에노", "야나카", "센소지"),
-            TripZone.GINZA_TOKYO, List.of("긴자", "도쿄역", "마루노우치", "니혼바시", "쓰키지", "쓰키시마", "황궁"),
-            TripZone.AKIHABARA_KANDA, List.of("아키하바라", "간다", "진보초", "구단시타", "야스쿠니",
-                    "피규어", "프라모델", "건프라", "애니"),   // 피규어·애니 숍이 모인 곳 (Wish.HOBBY)
-            TripZone.SHINJUKU, List.of("신주쿠", "가부키초", "도청"),
-            TripZone.SHIBUYA_HARAJUKU, List.of("시부야", "하라주쿠", "오모테산도", "메이지", "요요기"),
-            TripZone.ROPPONGI_TOWER, List.of("롯폰기", "도쿄타워", "도쿄 타워", "아자부"),
-            TripZone.ODAIBA, List.of("오다이바", "레인보우")
-    );
-
     private final CandidateProperties props;
 
     /**
@@ -80,7 +68,7 @@ public class DayZonePlanner {
         Map<TripZone, Double> zoneScore = new EnumMap<>(TripZone.class);
         for (var entry : byZone.entrySet()) {
             double sum = entry.getValue().stream().limit(perDay).mapToDouble(ScoredAttraction::score).sum();
-            if (entry.getKey() == TripZone.ODAIBA
+            if (entry.getKey().isRemote()
                     && !interests.contains(Interest.NIGHT_VIEW) && !interests.contains(Interest.SHOPPING)) {
                 sum *= 0.5;
             }
@@ -165,7 +153,7 @@ public class DayZonePlanner {
      * 그날 함께 돌 이웃 지역. 중심 사이 거리가 rangeMeters 안인 지역 중
      * 값 = 아직 안 쓴 상위 관광지(하루 방문 수의 절반) 점수 합 - 거리(km) × partnerDistancePenaltyPerKm
      *      - (다른 날의 중심 지역이면 partnerReusePenalty) - (이미 함께 돈 횟수 × partnerReusePenalty)
-     * 가 가장 큰 곳. 오다이바는 지역 점수와 같은 이유로 야경·쇼핑 관심사가 없으면 점수 절반. 남은 관광지가 없으면 null
+     * 가 가장 큰 곳. 먼 지역(오다이바)은 지역 점수와 같은 이유로 야경·쇼핑 관심사가 없으면 점수 절반. 남은 관광지가 없으면 null
      */
     TripZone choosePartner(TripZone zone, Map<TripZone, List<ScoredAttraction>> byZone, Set<Long> used,
                            Set<TripZone> primaries, Map<TripZone, Integer> partnerUses, int perDay,
@@ -173,7 +161,7 @@ public class DayZonePlanner {
         int take = Math.max(1, (perDay + 1) / 2);
         TripZone best = null;
         double bestValue = Double.NEGATIVE_INFINITY;
-        for (TripZone other : TripZone.values()) {
+        for (TripZone other : TripZone.inCity(zone.getCity())) {   // 이웃 지역은 같은 도시 안에서
             if (other == zone || zone.distanceTo(other) > rangeMeters) continue;
             double sum = byZone.getOrDefault(other, List.of()).stream()
                     .filter(c -> !used.contains(c.attraction().getId()))
@@ -181,7 +169,7 @@ public class DayZonePlanner {
                     .limit(take)
                     .mapToDouble(ScoredAttraction::score).sum();
             if (sum == 0) continue;
-            if (other == TripZone.ODAIBA
+            if (other.isRemote()
                     && !interests.contains(Interest.NIGHT_VIEW) && !interests.contains(Interest.SHOPPING)) {
                 sum *= 0.5;
             }
@@ -295,12 +283,12 @@ public class DayZonePlanner {
         if (constraints == null) return result;
         for (PreferenceConstraint c : constraints) {
             if (c.getCategory() != ConstraintCategory.SCHEDULE && c.getCategory() != ConstraintCategory.ETC) continue;
-            for (var entry : ALIASES.entrySet()) {
-                if (entry.getValue().stream().anyMatch(alias -> c.getDescription().contains(alias))) {
-                    result.add(entry.getKey());
+            for (TripZone zone : TripZone.values()) {
+                if (zone.getAliases().stream().anyMatch(alias -> c.getDescription().contains(alias))) {
+                    result.add(zone);
                 }
             }
         }
         return result;
     }
-}
+}

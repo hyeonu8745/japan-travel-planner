@@ -4,6 +4,7 @@ import com.example.japantravelplanner.trip.entity.Airport;
 import com.example.japantravelplanner.trip.entity.Interest;
 import com.example.japantravelplanner.trip.entity.TransportMode;
 import com.example.japantravelplanner.trip.entity.TravelPace;
+import com.example.japantravelplanner.trip.region.Region;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -63,9 +64,10 @@ public class TripRequestDto {
     private String departureAirport;
     private LocalTime departureFlightTime;
 
+    // 11-08: 공항은 여행 권역의 공항만. 지금 여행은 모두 수도권(도쿄)이라 NRT·HND (11월 확장 때 요청에 권역을 받는다)
     @AssertTrue(message = "공항은 NRT(나리타), HND(하네다) 중에서 골라주세요.")
     public boolean isAirportKnown() {
-        return Airport.isKnownOrBlank(arrivalAirport) && Airport.isKnownOrBlank(departureAirport);
+        return Airport.isKnownOrBlank(arrivalAirport, Region.KANTO) && Airport.isKnownOrBlank(departureAirport, Region.KANTO);
     }
 
     @AssertTrue(message = "비행기 시각을 입력했다면 공항도 골라주세요.")
@@ -93,4 +95,4 @@ public class TripRequestDto {
         }
         return ChronoUnit.DAYS.between(startDate, endDate) + 1 <= MAX_TRIP_DAYS;
     }
-}
+}
