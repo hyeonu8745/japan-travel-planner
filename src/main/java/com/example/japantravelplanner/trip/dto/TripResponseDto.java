@@ -52,7 +52,8 @@ public class TripResponseDto {
                 .travelers(trip.getTravelers())
                 .budget(trip.getBudget())
                 .travelPace(trip.getTravelPace())
-                .interests(trip.getInterests())
+                // 11-15 open-in-view 끔: 엔티티의 지연 로딩 목록을 그대로 넣으면 트랜잭션이 끝난 뒤 JSON 으로 바꿀 때 실패한다 → 복사
+                .interests(trip.getInterests() == null ? null : List.copyOf(trip.getInterests()))
                 .transportMode(trip.getTransportMode())
                 .accommodationName(trip.getAccommodationName())
                 .accommodationAddress(trip.getAccommodationAddress())
@@ -64,4 +65,4 @@ public class TripResponseDto {
                 .departureFlightTime(trip.getDepartureFlightTime())
                 .build();
     }
-}
+}
