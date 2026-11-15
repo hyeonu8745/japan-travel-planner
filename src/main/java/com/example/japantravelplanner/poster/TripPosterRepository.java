@@ -8,6 +8,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 포스터 조회: 최신 묶음, 24시간 생성 횟수, 서버 재시작 때 그리는 중으로 남은 묶음.
+ */
 public interface TripPosterRepository extends JpaRepository<TripPoster, Long> {
 
     Optional<TripPoster> findFirstByTripIdOrderByIdDesc(Long tripId);
@@ -19,7 +22,7 @@ public interface TripPosterRepository extends JpaRepository<TripPoster, Long> {
     long countByTripIdAndCreatedAtAfter(Long tripId, LocalDateTime after);
 
     /**
-     * 하루 횟수에 세는 묶음: 그리는 중이거나 한 장이라도 그려진 것 (10-12).
+     * 하루 횟수에 세는 묶음: 그리는 중이거나 한 장이라도 그려진 것.
      * 서버 재시작 등으로 한 장도 못 그리고 실패한 묶음은 세지 않는다
      */
     @Query("select count(p) from TripPoster p where p.trip.id = :tripId and p.createdAt > :after "

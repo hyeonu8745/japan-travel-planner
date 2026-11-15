@@ -47,6 +47,7 @@ public class RestaurantDetailService {
     private final GoogleProperties googleProperties;
     private final ReviewInsightAnalyzer reviewInsightAnalyzer;
 
+    /** 식당 상세: 아직 Google 과 맞춰 보지 않았으면 먼저 맞추고, 같은 가게를 찾았으면 Google 정보와 리뷰 분석을 붙인다 */
     public RestaurantDetailResponseDto details(Long restaurantId) {
         Restaurant restaurant = find(restaurantId);
         if (restaurant.getGoogleMatchStatus() == null) {
@@ -92,16 +93,19 @@ public class RestaurantDetailService {
         return new PhotoUriResponseDto(uri);
     }
 
+    /** 식당을 찾는다 (없으면 404) */
     private Restaurant find(Long restaurantId) {
         return restaurantRepository.findById(restaurantId)
                 .orElseThrow(() -> new NotFoundException("식당을 찾을 수 없습니다."));
     }
 
+    /** Google 정보 없이 타베로그 정보와 안내만 */
     private static RestaurantDetailResponseDto withoutGoogle(Restaurant r, GoogleStatus status, String message) {
         return new RestaurantDetailResponseDto(r.getId(), r.getName(), r.getGenre(), r.getAddress(), tabelog(r),
                 status, message, null, null, null);
     }
 
+    /** 타베로그 정보 묶음 (평점, 리뷰 수, 예산, 휴일, 가까운 역) */
     private static TabelogDto tabelog(Restaurant r) {
         return new TabelogDto(r.getRatingVal(), r.getReviewCnt(), r.getBudgetLunch(), r.getBudgetDinner(),
                 r.getHoliday(), r.getNearestStation(), r.getNearestDistance());

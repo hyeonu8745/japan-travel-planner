@@ -35,6 +35,7 @@ public class AttractionDetailService {
     private final GooglePlacesClient placesClient;
     private final GoogleProperties googleProperties;
 
+    /** 관광지 상세: Google 장소 상세를 받아 화면용으로 바꾼다 (저장하지 않는다) */
     public AttractionDetailResponseDto details(Long attractionId) {
         Attraction attraction = findWithPlaceId(attractionId);
         PlaceDetails place = placesClient.details(attraction.getPlaceId())
@@ -60,6 +61,7 @@ public class AttractionDetailService {
         return new PhotoUriResponseDto(uri);
     }
 
+    /** 관광지를 찾고 place_id 가 있는지 확인 (없으면 404) */
     private Attraction findWithPlaceId(Long attractionId) {
         Attraction attraction = attractionRepository.findById(attractionId)
                 .orElseThrow(() -> new NotFoundException("관광지를 찾을 수 없습니다."));

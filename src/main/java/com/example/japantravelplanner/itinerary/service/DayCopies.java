@@ -17,11 +17,12 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * 새 버전의 하루를 만드는 공통 조각 (11-08 리팩터링: 수정 서비스 3곳에 복사돼 있던 것).
+ * 새 버전의 하루를 만드는 공통 조각 (수정 서비스 3곳에 복사돼 있던 것).
  * 바뀌지 않은 날 복사, 다시 계산한 시각으로 항목 만들기, "같은 음식" 표시 다시 판단, 시간 안내 구분.
  */
 public final class DayCopies {
 
+    /** 정적 메서드만 쓴다 */
     private DayCopies() {
     }
 

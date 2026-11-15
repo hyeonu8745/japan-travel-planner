@@ -61,6 +61,7 @@ public class ItineraryPlanner {
                          List<ScheduledDay> days, List<DayWindow> windows) {
     }
 
+    /** 계산 기록(trace) 없이 일정 계산 */
     public Result plan(Trip trip, TripPreference preference, Point hotel) {
         return plan(trip, preference, hotel, null);
     }
@@ -84,7 +85,7 @@ public class ItineraryPlanner {
 
         List<ScoredAttraction> scored = scoredAttractions(trip, constraints);
         List<DayZone> zones = planZones(trip, constraints, hotel, scored, options.compact());
-        Integer flightStart = AirportPlan.firstDayStart(trip);   // 10-15: 비행기 시각이 있으면 공항 이동까지 계산
+        Integer flightStart = AirportPlan.firstDayStart(trip);   // 비행기 시각이 있으면 공항 이동까지 계산
         Integer flightEnd = AirportPlan.lastDayEnd(trip);
         List<DayWindow> windows = new ArrayList<>();
         for (DayZone day : zones) {
@@ -104,8 +105,7 @@ public class ItineraryPlanner {
         Set<String> usedBrands = new HashSet<>(); // 그 관광지의 가게 이름 (다른 지점도 빼려고, BrandKey)
         for (int i = 0; i < zones.size(); i++) {
             // 앞 날짜에 이미 들어간 관광지는 후보에서 뺀다.
-            // 10-11: 하루 두 지역이 되면서 어떤 날의 예비 후보(이웃 지역)가 다른 날의 후보와 겹쳐,
-            // 예비로 채워진 忍者体験カフェ原宿가 3·5·6일차에 모두 들어갔다 (여행 8 v12)
+            // (하루 두 지역이라 어떤 날의 예비 후보(이웃 지역)가 다른 날의 후보와 겹칠 수 있다)
             DayZone day = withoutUsed(zones.get(i), usedIds, usedBrands);
             DayWindow window = windows.get(i);
             DayRoute route = routeOptimizer.optimize(day, hotelPoint, trip.getTravelPace(), options,
@@ -113,7 +113,7 @@ public class ItineraryPlanner {
             DayMeals meals = mealPlanner.plan(route, hotelPoint, window, budget, filter, history);
             ScheduledDay scheduled = dayScheduler.schedule(route, meals, window, hotelPoint, options,
                     trip.getTravelPace().getStayMultiplier());
-            // 10-16: 오후 쉬는 시간 카페 한 곳 (시간이 남는 날만, 같은 가게는 여행 전체에서 한 번)
+            // 오후 쉬는 시간 카페 한 곳 (시간이 남는 날만, 같은 가게는 여행 전체에서 한 번)
             scheduled = cafePlanner.addBreak(scheduled, window, hotelPoint, options, filter, history.usedIds());
             scheduled.stops().stream().filter(stop -> stop.type() == StopType.CAFE)
                     .forEach(stop -> history.recordUsedOnly(stop.meal().chosen().restaurant().getId()));
@@ -144,27 +144,32 @@ public class ItineraryPlanner {
         return planZones(trip, constraints, hotel, scoredAttractions(trip, constraints), compact);
     }
 
+    /** 모든 관광지에 점수 (관심사·대화 취향) */
     private List<ScoredAttraction> scoredAttractions(Trip trip, List<PreferenceConstraint> constraints) {
         return scorer.score(attractionRepository.findAll(), interestsOf(trip), Wish.from(constraints));
     }
 
+    /** 날짜별 지역과 지역마다 관광지 후보 */
     private List<DayZone> planZones(Trip trip, List<PreferenceConstraint> constraints, Point hotel,
                                     List<ScoredAttraction> scored, boolean compact) {
         double range = dayZonePlanner.rangeMeters(compact, trip.getTransportMode() == TransportMode.RENTAL_CAR);
         return dayZonePlanner.plan(scored, trip.getStartDate(), daysOf(trip),
                 trip.getTravelPace().attractionsPerDay(), interestsOf(trip), constraints,
                 hotel.getY(), hotel.getX(), compact, range,
-                trip.departureAirportInfo().isPresent());   // 10-15: 비행기로 떠나는 마지막 날은 숙소 근처 쇼핑
+                trip.departureAirportInfo().isPresent());   // 비행기로 떠나는 마지막 날은 숙소 근처 쇼핑
     }
 
+    /** 취향 정리본의 조건 (없으면 빈 목록) */
     public static List<PreferenceConstraint> constraintsOf(TripPreference preference) {
         return preference == null ? List.of() : preference.getConstraints();
     }
 
+    /** 여행 관심사 (없으면 빈 목록) */
     public static List<Interest> interestsOf(Trip trip) {
         return trip.getInterests() == null ? List.of() : trip.getInterests();
     }
 
+    /** 여행 날 수 */
     public static int daysOf(Trip trip) {
         return (int) ChronoUnit.DAYS.between(trip.getStartDate(), trip.getEndDate()) + 1;
     }

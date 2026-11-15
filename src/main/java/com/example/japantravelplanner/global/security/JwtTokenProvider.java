@@ -13,6 +13,10 @@ import java.time.Instant;
 import java.util.Date;
 import javax.crypto.SecretKey;
 
+/**
+ * 접근 토큰(JWT, HS256) 발급·검증. 1시간, 내용은 사용자 id·발급자(tabimate)·종류(access)·발급/만료 시각만 (이메일 없음).
+ * 만료 확인도 서버 시계(Clock)로 해서 테스트에서 시간을 고정할 수 있다. 갱신 토큰은 JWT 가 아니다 (user.token).
+ */
 @Component
 public class JwtTokenProvider {
 
@@ -20,24 +24,29 @@ public class JwtTokenProvider {
     private final long expirationMs;
     private final Clock clock;
 
+    /**
+     * @param secret 서명 비밀키 (.env 의 JWT_SECRET, 32바이트 이상)
+     * @param expirationMs 접근 토큰 유효 시간 (기본 1시간)
+     * @param clock 서버 시계
+     */
     public JwtTokenProvider(
             @Value("${jwt.secret}") String secret,
             @Value("${jwt.expiration-ms:3600000}") long expirationMs,
             Clock clock
     ) {
-        // 11-08: 문자 인코딩을 명시 (예전 getBytes() 는 OS 기본값을 따랐다)
+        // 문자 인코딩을 UTF-8 로 명시 (getBytes() 만 쓰면 OS 기본값을 따라 PC 마다 키가 달라질 수 있다)
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expirationMs = expirationMs;
         this.clock = clock;
     }
 
-    /** 11-15 보안: 발급자·종류를 넣고 검사한다 (갱신 토큰 등 다른 토큰을 접근 토큰처럼 쓰지 못하게) */
+    /** 발급자·종류를 넣고 검사한다 (갱신 토큰 등 다른 토큰을 접근 토큰처럼 쓰지 못하게) */
     static final String ISSUER = "tabimate";
     static final String TYPE_CLAIM = "typ";
     static final String ACCESS = "access";
 
     /**
-     * 접근 토큰. 11-15 보안: 이메일을 넣지 않는다 (JWT 내용은 누구나 열어 볼 수 있다).
+     * 접근 토큰. 이메일은 넣지 않는다 (JWT 내용은 누구나 열어 볼 수 있다).
      * 사용자 id(subject), 발급자, 종류(access), 발급·만료 시각만
      */
     public String createToken(Long userId) {
@@ -53,10 +62,12 @@ public class JwtTokenProvider {
                 .compact();
     }
 
+    /** 접근 토큰에서 사용자 id (검증을 통과한 토큰만 넘긴다) */
     public Long getUserIdFromToken(String token) {
         return Long.parseLong(accessClaims(token).getSubject());
     }
 
+    /** 서명·만료·발급자·종류(access)가 모두 맞는지 */
     public boolean validateToken(String token) {
         try {
             accessClaims(token);

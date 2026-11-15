@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 
 /**
- * 갱신 토큰 (11-15 보안 2-1~2-4). 토큰 원문은 저장하지 않고 SHA-256 해시만 둔다 (DB 가 새도 바로 쓸 수 없게).
+ * 갱신 토큰. 토큰 원문은 저장하지 않고 SHA-256 해시만 둔다 (DB 가 새도 바로 쓸 수 없게).
  * familyId = 로그인한 브라우저 하나. 갱신할 때마다 같은 family 에 새 토큰을 만들고 옛 토큰은 ROTATED 로 폐기한다.
  */
 @Entity
@@ -54,6 +54,7 @@ public class RefreshToken {
     @Column(name = "revoke_reason", length = 20)
     private String revokeReason;
 
+    /** 새 갱신 토큰 행. 원문이 아니라 해시를 받는다 */
     public RefreshToken(Long userId, String tokenHash, String familyId, Instant createdAt, Instant expiresAt) {
         this.userId = userId;
         this.tokenHash = tokenHash;
@@ -62,10 +63,12 @@ public class RefreshToken {
         this.expiresAt = expiresAt;
     }
 
+    /** 아직 쓸 수 있는지 (폐기되지 않았고 만료 전) */
     public boolean isActive(Instant now) {
         return revokedAt == null && now.isBefore(expiresAt);
     }
 
+    /** 폐기한다 (이미 폐기됐으면 처음 이유를 그대로 둔다) */
     public void revoke(Instant now, String reason) {
         if (revokedAt == null) {
             revokedAt = now;

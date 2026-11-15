@@ -41,6 +41,7 @@ public class TripPosterPage {
     @Column(name = "file_path", length = 300)
     private String filePath;
 
+    /** 새 장 (그리는 중) */
     public static TripPosterPage of(int pageNo, PosterPageKind kind, String size, String prompt) {
         TripPosterPage p = new TripPosterPage();
         p.pageNo = pageNo;
@@ -51,15 +52,18 @@ public class TripPosterPage {
         return p;
     }
 
+    /** 묶음에 붙인다 (TripPoster.addPage 가 부른다) */
     void attach(TripPoster poster) {
         this.poster = poster;
     }
 
+    /** 그림 완료 (파일 경로 저장) */
     public void done(String filePath) {
         this.filePath = filePath;
         this.status = PosterStatus.DONE;
     }
 
+    /** 그리기 실패 */
     public void failed() {
         this.status = PosterStatus.FAILED;
     }

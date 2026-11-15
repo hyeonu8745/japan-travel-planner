@@ -11,9 +11,11 @@ import java.util.List;
 /** Google 식당 특성 → 화면용 (true인 것만 한국어 이름으로, 정해진 순서) */
 final class RestaurantFeatures {
 
+    /** 정적 메서드만 쓴다 */
     private RestaurantFeatures() {
     }
 
+    /** Google 식당 특성(끼니, 메뉴, 편의, 결제, 가격대) → 화면용 묶음 */
     static FeaturesDto from(RestaurantPlace p) {
         PaymentOptions pay = p.paymentOptions();
         Boolean card = pay == null ? null : pay.acceptsCreditCards();
@@ -51,6 +53,7 @@ final class RestaurantFeatures {
                 List.copyOf(labels));
     }
 
+    /** true 인 특성만 이름표 목록에 넣는다 */
     private static void add(List<String> labels, Boolean value, String label) {
         if (Boolean.TRUE.equals(value)) labels.add(label);
     }

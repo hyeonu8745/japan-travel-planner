@@ -46,7 +46,7 @@ public class RouteOptimizer {
     public DayRoute optimize(DayZone day, TravelPoint hotel, TravelPace pace, TravelOptions options,
                              ScoredAttraction night, Set<Long> reserved) {
         // ① 낮 후보: 야경 장소와 다른 날 야경 장소를 빼고, 야경이 전망대면 다른 전망대도 뺀다
-        //    (예비로 두면 빈 시간 채우기에서 다시 낮에 들어간다. 10-10 여행 8: 롯폰기 힐스 전망대 낮 + 도쿄타워 밤)
+        //    (예비로 두면 빈 시간 채우기에서 다시 낮에 들어가 낮·밤 모두 전망대가 된다)
         boolean observatoryNight = night != null && NightSpots.isObservatory(night.attraction());
         List<ScoredAttraction> pool = new ArrayList<>();
         for (ScoredAttraction c : day.candidates()) {
@@ -119,6 +119,7 @@ public class RouteOptimizer {
         return search.best;
     }
 
+    /** 숙소 → 순서대로 → 끝 지점까지 이동 분 합계 */
     static int pathMinutes(TravelMatrix matrix, int[] order, int end) {
         int total = 0;
         int prev = 0;
@@ -147,6 +148,7 @@ public class RouteOptimizer {
             this.used = new boolean[stopCount + 1];
         }
 
+        /** 모든 순서를 깊이 우선으로 시도하고, 지금까지 최선보다 길어지면 그 갈래는 버린다 (가지치기) */
         void permute(int depth, int prev, int cost) {
             if (cost >= bestCost) return;
             if (depth == stopCount) {
@@ -167,10 +169,12 @@ public class RouteOptimizer {
         }
     }
 
+    /** 관광지 위치 */
     private static TravelPoint toPoint(ScoredAttraction s) {
         return new TravelPoint(s.attraction().getName(), s.lat(), s.lng());
     }
 
+    /** 로그용 이름 목록 */
     private static List<String> names(List<ScoredAttraction> list) {
         return list.stream().map(s -> s.attraction().getName()).toList();
     }

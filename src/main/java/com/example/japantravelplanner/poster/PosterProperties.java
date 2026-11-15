@@ -5,7 +5,7 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-/** 여행 포스터 (10-12): 1장 = 일러스트 지도 포스터, 2장부터 = 상세 일정표. 모두 이미지 AI가 그린다 */
+/** 여행 포스터: 1장 = 일러스트 지도 포스터, 2장부터 = 상세 일정표. 모두 이미지 AI가 그린다 */
 @Getter
 @Setter
 @Component
@@ -16,11 +16,11 @@ public class PosterProperties {
     private String model = "gpt-image-2";
     private String quality = "medium";
     /**
-     * 모든 장의 크기 (10-14): A4 세로 비율(1:1.414)에 가깝게, 16의 배수. 인쇄할 때 위아래 여백이 생기지 않게
-     * 지도·상세 모두 같은 크기로 (10-12에는 지도만 1152x2048이라 A4에 넣으면 좌우 여백이 생겼다)
+     * 모든 장의 크기: A4 세로 비율(1:1.414)에 가깝게, 16의 배수. 인쇄할 때 위아래 여백이 생기지 않게
+     * 지도·상세 모두 같은 크기로 (에는 지도만 1152x2048이라 A4에 넣으면 좌우 여백이 생겼다)
      */
     private String pageSize = "1088x1536";
-    /** 지도 포스터 한 장에 넣을 날 수. 넘으면 지도를 여러 장으로 (10-14: A4 한 크기라 3일 → 2일) */
+    /** 지도 포스터 한 장에 넣을 날 수. 넘으면 지도를 여러 장으로 (A4 한 크기라 3일 → 2일) */
     private int coverDaysPerPage = 2;
     /** 상세 일정표 한 장에 넣을 날 수 */
     private int daysPerDetailPage = 2;

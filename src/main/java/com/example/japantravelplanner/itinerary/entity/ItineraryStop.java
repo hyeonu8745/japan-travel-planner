@@ -95,6 +95,7 @@ public class ItineraryStop {
     @BatchSize(size = 50)
     private List<Long> alternativeRestaurantIds = new ArrayList<>();
 
+    /** 빌더로만 만든다 (모든 칸) */
     @Builder
     private ItineraryStop(int stopOrder, StopType type, Attraction attraction, Restaurant restaurant,
                           LocalTime arrivalTime, LocalTime departureTime, int stayMinutes, int waitMinutes,

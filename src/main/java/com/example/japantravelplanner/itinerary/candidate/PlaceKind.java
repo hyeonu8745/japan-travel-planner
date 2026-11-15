@@ -29,6 +29,7 @@ public enum PlaceKind {
         this.types = types;
     }
 
+    /** 관광지의 큰 종류 (Google 종류가 여러 개면 정해진 순서에서 먼저 맞는 것) */
     public static PlaceKind of(Attraction attraction) {
         if (attraction == null || attraction.getTypes() == null) return OTHER;
         Set<String> types = Arrays.stream(attraction.getTypes().split(","))

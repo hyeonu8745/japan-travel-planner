@@ -49,7 +49,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 일정을 만든 뒤 채팅으로 고치기 (10-11, 이슈 #28 "수정 요청").
+ * 일정을 만든 뒤 채팅으로 고치기 (이슈 #28 "수정 요청").
  *
  *  ① 사용자 말 → 명령: AI(gpt-4o-mini)는 말을 정해진 형식(EditCommand: 무엇을, 어느 항목, 무엇으로)으로 바꾸기만 한다.
  *     "네", "1번"처럼 뻔한 답은 AI를 부르지 않고 서버가 알아듣는다
@@ -93,14 +93,14 @@ public class ItineraryChatEditService {
             "^(네|넵|예|응|어|좋아요?|좋습니다|그래요?|그렇게\\s*(해|하자|해\\s*줘|해\\s*주세요)|바꿔\\s*(줘|주세요)?|ㅇㅇ|ok|오케이)[\\s.!~]*$");
     /**
      * "어 거기에 넣어줘", "응 그걸로 바꿔줘", "그렇게 해 주세요"처럼 대기 중인 변경을 하라는 말.
-     * 10-11: "어 거기에 넣어줘"를 AI가 같은 추가 요청으로 다시 읽어서 같은 질문을 되풀이했다
+     * "어 거기에 넣어줘"를 AI가 같은 추가 요청으로 다시 읽어서 같은 질문을 되풀이했다
      */
     private static final Pattern DO_IT = Pattern.compile(
             "^(네|넵|예|응|어|그래|좋아|좋아요|오케이|ok)?[\\s,.!~]*((거기|그곳|그거|그걸|이거|이걸|그쪽)(로|으로|에|에다)?\\s*)?"
                     + "(그렇게\\s*)?(넣어|바꿔|빼|옮겨|해)\\s*(줘|주세요|줄래|줄래요|요|봐|봐요)?[\\s.!~]*$");
     private static final Pattern NO = Pattern.compile(
             "^(아니(요|오)?|아뇨|취소|됐어(요)?|괜찮아(요)?|그대로(\\s*둬(요|주세요)?)?|하지\\s*마(세요)?)[\\s.!~]*$");
-    /** "2번", "1번으로 바꿔줘", "3번 할게요" (10-11 여행 9: "1번으로 바꿔줘"를 못 알아들어 AI가 다른 요청으로 읽었다) */
+    /** "2번", "1번으로 바꿔줘", "3번 할게요" (AI 를 부르지 않고 서버가 알아듣는다. AI 는 "1번으로 바꿔줘"를 다른 요청으로 읽을 수 있다) */
     private static final Pattern NUMBER = Pattern.compile("^\\s*([1-9])\\s*(번|번째)?\\s*(으로|로|요|이요)?\\s*"
             + "((바꿔|해|넣어|골라|할게|갈게|부탁해)\\s*(줘|주세요|줄래|줄래요|요)?)?[\\s.!~]*$");
     private static final List<String> ORDINALS = List.of("첫", "두", "세");
@@ -119,6 +119,7 @@ public class ItineraryChatEditService {
     private final TransactionTemplate readTransaction;
     private final TransactionTemplate writeTransaction;
 
+    /** AI 호출과 저장을 나눠 트랜잭션을 직접 다루므로 TransactionTemplate 을 만든다 */
     public ItineraryChatEditService(TripRepository tripRepository, ItineraryRepository itineraryRepository,
                                     ChatMessageRepository chatMessageRepository, OpenAiClient openAiClient,
                                     JsonMapper jsonMapper, ItineraryEditService editService,
@@ -145,11 +146,11 @@ public class ItineraryChatEditService {
     /** 일정이 있는 여행의 채팅 메시지 하나를 처리한다. 여행 확인·호출 제한은 ChatService가 먼저 했다 */
     public ChatReplyResponseDto handle(Long userId, Long tripId, String content) {
         Snapshot snapshot = readTransaction.execute(status -> snapshot(tripId));
-        // 10-16: 포스터는 채팅으로 만들지 않고 포스터 화면으로 안내한다 (AI 없이, 사용자 결정 10-14: 채팅 만들기는 나중에)
+        // 포스터는 채팅으로 만들지 않고 포스터 화면으로 안내한다 (AI 없이. 채팅으로 포스터 만들기는 아직 없다)
         if (snapshot.pending() == null && isPosterRequest(content)) {
             return writeTransaction.execute(status -> save(tripId, content, Outcome.reply(POSTER_GUIDE)));
         }
-        // 10-16: 비 오는 날 일정은 날짜별 버튼으로 (사용자 결정: 채팅으로 바꾸지 않고 안내만)
+        // 비 오는 날 일정은 날짜별 버튼으로 (채팅으로 바꾸지 않고 안내만)
         if (snapshot.pending() == null && isRainRequest(content)) {
             return writeTransaction.execute(status -> save(tripId, content, Outcome.reply(RAIN_GUIDE)));
         }
@@ -169,7 +170,7 @@ public class ItineraryChatEditService {
         if (NO.matcher(text).matches()) return EditCommand.of("CANCEL");
         boolean hasOptions = pending.options() != null && !pending.options().isEmpty();
         if (hasOptions) {
-            // 선택지가 하나여도 "1번으로"는 고르기다 (하나뿐인 제안에 "1번으로 바꿔줘"라고 답한 적이 있다)
+            // 선택지가 하나여도 "1번으로"는 고르기다 (하나뿐인 제안에도 "1번으로 바꿔줘"라고 답할 수 있다)
             Matcher number = NUMBER.matcher(text);
             if (number.matches()) return EditCommand.choose(Integer.parseInt(number.group(1)));
             for (int i = 0; i < ORDINALS.size(); i++) {
@@ -180,6 +181,7 @@ public class ItineraryChatEditService {
         return YES.matcher(text).matches() || DO_IT.matcher(text).matches() ? EditCommand.of("CONFIRM") : null;
     }
 
+    /** 사용자 말 → 명령 (AI, 기본 모델). 말 안의 구분자는 지워서 지시로 섞이지 않게 한다. 실패하면 OTHER */
     private EditCommand askAi(Snapshot snapshot, String content) {
         // 사용자 글 속 구분자는 지워서 구분자 밖으로 빠져나가지 못하게 한다
         String safe = content.replace("<<<", "").replace(">>>", "");
@@ -199,6 +201,7 @@ public class ItineraryChatEditService {
 
     // ===================== ② 명령 → 제안 / ③ 적용 =====================
 
+    /** 명령 실행: 되묻기 → 확인/고르기/취소 → 바꾸기·빼기·옮기기·넣기 제안. 실제 변경은 확인을 받은 뒤에 */
     Outcome execute(Long userId, Long tripId, Snapshot snapshot, EditCommand command) {
         if (command == null) {
             return Outcome.reply("말씀을 잘 이해하지 못했어요. " + HELP);
@@ -208,8 +211,8 @@ public class ItineraryChatEditService {
         }
         PendingEdit pending = snapshot.pending();
         String intent = command.intent() == null ? "OTHER" : command.intent();
-        // 방금 보여준 선택지 이름을 말하면 그곳으로 (10-11 여행 9: "오히츠젠 탄보로 바꿔줘"를 AI가 새 교체 요청으로 읽어
-        // 그 이름으로 다시 찾다가 "맞는 곳이 없어요"라고 했다)
+        // 방금 보여준 선택지 이름을 말하면 그곳으로 (AI 는 이것을 새 교체 요청으로 읽어
+        // 그 이름으로 다시 찾다가 "맞는 곳이 없어요"라고 할 수 있다)
         Integer named = ("REPLACE".equals(intent) || "ADD".equals(intent) || "CHOOSE".equals(intent))
                 && samePlaceAsPending(snapshot, pending, command) ? optionNamed(pending, command.target()) : null;
         if (named != null) return choose(userId, tripId, snapshot, pending, named);
@@ -225,6 +228,7 @@ public class ItineraryChatEditService {
         };
     }
 
+    /** "네": 기다리던 변경을 적용한다 (선택지가 여러 개면 번호를 묻는다) */
     private Outcome confirm(Long userId, Long tripId, Snapshot snapshot, PendingEdit pending) {
         if (pending == null) return Outcome.reply("지금 확인할 변경이 없어요. " + HELP);
         if (pending.needsChoice()) return Outcome.reply("번호로 골라 주세요.", pending);
@@ -232,6 +236,7 @@ public class ItineraryChatEditService {
         return apply(userId, tripId, snapshot, pending, only);
     }
 
+    /** 번호로 고른 선택지를 적용한다 */
     private Outcome choose(Long userId, Long tripId, Snapshot snapshot, PendingEdit pending, Integer index) {
         if (pending == null || pending.options() == null || pending.options().isEmpty()) {
             return Outcome.reply("지금 고를 선택지가 없어요. " + HELP);
@@ -242,6 +247,7 @@ public class ItineraryChatEditService {
         return apply(userId, tripId, snapshot, pending, pending.options().get(index - 1));
     }
 
+    /** 바꾸기 제안: 식당이면 끼니 후보(원하는 음식이 있으면 그 장르를 넓게), 관광지면 관광지 후보에서 최대 3곳 */
     private Outcome proposeReplace(Long userId, Long tripId, Snapshot snapshot, EditCommand command) {
         StopRef stop = snapshot.refs().get(normalizeRef(command.stopRef()));
         if (stop == null) return Outcome.reply("어느 항목을 바꿀지 찾지 못했어요. 몇 일차의 어떤 장소인지 알려주세요.");
@@ -262,14 +268,14 @@ public class ItineraryChatEditService {
             kind = PendingEdit.REPLACE_MEAL;
             Set<String> genres = target == null ? Set.of() : foodDictionary.findGenres(target, FoodPreferenceType.PREFER);
             // 원하는 음식이 있으면 그 장르만 넓게(3km, 예산 조금 넘는 곳까지) 먼저 찾는다.
-            // 10-11 여행 8: "둘째날 스시" → 보통 후보(500m, 예산 안)에는 스시집이 없어 이탈리안·소바만 나왔다
+            // (보통 후보는 500m·예산 안이라 "둘째날 스시"에 스시집이 없고 다른 음식만 나올 수 있다)
             StopCandidatesResponseDto found = genres.isEmpty() ? null
                     : editService.candidates(userId, tripId, stop.stopId(), genres);
             if (found == null || found.candidates().isEmpty()) {
                 found = editService.candidates(userId, tripId, stop.stopId());
             }
             for (var c : found.candidates()) {
-                // 식당은 사용자 말 안에 장르 이름이 들어 있는 것("장어덮밥" 안의 "덮밥")은 맞는 것으로 보지 않는다 (10-11)
+                // 식당은 사용자 말 안에 장르 이름이 들어 있는 것("장어덮밥" 안의 "덮밥")은 맞는 것으로 보지 않는다
                 boolean match = target != null && (!Collections.disjoint(genresOf(c.genre()), genres)
                         || matchesPlace(target, c.name(), c.nameKo(), c.genreLabels(), false));
                 options.add(new Scored(c.id(), true, c.name(), c.nameKo(),
@@ -277,12 +283,12 @@ public class ItineraryChatEditService {
                         match, c.closedOnVisitDay()));
             }
             // 방문하는 날이 정기 휴일인 곳은 뒤로 (빼지는 않는다. 문구로 알려준다).
-            // 10-11 여행 9: 채팅으로 고른 1일차 점심 天三이 그날 정기 휴일이었는데 제안할 때는 말하지 않았다
             options.sort(Comparator.comparing(Scored::closed));
         }
         return propose(snapshot, kind, stop.stopId(), stop.day(), null, where, stop.name(), target, options);
     }
 
+    /** 넣기 제안: 그날 넣을 자리 근처의 관광지 후보 중 원하는 것과 맞는 곳을 앞에 */
     private Outcome proposeAdd(Long userId, Long tripId, Snapshot snapshot, EditCommand command) {
         StopRef after = "START".equalsIgnoreCase(String.valueOf(command.afterRef())) ? null
                 : snapshot.refs().get(normalizeRef(command.afterRef()));
@@ -336,6 +342,7 @@ public class ItineraryChatEditService {
         return Outcome.reply(sb.toString(), pending);
     }
 
+    /** 빼기 제안 (그날 마지막 항목은 뺄 수 없다) */
     private Outcome proposeDelete(Snapshot snapshot, EditCommand command) {
         StopRef stop = snapshot.refs().get(normalizeRef(command.stopRef()));
         if (stop == null) return Outcome.reply("어느 항목을 뺄지 찾지 못했어요. 몇 일차의 어떤 장소인지 알려주세요.");
@@ -348,6 +355,7 @@ public class ItineraryChatEditService {
                 + "' 항목을 일정에서 뺄까요? 뺀 자리는 비워 두고 시간만 다시 계산해요.", pending);
     }
 
+    /** 같은 날 안에서 순서 옮기기 제안 */
     private Outcome proposeMove(Snapshot snapshot, EditCommand command) {
         StopRef stop = snapshot.refs().get(normalizeRef(command.stopRef()));
         if (stop == null) return Outcome.reply("어느 항목을 옮길지 찾지 못했어요. 몇 일차의 어떤 장소인지 알려주세요.");
@@ -397,6 +405,7 @@ public class ItineraryChatEditService {
         }
     }
 
+    /** 적용한 뒤 사용자에게 보여 줄 한 줄 (무엇이 바뀌었는지 + 시간 안내) */
     static String doneMessage(PendingEdit pending, PendingEdit.Option option, ItineraryResponseDto result) {
         String what = switch (pending.kind()) {
             case PendingEdit.DELETE -> "DAY" + pending.day() + "에서 '" + pending.before() + "' 항목을 뺐어요.";
@@ -414,6 +423,7 @@ public class ItineraryChatEditService {
 
     // ===================== 저장 =====================
 
+    /** 사용자 말과 답을 저장한다 (확인을 기다리는 변경이 있으면 답 메시지에 붙인다) */
     private ChatReplyResponseDto save(Long tripId, String content, Outcome outcome) {
         Trip trip = tripRepository.findById(tripId)
                 .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
@@ -469,6 +479,7 @@ public class ItineraryChatEditService {
         return new Snapshot(latest.getVersionNo(), days, refs, sb.toString(), pending);
     }
 
+    /** 일정 항목 → AI 에 보여 줄 참조(D1-2 등)와 이름·종류 */
     private StopRef toRef(int dayNumber, int index, ItineraryStop stop) {
         String ref = "D" + dayNumber + "-" + (index + 1);
         if (stop.getType() == StopType.ATTRACTION) {
@@ -482,6 +493,7 @@ public class ItineraryChatEditService {
                 genre == null ? "" : genre);
     }
 
+    /** 메시지에 저장된 대기 중인 변경(JSON) 읽기 (못 읽으면 null) */
     private PendingEdit readPending(String json) {
         try {
             return jsonMapper.readValue(json, PendingEdit.class);
@@ -513,14 +525,17 @@ public class ItineraryChatEditService {
                 || (labelInTarget && l != null && squeeze(l).length() >= 2 && t.contains(squeeze(l))));
     }
 
+    /** 공백·대소문자를 무시하고 포함되는지 */
     private static boolean contains(String text, String part) {
         return text != null && squeeze(text).contains(part);
     }
 
+    /** 공백을 모두 지우고 소문자로 */
     private static String squeeze(String s) {
         return s.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
     }
 
+    /** 타베로그 장르 문자열(쉼표 구분) → 장르 집합 */
     private static Set<String> genresOf(String genre) {
         if (genre == null) return Set.of();
         Set<String> result = new java.util.HashSet<>();
@@ -528,6 +543,7 @@ public class ItineraryChatEditService {
         return result;
     }
 
+    /** 식당 선택지 옆에 붙이는 설명 (장르, 타베로그 평점, 이동, 예산 초과, 휴일) */
     private static String mealDetail(String genre, Double rating, ItineraryResponseDto.TravelDto travel,
                                      boolean overBudget, boolean closed) {
         List<String> parts = new ArrayList<>();
@@ -540,6 +556,7 @@ public class ItineraryChatEditService {
         return parts.isEmpty() ? "" : " (" + String.join(" · ", parts) + ")";
     }
 
+    /** 관광지 선택지 옆에 붙이는 설명 (종류, 이동, 시간 넘침) */
     private static String attractionDetail(List<String> labels, ItineraryResponseDto.TravelDto travel, boolean fits) {
         List<String> parts = new ArrayList<>();
         if (labels != null && !labels.isEmpty()) parts.add(labels.get(0));
@@ -548,6 +565,7 @@ public class ItineraryChatEditService {
         return parts.isEmpty() ? "" : " (" + String.join(" · ", parts) + ")";
     }
 
+    /** 이동 표시 ("걸어서 6분", "대중교통 12분") */
     private static String moveLabel(ItineraryResponseDto.TravelDto travel) {
         String how = switch (travel.mode()) {
             case WALK -> "걸어서";
@@ -589,14 +607,17 @@ public class ItineraryChatEditService {
         return at > 0 ? label.substring(0, at) : label;
     }
 
+    /** 한국어 이름이 있으면 그것, 없으면 원래 이름 */
     private static String display(String nameKo, String name) {
         return nameKo == null || nameKo.isBlank() ? name : nameKo;
     }
 
+    /** 비어 있지 않은지 */
     private static boolean notBlank(String s) {
         return s != null && !s.isBlank();
     }
 
+    /** 공백을 정리하고, 비어 있으면 null */
     private static String blankToNull(String s) {
         return notBlank(s) ? s.strip() : null;
     }
@@ -604,6 +625,7 @@ public class ItineraryChatEditService {
     // ===================== 내부 자료 =====================
 
     record StopRef(String ref, Long stopId, int day, int index, StopType type, String name, String detail) {
+        /** 항목 종류 → 한국어 (점심·저녁·카페·관광지) */
         String kindLabel() {
             return switch (type) {
                 case LUNCH -> "점심";
@@ -625,6 +647,7 @@ public class ItineraryChatEditService {
     }
 
     record Snapshot(int version, List<DayView> days, Map<String, StopRef> refs, String text, PendingEdit pending) {
+        /** n일차 (없으면 null) */
         DayView day(int number) {
             return days.stream().filter(d -> d.day() == number).findFirst().orElse(null);
         }
@@ -652,14 +675,17 @@ public class ItineraryChatEditService {
     }
 
     record Outcome(String reply, PendingEdit pending, ItineraryResponseDto itinerary) {
+        /** 답만 (변경 없음) */
         static Outcome reply(String reply) {
             return new Outcome(reply, null, null);
         }
 
+        /** 답 + 확인을 기다리는 변경 */
         static Outcome reply(String reply, PendingEdit pending) {
             return new Outcome(reply, pending, null);
         }
 
+        /** 변경을 적용했다 (새 일정 포함) */
         static Outcome applied(String reply, ItineraryResponseDto itinerary) {
             return new Outcome(reply, null, itinerary);
         }

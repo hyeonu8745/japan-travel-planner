@@ -26,6 +26,7 @@ public final class DescriptionGuard {
             new Rule("링크·태그", Pattern.compile("https?://|www\\.|<[^>]+>"))
     );
 
+    /** 정적 메서드만 쓴다 */
     private DescriptionGuard() {
     }
 

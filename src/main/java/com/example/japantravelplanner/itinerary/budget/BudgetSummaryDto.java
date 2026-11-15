@@ -7,8 +7,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * 일정의 식비 요약 (10-12). 타베로그 끼니 예산 범위로 계산한 대략적인 금액이며 숙박비·입장료·쇼핑은 포함하지 않는다.
- * 10-16: 교통비 추정(transport)과 식비 + 교통비(total)를 더했다.
+ * 일정의 식비 요약. 타베로그 끼니 예산 범위로 계산한 대략적인 금액이며 숙박비·입장료·쇼핑은 포함하지 않는다.
+ * 교통비 추정(transport)과 식비 + 교통비(total)를 더했다.
  *
  * @param travelers        인원 (식비 합계는 인원 전체)
  * @param krwPerYen        이 일정 버전의 환율 (1엔당 원)
@@ -20,8 +20,8 @@ import java.util.List;
  * @param verdict          WITHIN(최대로 잡아도 식비 예산 안) / MAYBE_OVER(범위가 예산에 걸침) / OVER(최소로 잡아도 넘음) / UNKNOWN(가격 정보 없음)
  * @param tripBudgetShare  식비 최대 금액이 전체 예산에서 차지하는 비율 (%)
  * @param note             화면에 그대로 보여줄 안내
- * @param transport        교통비 추정 (10-16 추가, 지하철·1일권·공항)
- * @param total            식비 + 교통비 (인원 전체, 10-16 추가)
+ * @param transport        교통비 추정 (지하철·1일권·공항)
+ * @param total            식비 + 교통비 (인원 전체)
  */
 public record BudgetSummaryDto(Long tripId, int version, int travelers, double krwPerYen, LocalDate exchangeRateDate,
                                String exchangeRateSourceLabel, int tripBudgetKrw, double foodRatio, int foodBudgetKrw,

@@ -65,6 +65,7 @@ public class ItineraryDay {
     @BatchSize(size = 50)
     private List<String> warnings = new ArrayList<>();
 
+    /** 새 하루 (항목은 addStop 으로 붙인다) */
     public static ItineraryDay create(int dayNumber, LocalDate date, TripZone zone,
                                       LocalTime windowStart, LocalTime windowEnd, String description,
                                       List<DroppedPlace> dropped, List<String> warnings) {
@@ -80,6 +81,7 @@ public class ItineraryDay {
         return day;
     }
 
+    /** 항목을 이 날에 붙인다 */
     public void addStop(ItineraryStop stop) {
         stops.add(stop);
         stop.assignTo(this);

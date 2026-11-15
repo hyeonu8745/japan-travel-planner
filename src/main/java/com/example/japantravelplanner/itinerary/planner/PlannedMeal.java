@@ -19,10 +19,12 @@ public record PlannedMeal(Meal meal,
                           List<RestaurantCandidate> alternatives,
                           boolean genreRepeated) {
 
+    /** 조건에 맞는 식당이 없을 때 */
     public static PlannedMeal notFound(Meal meal, TravelPoint anchor) {
         return new PlannedMeal(meal, anchor, null, List.of(), false);
     }
 
+    /** 식당을 골랐는지 */
     public boolean found() {
         return chosen != null;
     }

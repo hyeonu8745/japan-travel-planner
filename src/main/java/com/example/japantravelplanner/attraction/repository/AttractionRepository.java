@@ -10,6 +10,9 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 관광지 조회. 반경 검색은 PostGIS(ST_DWithin), 조합 검색은 {@link AttractionSearchRepository}.
+ */
 @Repository
 public interface AttractionRepository extends JpaRepository<Attraction, Long>, AttractionSearchRepository {
 

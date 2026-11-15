@@ -28,6 +28,7 @@ public class PlaceTypeLabels {
 
     private final Map<String, Label> labels = new HashMap<>();
 
+    /** 기본 이름표 파일(resources/data/type_labels.csv)을 읽는다 */
     public PlaceTypeLabels() {
         this(new ClassPathResource(DEFAULT_PATH));
     }

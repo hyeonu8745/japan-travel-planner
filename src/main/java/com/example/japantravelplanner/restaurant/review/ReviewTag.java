@@ -4,12 +4,12 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 리뷰에서 찾아 표시하는 경험 종류 (10-10 사용자 결정: 식당만, 이 4가지).
+ * 리뷰에서 찾아 표시하는 경험 종류 (식당만, 이 4가지).
  *
  * AI가 붙인 표시를 그대로 믿지 않고, 근거 주변 글이 종류별 규칙(rules) 중 하나를 만족해야 남긴다.
  * 규칙은 "이 말들 중 하나 + 저 말들 중 하나"처럼 말 묶음(Group)을 모두 만족해야 하는 조합이다.
  *
- * 10-10 실제 식당 20곳 표본에서 단어 하나만 보던 방식이 13건 중 9건을 잘못 남겼다
+ * 단어 하나만 보면 잘못 남는 경우가 많다
  * ("여러 외국인들이 대기해서"→차별, "종업원분들께서도 굉장히 친절하시고"→불친절, "한국인에게도 맛있는"→좋은 점).
  * 그래서 차별은 국적 말 + 다르게 대한 말, 불친절은 직원 말 + 나쁜 태도 말, 좋은 점은 한국어 메뉴·한국어 직원·혼밥처럼
  * 실제로 도움이 되는 말이 있어야 한다. "불친절하지 않았어요"처럼 부정된 말은 세지 않고, 오히려 그 종류를 버린다(denial).
@@ -46,6 +46,7 @@ public enum ReviewTag {
         this.rules = rules;
     }
 
+    /** 화면에 보여 줄 한국어 이름 */
     public String label() {
         return label;
     }
@@ -75,6 +76,7 @@ public enum ReviewTag {
         return null;
     }
 
+    /** 공백을 지우고 소문자로 (규칙 비교용) */
     static String squeeze(String text) {
         return text.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
     }
@@ -89,6 +91,7 @@ public enum ReviewTag {
         return false;
     }
 
+    /** 이 말 바로 뒤에 부정(않/없/아니 등)이 붙은 곳이 있는지 */
     private static boolean hasNegated(String target, String word) {
         for (int at = target.indexOf(word); at >= 0; at = target.indexOf(word, at + 1)) {
             if (negatedAfter(target, at + word.length())) return true;
@@ -99,14 +102,17 @@ public enum ReviewTag {
     /** 말 묶음. 그중 하나가 글에 있으면 만족. negatable이면 바로 뒤가 부정인 경우는 세지 않는다 */
     record Group(List<String> words, boolean negatable) {
 
+        /** 뒤에 부정이 붙었는지 보지 않는 말 묶음 */
         static Group plain(List<String> words) {
             return new Group(words, false);
         }
 
+        /** 바로 뒤에 부정이 붙은 곳은 세지 않는 말 묶음 ("친절하지 않"은 친절로 보지 않는다) */
         static Group negatable(List<String> words) {
             return new Group(words, true);
         }
 
+        /** 글에 이 묶음의 말이 하나라도 있는지 ("불친절" 안의 "친절", 부정이 붙은 곳은 세지 않는다) */
         boolean matches(String target) {
             for (String raw : words) {
                 String word = squeeze(raw);
@@ -124,10 +130,12 @@ public enum ReviewTag {
     /** 말 묶음을 모두 만족해야 하는 규칙 */
     record Rule(List<Group> groups) {
 
+        /** 말 묶음들을 모두 만족해야 하는 규칙 */
         static Rule of(Group... groups) {
             return new Rule(List.of(groups));
         }
 
+        /** 모든 말 묶음을 만족하는지 */
         boolean matches(String target) {
             return groups.stream().allMatch(group -> group.matches(target));
         }
@@ -136,6 +144,7 @@ public enum ReviewTag {
     /** 종류별 말 목록. 띄어쓰기는 비교할 때 빼므로 읽기 편하게 띄어 쓴다 */
     static final class Words {
 
+        /** 상수만 둔다 */
         private Words() {
         }
 

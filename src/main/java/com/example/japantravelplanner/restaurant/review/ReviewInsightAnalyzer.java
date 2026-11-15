@@ -41,7 +41,7 @@ public class ReviewInsightAnalyzer {
 
     static final int MAX_OUTPUT_TOKENS = 800;
     static final int MAX_EVIDENCE_LENGTH = 60;   // 프롬프트는 40자, 여유를 둔다
-    /** 같은 리뷰면 같은 결과 (10-10: 같은 리뷰를 두 번 불렀더니 한 번은 불친절을 찾고 한 번은 못 찾았다) */
+    /** 같은 리뷰면 같은 결과 (같은 리뷰를 두 번 불렀더니 한 번은 불친절을 찾고 한 번은 못 찾았다) */
     static final double TEMPERATURE = 0.0;
     /** 핵심 말은 근거 구절과 그 앞뒤 이만큼(띄어쓰기 뺀 글자 수)에서 찾는다 */
     static final int KEYWORD_WINDOW = 30;
@@ -57,6 +57,7 @@ public class ReviewInsightAnalyzer {
     private final JsonMapper jsonMapper;
     private final ReviewInsightProperties props;
 
+    /** @param props 사용 여부, 모델, 최대 리뷰 수 등 */
     public ReviewInsightAnalyzer(OpenAiClient openAiClient, JsonMapper jsonMapper, ReviewInsightProperties props) {
         this.openAiClient = openAiClient;
         this.jsonMapper = jsonMapper;

@@ -29,7 +29,7 @@ import java.util.List;
  *    (점심이 있으면 오후 → 오전 순서, 없으면 전체에서 점수 낮은 순). 제외해도 나아지지 않으면 야경 장소를 제외
  *
  * 뺀 관광지 중 지금 일정에 혼자 다시 들어갈 수 있는 곳은 되돌려 넣는다 (점수 높은 순)
- *  - 10-10 여행 8 v10 마지막 날(09:30~12:00): 박물관 2곳(115분)을 빼다가 40분짜리 平将門塚까지 빠져 하루가 비었다
+ *  - 예: 짧은 마지막 날에 긴 박물관을 빼다가 짧은 장소까지 같이 빠져 하루가 비는 것을 막는다
  * 고친 뒤에도 저녁 전에 1시간 이상 비면(식사 시간대 대기) 예비 관광지를 끼워 넣는다
  *
  * 이동 시간 표는 하루에 한 번만 만든다 (Google 실시간 도보 조회가 켜져 있어도 호출은 한 번)
@@ -49,7 +49,7 @@ public class DayScheduler {
 
     /**
      * 예비 관광지를 끼워 넣어서 늘어나는 이동 시간의 상한(분). 이보다 많이 돌아가야 하면 그 예비는 쓰지 않는다.
-     * (점심 뒤에 롯폰기 쪽으로 되돌아가는 なだれ坂가 들어가서 하루 이동이 18분 늘어난 적이 있다)
+     * (빈 시간을 채우려고 왔던 길을 되돌아가는 곳을 넣지 않게)
      */
     static final int MAX_FILL_DETOUR_MINUTES = 15;
 
@@ -57,6 +57,7 @@ public class DayScheduler {
 
     private final TravelTimeService travelTimeService;
 
+    /** 하루에 시각을 붙인다: 순서대로 이동 + 체류, 끼니 시간대 맞추기, 시간이 안 맞으면 옮기거나 빼고, 빈 시간은 예비 관광지로 채운다 */
     public ScheduledDay schedule(DayRoute route, DayMeals meals, DayWindow window,
                                  TravelPoint hotel, TravelOptions options, double stayMultiplier) {
         DayZone day = route.day();
@@ -366,12 +367,14 @@ public class DayScheduler {
         return plan;
     }
 
+    /** 두 시뮬레이션 중 나은 쪽 (문제 수가 적고, 같으면 일찍 끝나는 쪽) */
     private static boolean isBetter(Sim candidate, Sim current) {
         int a = candidate.problems();
         int b = current.problems();
         return a < b || (a == b && candidate.end < current.end);
     }
 
+    /** 점수 낮은 순 (뺄 때 낮은 것부터) */
     private static List<Item> ascendingByScore(List<Item> items) {
         List<Item> sorted = new ArrayList<>(items);
         sorted.sort(Comparator.comparingDouble(item -> item.score));
@@ -380,6 +383,7 @@ public class DayScheduler {
 
     // ── 항목 만들기 ──
 
+    /** 관광지 → 시뮬레이션 항목 (이동 표에 위치를 더하고 체류 시간은 여행 속도 배율로) */
     private static Item attractionItem(ScoredAttraction a, List<TravelPoint> points, double multiplier) {
         int index = points.size();
         points.add(new TravelPoint(a.attraction().getName(), a.lat(), a.lng()));
@@ -413,10 +417,12 @@ public class DayScheduler {
 
     // ── 시각 변환 ──
 
+    /** 시각 → 하루 분 */
     private static int toMinutes(LocalTime time) {
         return time.getHour() * 60 + time.getMinute();
     }
 
+    /** 하루 분 → 시각 (00:00~23:59 사이로) */
     private static LocalTime toTime(int minutes) {
         int clamped = Math.min(Math.max(minutes, 0), 23 * 60 + 59);
         return LocalTime.of(clamped / 60, clamped % 60);
@@ -458,6 +464,7 @@ public class DayScheduler {
         Item dinner;
         Item night;
 
+        /** 하루 순서: 오전 → 점심 → 오후 → 저녁 → 야경 */
         List<Item> sequence() {
             List<Item> all = new ArrayList<>(morning);
             if (lunch != null) all.add(lunch);
@@ -467,6 +474,7 @@ public class DayScheduler {
             return all;
         }
 
+        /** 복사본 (목록은 새로 만들고 항목은 같이 쓴다) */
         Plan copy() {
             Plan p = new Plan();
             p.morning = new ArrayList<>(morning);
@@ -477,6 +485,7 @@ public class DayScheduler {
             return p;
         }
 
+        /** 그 항목을 뺀 복사본 */
         Plan without(Item item) {
             Plan p = copy();
             p.morning.remove(item);
@@ -485,6 +494,7 @@ public class DayScheduler {
             return p;
         }
 
+        /** 오후 position 자리에 항목을 끼운 복사본 */
         Plan withAfternoonInserted(Item item, int position) {
             Plan p = copy();
             p.afternoon.add(position, item);

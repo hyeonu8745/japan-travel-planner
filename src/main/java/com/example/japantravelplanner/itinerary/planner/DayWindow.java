@@ -6,7 +6,7 @@ import java.time.LocalTime;
  * 하루 일정이 가능한 시간대와 끼니 여부.
  * - 기본 09:30 ~ 21:00 (야경 관심사면 22:00)
  * - 첫날: 숙소 도착 + 1시간부터 / 마지막 날: 출발 3시간 전까지 (모르면 기본값)
- * - 10-15: 여행 조건에 비행기 시각이 있으면 공항 이동을 넣어 계산 (AirportPlan)
+ * - 여행 조건에 비행기 시각이 있으면 공항 이동을 넣어 계산 (AirportPlan)
  * - 점심은 13:30까지 시작해서 60분, 저녁은 18:00~20:00 사이 시작해서 90분을 넣을 수 있을 때만
  *
  * 시각은 분(0~1439)으로 계산해서 자정을 넘는 경우(23:30 도착 + 1시간)를 막는다.
@@ -27,13 +27,14 @@ public record DayWindow(LocalTime start, LocalTime end, boolean lunch, boolean d
     static final int DINNER_LATEST = 20 * 60;
     static final int DINNER_MINUTES = 90;
 
+    /** 공항 정보 없이 (대화에서 들은 숙소 도착·출발 시각만) */
     public static DayWindow of(boolean firstDay, boolean lastDay,
                                LocalTime arrival, LocalTime departure, boolean nightView) {
         return of(firstDay, lastDay, arrival, departure, nightView, null, null);
     }
 
     /**
-     * 10-15: 여행 조건에 비행기 시각이 있으면 그것으로 계산한 값(AirportPlan)을 쓴다.
+     * 여행 조건에 비행기 시각이 있으면 그것으로 계산한 값(AirportPlan)을 쓴다.
      * 없으면 예전처럼 대화에서 들은 숙소 도착 + 1시간 / 출발 − 3시간.
      *
      * @param flightStart 첫날 관광 시작 가능 시각(분, AirportPlan.firstDayStart). 자정을 넘으면 1440 이상
@@ -63,14 +64,17 @@ public record DayWindow(LocalTime start, LocalTime end, boolean lunch, boolean d
         return new DayWindow(toTime(start), toTime(end), lunch, dinner);
     }
 
+    /** 이 날 일정을 넣을 수 없는지 (시간이 없음) */
     public boolean isEmpty() {
         return start == null;
     }
 
+    /** 시각 → 하루 분 */
     private static int minutes(LocalTime time) {
         return time.getHour() * 60 + time.getMinute();
     }
 
+    /** 하루 분 → 시각 */
     private static LocalTime toTime(int minutes) {
         return LocalTime.of(minutes / 60, minutes % 60);
     }

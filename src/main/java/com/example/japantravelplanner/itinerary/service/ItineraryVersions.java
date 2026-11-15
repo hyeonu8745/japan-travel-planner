@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
- * 일정 버전을 다루는 공통 흐름 (11-08 리팩터링).
+ * 일정 버전을 다루는 공통 흐름.
  * 생성·식당 교체·관광지 교체·항목 편집·되돌리기·조건 재계산이 각자 복사해 쓰던 것을 모았다:
  * 잠금 + 쓰기 트랜잭션, 최신 버전 찾기, 옛 화면 막기, 다음 버전 만들기, 저장(버전 충돌만 409), 응답 변환.
  *
@@ -55,6 +55,7 @@ public final class ItineraryVersions {
     private final TransactionTemplate readTransaction;
     private final TransactionTemplate writeTransaction;
 
+    /** 각 서비스가 자기 의존성으로 만든다 (스프링 빈이 아님) */
     public ItineraryVersions(ItineraryRepository itineraryRepository, ItineraryStopRepository stopRepository,
                              RestaurantRepository restaurantRepository, PlaceTypeLabels typeLabels,
                              ReasonContextLoader reasonContextLoader, GenerationLock lock,
@@ -72,6 +73,7 @@ public final class ItineraryVersions {
 
     // ===================== 트랜잭션·잠금 =====================
 
+    /** 읽기 트랜잭션 안에서 실행 */
     public <T> T read(Supplier<T> work) {
         return readTransaction.execute(status -> work.get());
     }
@@ -93,12 +95,14 @@ public final class ItineraryVersions {
         }
     }
 
+    /** 쓰기 트랜잭션 안에서 실행 (잠금 없이) */
     public <T> T write(Supplier<T> work) {
         return writeTransaction.execute(status -> work.get());
     }
 
     // ===================== 불러오기·검사 =====================
 
+    /** 이 여행의 최신 버전 (없으면 404) */
     public Itinerary latest(Long tripId) {
         return itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
                 .orElseThrow(() -> new NotFoundException(NO_ITINERARY_MESSAGE));
@@ -111,6 +115,7 @@ public final class ItineraryVersions {
         }
     }
 
+    /** 버전의 n일차 (없으면 404) */
     public static ItineraryDay dayOf(Itinerary itinerary, int dayNumber) {
         return itinerary.getDays().stream()
                 .filter(d -> d.getDayNumber() == dayNumber)
@@ -154,6 +159,7 @@ public final class ItineraryVersions {
                 .copyExchangeRateFrom(latest);
     }
 
+    /** 새 버전 저장 (버전 충돌이면 기본 문구로 409) */
     public void save(Itinerary next) {
         save(next, "일정이 동시에 바뀌었어요. 화면을 새로고침해주세요.");
     }
@@ -161,7 +167,7 @@ public final class ItineraryVersions {
     /**
      * 새 버전을 저장한다. 같은 버전 번호로 동시에 저장하려 한 경우(유일 제약)만 409로 안내한다
      * (잠금은 서버 한 대 안에서만 막아준다). 그 밖의 DB 거절(허용 값 제약 등)은 동시성 문제가 아니므로
-     * 원인을 로그에 남기고 그대로 던진다. 전부 409로 바꾸면 진짜 원인이 가려진다 (10-06 되돌리기 409 사고).
+     * 원인을 로그에 남기고 그대로 던진다. 전부 409로 바꾸면 진짜 원인이 가려진다.
      */
     public void save(Itinerary next, String conflictMessage) {
         try {
@@ -179,6 +185,7 @@ public final class ItineraryVersions {
 
     // ===================== 응답 =====================
 
+    /** 응답 변환 (고른 이유 계산용 여행 조건을 읽어서) */
     public ItineraryResponseDto toResponse(Itinerary itinerary) {
         return toResponse(itinerary, reasonContextLoader.load(itinerary.getTrip()));
     }

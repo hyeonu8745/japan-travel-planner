@@ -5,6 +5,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
 
+/**
+ * 취향 대화 정리본 조회 (여행 하나에 하나).
+ */
 public interface TripPreferenceRepository extends JpaRepository<TripPreference, Long> {
 
     Optional<TripPreference> findByTripId(Long tripId);

@@ -103,6 +103,7 @@ public class ItineraryEditService {
     private final RestaurantMatchService restaurantMatchService;
     private final ItineraryVersions versions;
 
+    /** 버전 저장 공통 흐름(ItineraryVersions)을 자기 의존성으로 만들어 쓴다 */
     public ItineraryEditService(TripRepository tripRepository,
                                 TripPreferenceRepository preferenceRepository,
                                 ItineraryRepository itineraryRepository,
@@ -177,6 +178,7 @@ public class ItineraryEditService {
                 .anyMatch(s -> s.getAttraction() != null && SensitivePlaces.isExcluded(s.getAttraction().getName()));
     }
 
+    /** 되돌리기: 옛 버전 내용을 복사해 새 버전(RESTORED)으로 저장한다 (지금 버전이면 400) */
     private ItineraryResponseDto doRestore(Long userId, Long tripId, int versionNo) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         Itinerary latest = versions.latest(tripId);
@@ -185,7 +187,7 @@ public class ItineraryEditService {
         if (old.getVersionNo() == latest.getVersionNo()) {
             throw new BadRequestException("이미 현재 버전이에요.");
         }
-        if (hasSensitivePlace(old)) {   // 민감 장소 필터(10-13) 전에 만든 버전이면 되돌리지 않는다
+        if (hasSensitivePlace(old)) {   // 민감 장소 필터 전에 만든 버전이면 되돌리지 않는다
             throw new ConflictException("이 버전에는 지금은 추천하지 않는 장소가 있어 되돌릴 수 없어요. 일정을 다시 만들어 주세요.");
         }
 
@@ -205,6 +207,7 @@ public class ItineraryEditService {
 
     // ===================== 후보 조회 =====================
 
+    /** 식당 항목 하나를 바꿀 때의 후보 (보통 후보) */
     public StopCandidatesResponseDto candidates(Long userId, Long tripId, Long stopId) {
         return candidates(userId, tripId, stopId, Set.of());
     }
@@ -221,6 +224,7 @@ public class ItineraryEditService {
         });
     }
 
+    /** 후보 → 응답 (이동, 예산 초과 여부, 앞 끼니와 장르 겹침, 그날 정기 휴일) */
     private StopCandidatesResponseDto toCandidatesResponse(Target target, Search search) {
         Set<String> previousMeal = previousMealGenres(target.latest(), target.stop());
         LocalDate visitDate = target.day().getDate();
@@ -251,6 +255,7 @@ public class ItineraryEditService {
 
     // ===================== 교체 =====================
 
+    /** 식당 바꾸기 → 새 버전. 먼저 Google 에서 그 식당이 있는지 확인한다 (트랜잭션 밖) */
     public ItineraryResponseDto replace(Long userId, Long tripId, Long stopId, Long restaurantId) {
         return versions.locked(tripId, ItineraryVersions.BUSY_MESSAGE, () -> {
             // 고른 식당이 아직 Google에서 확인 전이면 먼저 확인한다 (트랜잭션 밖, 1건). 폐업 의심이면 아래 doReplace에서 막힌다.
@@ -260,6 +265,7 @@ public class ItineraryEditService {
         });
     }
 
+    /** 바꾸기: 후보로 나올 수 있는 식당만, 바뀐 날 시각만 다시 계산해서 저장. 바꾼 식당은 다시 추천하지 않는다 */
     private ItineraryResponseDto doReplace(Long userId, Long tripId, Long stopId, Long restaurantId) {
         Target target = load(userId, tripId, stopId);
         ItineraryStop stop = target.stop();
@@ -353,6 +359,7 @@ public class ItineraryEditService {
         return versions.locked(tripId, () -> doRetimeForConditions(userId, tripId, changeNote, keepAwaiting));
     }
 
+    /** 조건 변경 뒤 시각만 다시 계산: 장소는 그대로 두고 새 시간대·이동 방식으로 모든 날을 다시 계산한다 */
     private Optional<ItineraryResponseDto> doRetimeForConditions(Long userId, Long tripId, String changeNote,
                                                                   boolean keepAwaiting) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
@@ -371,7 +378,7 @@ public class ItineraryEditService {
         }
 
         versions.save(next);
-        // 조건 저장 때 READY_TO_GENERATE로 바꿔 두었다. 원래 확인 대기(완성 전)였으면 다시 확인 대기로 (10-12)
+        // 조건 저장 때 READY_TO_GENERATE로 바꿔 두었다. 원래 확인 대기(완성 전)였으면 다시 확인 대기로
         trip.setStatus(keepAwaiting ? TripStatus.AWAITING_CONFIRMATION : TripStatus.EDITING);
 
         log.info("[Itinerary] 여행 조건 변경으로 시각 재계산 tripId={} 새 버전 {} ({})",
@@ -434,12 +441,14 @@ public class ItineraryEditService {
         return alternatives.stream().limit(MAX_ALTERNATIVES).toList();
     }
 
+    /** 정기 휴일 안내 문장인지 */
     private static boolean isHolidayWarning(String warning) {
         return warning.contains("정기 휴일");
     }
 
     // ===================== 후보 검색 =====================
 
+    /** 보통 후보 찾기 */
     private Search search(Target target, int limit) {
         return search(target, limit, Set.of());
     }
@@ -465,6 +474,7 @@ public class ItineraryEditService {
         return TravelPoint.of(target.stop());
     }
 
+    /** 끼니 후보 찾기: 앞뒤 장소 사이(가운데) 근처에서 예산·음식 조건으로, 원하는 장르가 있으면 그 장르를 넓게 */
     private Search search(Target target, int limit, Set<String> wantedGenres) {
         Meal meal = target.stop().getType() == StopType.LUNCH ? Meal.LUNCH : Meal.DINNER;
         int maxYen = target.budget().of(meal);
@@ -494,13 +504,14 @@ public class ItineraryEditService {
         return new Search(meal, maxYen, previous, found);
     }
 
-    /** 후보에서 뺄 식당: 일정에 이미 있는 곳 + 사용자가 이 여행에서 바꾼 곳 (10-12) */
+    /** 후보에서 뺄 식당: 일정에 이미 있는 곳 + 사용자가 이 여행에서 바꾼 곳 */
     private static Set<Long> excludedIds(Target target) {
         Set<Long> ids = new java.util.HashSet<>(usedRestaurantIds(target.latest()));
         ids.addAll(target.trip().excludedRestaurants());
         return ids;
     }
 
+    /** 일정에 이미 쓴 식당 id */
     private static Set<Long> usedRestaurantIds(Itinerary itinerary) {
         return itinerary.getDays().stream()
                 .flatMap(day -> day.getStops().stream())
@@ -525,12 +536,14 @@ public class ItineraryEditService {
         return last;
     }
 
+    /** 앞 끼니의 대표 장르와 겹치는지 */
     private static boolean overlaps(Set<String> previousMain, String genreCsv) {
         return !Collections.disjoint(RestaurantFinder.mainGenres(genreCsv), previousMain);
     }
 
     // ===================== 불러오기·검사 =====================
 
+    /** 최신 버전의 식당 항목을 찾아 바꾸기에 필요한 것을 모은다 (관광지·카페 항목이면 400) */
     private Target load(Long userId, Long tripId, Long stopId) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         ItineraryVersions.LatestStop found = versions.latestStop(tripId, stopId);
@@ -548,7 +561,7 @@ public class ItineraryEditService {
         var constraints = ItineraryPlanner.constraintsOf(preference);
         TravelOptions options = TravelOptions.of(trip, constraints, travelProperties);
         double foodRatio = preference == null ? DEFAULT_FOOD_RATIO : preference.getFoodBudgetRatio();
-        // 교체 후보의 예산은 그 일정을 만들 때 쓴 환율로 (10-12: 환율이 날마다 바뀌어도 같은 일정 안에서는 같게)
+        // 교체 후보의 예산은 그 일정을 만들 때 쓴 환율로 (환율이 날마다 바뀌어도 같은 일정 안에서는 같게)
         MealBudget budget = mealBudgetCalculator.calculate(trip.getBudget(), trip.getTravelers(),
                 ItineraryPlanner.daysOf(trip), foodRatio, latest.getKrwPerYen());
         FoodFilter filter = foodFilterResolver.resolve(constraints, trip.getAllergies());
@@ -558,6 +571,7 @@ public class ItineraryEditService {
 
     // ===================== 좌표·표시 =====================
 
+    /** 숙소 위치 (없으면 Google 로 찾아 저장) */
     private TravelPoint hotelPoint(Trip trip) {
         Point hotel = accommodationLocator.locate(trip);
         return TravelPoint.of(trip.getAccommodationName(), hotel);

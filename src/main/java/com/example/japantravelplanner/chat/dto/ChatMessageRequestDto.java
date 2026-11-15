@@ -3,6 +3,9 @@ package com.example.japantravelplanner.chat.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
+/**
+ * 사용자가 보낸 대화 한 마디.
+ */
 public record ChatMessageRequestDto(
         @NotBlank(message = "메시지를 입력해주세요.")
         @Size(max = 1000, message = "메시지는 1,000자 이하여야 합니다.")

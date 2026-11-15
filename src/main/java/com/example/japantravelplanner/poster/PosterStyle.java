@@ -4,7 +4,7 @@ import com.example.japantravelplanner.global.exception.BadRequestException;
 
 import java.util.Locale;
 
-/** 포스터 그림 스타일 (10-14). 모든 장에 같은 스타일을 쓴다. 안 고르면 수채화 */
+/** 포스터 그림 스타일. 모든 장에 같은 스타일을 쓴다. 안 고르면 수채화 */
 public enum PosterStyle {
 
     WATERCOLOR("수채화", "hand-drawn soft pastel watercolor and ink"),
@@ -20,6 +20,7 @@ public enum PosterStyle {
         this.prompt = prompt;
     }
 
+    /** 화면에 보여 줄 한국어 이름 */
     public String label() {
         return label;
     }

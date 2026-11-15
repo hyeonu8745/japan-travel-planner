@@ -40,7 +40,7 @@ public record ItineraryResponseDto(
         LocalDateTime createdAt,
         AccommodationDto accommodation,
         List<DayDto> days,
-        ExchangeRateDto exchangeRate    // 10-12 추가: 이 일정의 환율 기준일·출처 (예전 일정은 date·source가 null)
+        ExchangeRateDto exchangeRate    // 이 일정의 환율 기준일·출처 (예전 일정은 date·source가 null)
 
 ) {
 
@@ -52,6 +52,7 @@ public record ItineraryResponseDto(
      */
     public record ExchangeRateDto(double krwPerYen, LocalDate date, String source, String sourceLabel) {
 
+        /** 환율 응답 (출처 이름 포함) */
         static ExchangeRateDto of(double krwPerYen, LocalDate date, String source) {
             String label = source == null ? "고정 환율" : switch (source) {
                 case "KOREAEXIM" -> "한국수출입은행";
@@ -77,9 +78,9 @@ public record ItineraryResponseDto(
             List<StopDto> stops,
             List<DroppedDto> dropped,
             List<String> warnings,
-            List<TripZone> zones,     // 10-11 추가: 그날 실제로 도는 지역 (중심 지역 먼저, 관광지 위치로 계산). 하루에 두 지역일 수 있다
+            List<TripZone> zones,     // 그날 실제로 도는 지역 (중심 지역 먼저, 관광지 위치로 계산). 하루에 두 지역일 수 있다
             String zonesLabel,        // zones를 한 줄로 ("아사쿠사·우에노 + 아키하바라·간다")
-            List<TransferDto> transfers   // 10-15 추가: 공항 이동 (첫날·마지막 날, 비행기 시각이 있을 때만. 없으면 빈 목록)
+            List<TransferDto> transfers   // 공항 이동 (첫날·마지막 날, 비행기 시각이 있을 때만. 없으면 빈 목록)
     ) {
     }
 
@@ -111,14 +112,16 @@ public record ItineraryResponseDto(
             RestaurantDto restaurant,
             List<AlternativeDto> alternatives,
             List<StopReason> reasons,
-            String nameKo             // 10-11 추가: 한국어 이름 (없으면 null → 화면은 name). 화면은 "한국어 + 작게 원래 이름"
+            String nameKo             // 한국어 이름 (없으면 null → 화면은 name). 화면은 "한국어 + 작게 원래 이름"
     ) {
 
+        /** 한국어 이름만 바꾼 복사본 */
         StopDto withNameKo(String value) {
             return new StopDto(id, order, type, name, arrival, departure, stayMinutes, waitMinutes, travel, lat, lng,
                     attraction, restaurant, alternatives, reasons, value);
         }
 
+        /** 식당 대안 목록만 바꾼 복사본 */
         StopDto withAlternatives(List<AlternativeDto> value) {
             return new StopDto(id, order, type, name, arrival, departure, stayMinutes, waitMinutes, travel, lat, lng,
                     attraction, restaurant, value, reasons, nameKo);
@@ -140,14 +143,15 @@ public record ItineraryResponseDto(
                                 boolean budgetRelaxed, boolean genreRepeated,
                                 Integer reviewCount, String nearestStation, Integer nearestDistance, String holiday,
                                 boolean closedOnVisitDay,
-                                List<String> genreLabels) {   // 10-11 추가: 장르 한국어 이름 (GenreLabels, 예: [츠케멘, 라멘])
+                                List<String> genreLabels) {   // 장르 한국어 이름 (GenreLabels, 예: [츠케멘, 라멘])
     }
 
     /** 고른 식당 대신 선택할 수 있는 다음 후보 (식당 항목에만 있고, 관광지 항목은 빈 목록) */
     public record AlternativeDto(Long id, String name, String genre, Double rating, String budget, String address,
                                  Double lat, Double lng, String holiday, boolean closedOnVisitDay,
-                                 String nameKo, List<String> genreLabels) {   // 10-11 추가
+                                 String nameKo, List<String> genreLabels) {   // 추가
 
+        /** 한국어 이름만 바꾼 복사본 */
         AlternativeDto withNameKo(String value) {
             return new AlternativeDto(id, name, genre, rating, budget, address, lat, lng, holiday, closedOnVisitDay,
                     value, genreLabels);
@@ -230,6 +234,7 @@ public record ItineraryResponseDto(
         return steps.stream().map(st -> new TransferDto(st.time(), st.kind(), st.label(), st.position())).toList();
     }
 
+    /** 하루 엔티티 → 응답 (항목, 지역, 빠진 장소, 안내, 공항 이동) */
     private static DayDto toDay(ItineraryDay day, Function<String, List<String>> typeLabels,
                                 Map<Long, Restaurant> alternatives, ReasonContext reasons, List<TransferDto> transfers) {
         return new DayDto(day.getDayNumber(), day.getDate(), day.getZone(), day.getZone().getLabel(),
@@ -250,6 +255,7 @@ public record ItineraryResponseDto(
         return TripZone.visited(day.getZone(), stopZones);
     }
 
+    /** 항목 엔티티 → 응답 (관광지면 종류·이유, 식당이면 장르·예산·대안·이유, 이동) */
     private static StopDto toStop(ItineraryStop stop, LocalDate date, Function<String, List<String>> typeLabels,
                                   Map<Long, Restaurant> alternatives, ReasonContext reasons) {
         TravelDto travel = new TravelDto(stop.getTravelMode(), stop.getTravelMinutes(),
@@ -289,7 +295,7 @@ public record ItineraryResponseDto(
                 .toList();
     }
 
-    // 점심이면 점심 예산, 저녁이면 저녁 예산, 쉬는 시간 카페(10-16)는 낮 예산 → 없으면 저녁 예산
+    // 점심이면 점심 예산, 저녁이면 저녁 예산, 쉬는 시간 카페는 낮 예산 → 없으면 저녁 예산
     private static String budgetOf(Restaurant r, StopType type) {
         if (type == StopType.CAFE) {
             return r.getBudgetLunch() != null && !r.getBudgetLunch().isBlank() && !"-".equals(r.getBudgetLunch().strip())
@@ -298,6 +304,7 @@ public record ItineraryResponseDto(
         return type == StopType.LUNCH ? r.getBudgetLunch() : r.getBudgetDinner();
     }
 
+    /** 빠진 장소 → 응답 (이유 코드와 한국어 설명) */
     private static DroppedDto toDropped(DroppedPlace dropped) {
         return new DroppedDto(dropped.getName(), dropped.getReason(), dropped.getReason().label());
     }

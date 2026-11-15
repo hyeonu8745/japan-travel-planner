@@ -8,7 +8,7 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * 확장 대상 19개 도시 (11-08 리팩터링). 중심 좌표·반경은 데이터 정리(data_clean.py CITY_RADIUS)와 같은 값이다.
+ * 확장 대상 19개 도시. 중심 좌표·반경은 데이터 정리(data_clean.py CITY_RADIUS)와 같은 값이다.
  * DB에는 이름(TOKYO 등) 문자열로 저장한다.
  * 지금 일정 생성은 도쿄만 지역(TripZone)이 있다. 다른 도시는 11월 확장 때 지역과 데이터를 넣는다.
  */
@@ -48,18 +48,22 @@ public enum City {
         this.radiusKm = radiusKm;
     }
 
+    /** 한국어 이름 (예: 도쿄) */
     public String label() {
         return label;
     }
 
+    /** 이 도시가 속한 권역 */
     public Region region() {
         return region;
     }
 
+    /** 도시 중심 위도 */
     public double centerLat() {
         return centerLat;
     }
 
+    /** 도시 중심 경도 */
     public double centerLng() {
         return centerLng;
     }
@@ -69,6 +73,7 @@ public enum City {
         return GeoUtils.distanceMeters(centerLat, centerLng, lat, lng) <= radiusKm * 1000;
     }
 
+    /** 권역에 속한 도시 목록 (선언 순서) */
     public static List<City> inRegion(Region region) {
         return Arrays.stream(values()).filter(c -> c.region == region).toList();
     }

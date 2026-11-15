@@ -9,7 +9,7 @@ import org.locationtech.jts.geom.Point;
 /**
  * 이동 시간을 계산할 장소 하나.
  * 캐시 키는 좌표를 소수점 4자리(약 11m)로 반올림해서, 같은 장소면 같은 키가 되게 한다.
- * 11-08 리팩터링: 수정 서비스 3곳에 복사돼 있던 pointOf 를 아래 정적 메서드로 모았다.
+ * 수정 서비스 3곳에 복사돼 있던 pointOf 를 아래 정적 메서드로 모았다.
  */
 public record TravelPoint(String name, double lat, double lng) {
 
@@ -18,10 +18,12 @@ public record TravelPoint(String name, double lat, double lng) {
         return new TravelPoint(name, point.getY(), point.getX());
     }
 
+    /** 관광지 위치 */
     public static TravelPoint of(Attraction attraction) {
         return of(attraction.getName(), attraction.getLocation());
     }
 
+    /** 식당 위치 */
     public static TravelPoint of(Restaurant restaurant) {
         return of(restaurant.getName(), restaurant.getLocation());
     }

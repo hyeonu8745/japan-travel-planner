@@ -24,6 +24,7 @@ public class GoogleGeocodingClient {
     private final GoogleProperties properties;
     private final RestClient restClient;
 
+    /** 연결 5초, 응답은 설정한 시간까지 기다리는 HTTP 클라이언트를 만든다 */
     public GoogleGeocodingClient(GoogleProperties properties) {
         this.properties = properties;
 
@@ -40,6 +41,7 @@ public class GoogleGeocodingClient {
     public record GeocodeResult(double lat, double lng, String formattedAddress) {
     }
 
+    /** 주소 → 좌표. 결과가 없거나 주소가 비어 있으면 빈 값, 키 오류·장애는 ExternalApiException */
     public Optional<GeocodeResult> geocode(String address) {
         if (address == null || address.isBlank()) {
             return Optional.empty();

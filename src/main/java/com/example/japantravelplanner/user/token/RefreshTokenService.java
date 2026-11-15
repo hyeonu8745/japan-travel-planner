@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 갱신 토큰 발급·회전·재사용 감지·로그아웃 (11-15 보안 2-1~2-4, 2-8).
+ * 갱신 토큰 발급·회전·재사용 감지·로그아웃.
  * - 로그인: 새 family(브라우저) 시작. 같은 브라우저의 예전 토큰이 같이 오면 그 family 는 닫는다(다시 세지 않게).
  *   살아 있는 브라우저가 maxSessions 개면 가장 오래 안 쓴 것부터 닫는다.
  * - 갱신: 옛 토큰 폐기(ROTATED) + 같은 family 에 새 토큰. 폐기된 토큰이 다시 오면(유예 시간 밖) 그 family 전부 폐기.
@@ -33,6 +33,7 @@ public class RefreshTokenService {
     private final RefreshTokenProperties props;
     private final Clock clock;
 
+    /** @param clock 서버 시계 (만료·유예 시간 계산, 테스트에서 고정) */
     public RefreshTokenService(RefreshTokenRepository repository, RefreshTokenProperties props, Clock clock) {
         this.repository = repository;
         this.props = props;
@@ -43,6 +44,12 @@ public class RefreshTokenService {
     public record Rotation(Long userId, String newToken) {
     }
 
+    /**
+     * 로그인할 때 새 브라우저 로그인(family)을 연다.
+     * 같은 사용자의 예전 쿠키가 같이 오면 그 family 를 닫고, 살아 있는 브라우저가 최대 개수면 가장 오래 안 쓴 것부터 닫는다.
+     * @param previousToken 이 브라우저에 남아 있던 갱신 토큰 쿠키 (없으면 null)
+     * @return 쿠키에 넣을 새 갱신 토큰 원문
+     */
     @Transactional
     public String startSession(Long userId, String previousToken) {
         Instant now = clock.instant();
@@ -59,6 +66,10 @@ public class RefreshTokenService {
         return issue(userId, UUID.randomUUID().toString(), now);
     }
 
+    /**
+     * 갱신 토큰으로 새 토큰을 받는다 (회전). 폐기된 토큰이 유예 시간 밖에서 다시 오면 그 family 를 전부 폐기하고 401.
+     * @return 사용자 id 와 새 토큰 (다른 탭이 방금 바꾼 경우에는 새 토큰 없이 null)
+     */
     @Transactional(noRollbackFor = UnauthorizedException.class)
     public Rotation refresh(String rawToken) {
         if (rawToken == null || rawToken.isBlank()) throw new UnauthorizedException(RELOGIN_MESSAGE);
@@ -82,6 +93,7 @@ public class RefreshTokenService {
         return new Rotation(token.getUserId(), issue(token.getUserId(), token.getFamilyId(), now));
     }
 
+    /** 로그아웃: 이 토큰이 속한 브라우저 로그인(family)을 전부 폐기한다. 없는 토큰이면 아무것도 하지 않는다 */
     @Transactional
     public void logout(String rawToken) {
         if (rawToken == null || rawToken.isBlank()) return;
@@ -89,16 +101,19 @@ public class RefreshTokenService {
                 .ifPresent(t -> repository.revokeFamily(t.getFamilyId(), clock.instant(), RefreshToken.LOGOUT));
     }
 
+    /** 갱신 토큰 유효 기간 */
     public Duration ttl() {
         return Duration.ofDays(props.getTtlDays());
     }
 
+    /** 이 토큰의 family 에 아직 살아 있는 토큰이 있는지 (로그아웃·재사용으로 닫히지 않았는지) */
     private boolean hasActive(RefreshToken token) {
         Instant now = clock.instant();
         return repository.findActive(token.getUserId(), now).stream()
                 .anyMatch(t -> t.getFamilyId().equals(token.getFamilyId()));
     }
 
+    /** 무작위 32바이트 토큰을 만들어 해시만 저장하고 원문을 돌려준다 */
     private String issue(Long userId, String familyId, Instant now) {
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
@@ -107,6 +122,7 @@ public class RefreshTokenService {
         return raw;
     }
 
+    /** 토큰 원문 → SHA-256 16진수 (DB 에는 이 값만 둔다) */
     static String hash(String raw) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(raw.getBytes(StandardCharsets.UTF_8));

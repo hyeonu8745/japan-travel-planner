@@ -5,6 +5,9 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+/**
+ * 이동 시간 자체 계산 설정 ({@code app.travel.*}): 걷는 기준 시간, 걷기·대중교통·차 속도와 우회 비율, 타고 내리는 시간. Google Routes 사용은 기본 꺼짐.
+ */
 @Getter
 @Setter
 @Component

@@ -8,15 +8,17 @@ import java.util.stream.Collectors;
 
 /**
  * 취향 대화의 첫 메시지. 사용자가 먼저 말하기 전에 서버가 인사와 첫 질문(음식)을 보낸다 (AI 호출 없음).
- * 10-10: 첫 메시지가 없어서 사용자가 무엇을 말해야 할지 모른 채 대화가 시작됐다.
+ * 첫 메시지가 없어서 사용자가 무엇을 말해야 할지 모른 채 대화가 시작됐다.
  */
 final class ChatGreeting {
 
     static final String FIRST_QUESTION = "먼저, 여행 중에 꼭 드셔 보고 싶은 음식이나 피하고 싶은 음식이 있으세요?";
 
+    /** 정적 메서드만 쓴다 */
     private ChatGreeting() {
     }
 
+    /** 여행 기간을 넣은 첫 인사와 첫 질문(음식) */
     static String of(Trip trip) {
         StringBuilder sb = new StringBuilder("안녕하세요! TabiMate예요. ");
         if (trip.getStartDate() != null && trip.getEndDate() != null) {

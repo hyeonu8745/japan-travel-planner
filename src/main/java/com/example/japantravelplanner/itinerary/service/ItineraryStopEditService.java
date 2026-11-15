@@ -85,6 +85,7 @@ public class ItineraryStopEditService {
     private final PlaceTypeLabels typeLabels;
     private final ItineraryVersions versions;
 
+    /** 버전 저장 공통 흐름(ItineraryVersions)을 자기 의존성으로 만들어 쓴다 */
     public ItineraryStopEditService(TripRepository tripRepository,
                                     TripPreferenceRepository preferenceRepository,
                                     ItineraryRepository itineraryRepository,
@@ -123,6 +124,7 @@ public class ItineraryStopEditService {
         return versions.locked(tripId, () -> doDelete(userId, tripId, stopId));
     }
 
+    /** 항목 빼기 → 새 버전 (그날 마지막 항목은 뺄 수 없다) */
     private ItineraryResponseDto doDelete(Long userId, Long tripId, Long stopId) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         ItineraryVersions.LatestStop found = versions.latestStop(tripId, stopId);
@@ -153,6 +155,7 @@ public class ItineraryStopEditService {
         return versions.locked(tripId, () -> doReorder(userId, tripId, dayNumber, stopIds, version));
     }
 
+    /** 같은 날 순서 바꾸기 → 새 버전 (그날 항목을 빠짐없이 한 번씩 보내야 한다) */
     private ItineraryResponseDto doReorder(Long userId, Long tripId, int dayNumber, List<Long> stopIds, Integer version) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         Itinerary latest = versions.latest(tripId);
@@ -231,6 +234,7 @@ public class ItineraryStopEditService {
         return versions.locked(tripId, () -> doAdd(userId, tripId, dayNumber, attractionId, position, version));
     }
 
+    /** 관광지 끼워 넣기 → 새 버전 (추가 후보에 있는 곳만) */
     private ItineraryResponseDto doAdd(Long userId, Long tripId, int dayNumber, Long attractionId,
                                        int position, Integer version) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
@@ -255,6 +259,7 @@ public class ItineraryStopEditService {
         return response;
     }
 
+    /** 자리 목록의 position 에 하나 끼운 새 목록 */
     private static List<Slot> inserted(List<Slot> slots, int position, Slot slot) {
         List<Slot> result = new ArrayList<>(slots);
         result.add(position, slot);
@@ -359,6 +364,7 @@ public class ItineraryStopEditService {
         return copy;
     }
 
+    /** 바뀐 순서로 그날 시각을 다시 계산한다 */
     private Retimed retime(Context ctx, List<Slot> slots) {
         List<RetimeItem> items = slots.stream()
                 .map(s -> new RetimeItem(s.type(), pointOf(s), s.stayMinutes()))
@@ -369,12 +375,14 @@ public class ItineraryStopEditService {
 
     // ===================== 불러오기·검사 =====================
 
+    /** 넣을 자리가 0 ~ 항목 수 사이인지 */
     private static void checkPosition(ItineraryDay day, int position) {
         if (position < 0 || position > day.getStops().size()) {
             throw new BadRequestException("넣을 자리가 올바르지 않습니다.");
         }
     }
 
+    /** 편집에 필요한 것: 이동 방식, 숙소 위치 */
     private Context context(Trip trip, Itinerary latest, ItineraryDay day) {
         TripPreference preference = preferenceRepository.findByTripId(trip.getId()).orElse(null);
         TravelOptions options = TravelOptions.of(trip, ItineraryPlanner.constraintsOf(preference), travelProperties);
@@ -385,6 +393,7 @@ public class ItineraryStopEditService {
 
     // ===================== 작은 도우미 =====================
 
+    /** 항목 종류 → 한국어 (변경 메모용) */
     private static String kindOf(ItineraryStop stop) {
         return switch (stop.getType()) {
             case ATTRACTION -> "관광지";
@@ -394,19 +403,23 @@ public class ItineraryStopEditService {
         };
     }
 
+    /** 항목의 장소 이름 */
     private static String nameOf(ItineraryStop stop) {
         return stop.getType() == StopType.ATTRACTION ? stop.getAttraction().getName() : stop.getRestaurant().getName();
     }
 
+    /** 관광지 체류 시간 (종류별 기본 × 여행 속도 배율) */
     private static int stayOf(Attraction attraction, Trip trip) {
         return StayTimes.scaled(StayTimes.baseOf(attraction.getTypes()), trip.getTravelPace().getStayMultiplier());
     }
 
+    /** 마지막 항목을 떠나는 시각(하루 분) */
     private static int lastDepartureMinutes(Retimed retimed) {
         LocalTime last = retimed.stops().get(retimed.stops().size() - 1).departure();
         return (int) Duration.between(LocalTime.MIDNIGHT, last).toMinutes();
     }
 
+    /** 자리의 위치 (관광지 또는 식당) */
     private static TravelPoint pointOf(Slot slot) {
         Point p = slot.attraction() != null ? slot.attraction().getLocation() : slot.restaurant().getLocation();
         return TravelPoint.of(slot.name(), p);
@@ -425,14 +438,17 @@ public class ItineraryStopEditService {
     private record Slot(StopType type, Attraction attraction, Restaurant restaurant, int stayMinutes,
                         ItineraryStop source) {
 
+        /** 기존 항목 → 자리 */
         static Slot of(ItineraryStop stop) {
             return new Slot(stop.getType(), stop.getAttraction(), stop.getRestaurant(), stop.getStayMinutes(), stop);
         }
 
+        /** 새로 넣을 관광지 → 자리 */
         static Slot attraction(Attraction attraction, int stayMinutes) {
             return new Slot(StopType.ATTRACTION, attraction, null, stayMinutes, null);
         }
 
+        /** 장소 이름 (관광지 또는 식당) */
         String name() {
             return attraction != null ? attraction.getName() : restaurant.getName();
         }

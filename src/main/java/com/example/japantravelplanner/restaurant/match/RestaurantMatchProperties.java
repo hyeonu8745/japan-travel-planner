@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 타베로그 식당 ↔ Google 장소 매칭 기준 (app.restaurant-match).
- * 기준값은 10-09 표본 50곳 측정 결과로 정했다: 거리 300m·이름 0.7 + 지점 이름 충돌 거절 → 42곳 연결, 잘못 연결 0곳
+ * 기준값(거리 300m, 이름 비슷한 정도 0.7, 지점 이름이 다르면 거절)은 실제 식당 표본으로 잘못 연결이 없게 정했다
  */
 @Getter
 @Setter
@@ -39,6 +39,7 @@ public class RestaurantMatchProperties {
     /** 일정 생성 때 "확인 → 빠진 식당이 있으면 다시 계산"을 몇 번까지 할지 */
     private int verifyRounds = 2;
 
+    /** 설정값 → 매칭 기준 묶음 */
     public RestaurantPlaceMatcher.Criteria criteria() {
         return new RestaurantPlaceMatcher.Criteria(maxDistanceMeters, minNameSimilarity,
                 loanwordMaxDistanceMeters, loanwordMinSimilarity);

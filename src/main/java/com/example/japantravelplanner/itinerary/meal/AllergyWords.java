@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 식당 장르로는 거를 수 없는 알레르기 재료 (10-16).
+ * 식당 장르로는 거를 수 없는 알레르기 재료.
  * 땅콩·우유·계란처럼 거의 모든 요리에 들어가는 재료는 "이 장르를 빼면 안전"이 성립하지 않는다.
  * 빼지 못한다는 사실을 숨기지 않고 일정 요약에서 이름을 들어 "주문할 때 꼭 확인"을 안내하는 데 쓴다.
  * (메밀·새우·생선·밀가루처럼 장르와 이어지는 것은 음식 사전 food_dictionary.csv의 AVOID가 거른다)
@@ -25,6 +25,7 @@ public final class AllergyWords {
             new String[]{"오징어", "오징어"}, new String[]{"문어", "문어"}, new String[]{"고등어", "고등어"},
             new String[]{"연어알", "연어알"}, new String[]{"젤라틴", "젤라틴"});
 
+    /** 정적 메서드만 쓴다 */
     private AllergyWords() {
     }
 

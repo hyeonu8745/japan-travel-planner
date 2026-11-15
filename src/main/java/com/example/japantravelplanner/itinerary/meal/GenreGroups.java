@@ -18,6 +18,7 @@ public final class GenreGroups {
             "CURRY", List.of("カレー")
     );
 
+    /** 정적 메서드만 쓴다 */
     private GenreGroups() {
     }
 

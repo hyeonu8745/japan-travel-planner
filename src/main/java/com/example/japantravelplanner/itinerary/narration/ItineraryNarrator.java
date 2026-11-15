@@ -36,6 +36,7 @@ public class ItineraryNarrator {
     private final OpenAiClient openAiClient;
     private final JsonMapper jsonMapper;
 
+    /** @param openAiClient 하루 설명은 고급 모델로 쓴다 */
     public ItineraryNarrator(OpenAiClient openAiClient, JsonMapper jsonMapper) {
         this.openAiClient = openAiClient;
         this.jsonMapper = jsonMapper;

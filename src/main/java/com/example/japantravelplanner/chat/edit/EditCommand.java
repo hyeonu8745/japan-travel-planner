@@ -14,10 +14,12 @@ record EditCommand(
         String reply
 ) {
 
+    /** 의도만 있는 명령 (서버가 알아들은 "네"·"아니요" 등) */
     static EditCommand of(String intent) {
         return new EditCommand(intent, null, null, null, null, null, null, "");
     }
 
+    /** 번호로 고르기 ("2번") */
     static EditCommand choose(int index) {
         return new EditCommand("CHOOSE", null, null, null, null, index, null, "");
     }

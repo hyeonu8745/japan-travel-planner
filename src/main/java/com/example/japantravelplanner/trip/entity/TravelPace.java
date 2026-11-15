@@ -18,6 +18,7 @@ public enum TravelPace {
     private final int afternoonCount;
     private final double stayMultiplier;
 
+    /** 하루에 방문할 관광지 수 (오전 + 오후) */
     public int attractionsPerDay() {
         return morningCount + afternoonCount;
     }

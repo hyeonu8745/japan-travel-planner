@@ -22,7 +22,7 @@ import java.util.concurrent.Executors;
 /**
  * 타베로그 식당을 Google 장소와 맞춰보고 결과(place ID, 상태)를 저장한다.
  *
- * 방식 (10-09 결정): 일정을 만들 때 고른 식당 중 아직 확인 안 한 곳만 확인한다.
+ * 방식: 일정을 만들 때 고른 식당 중 아직 확인 안 한 곳만 확인한다.
  * 9,399곳을 미리 전부 확인하는 일괄 매칭은 나중에 같은 verify()를 배치로 돌려서 확장할 수 있다.
  *
  * - Google 호출은 트랜잭션 밖에서, 식당끼리 동시에 (일정 하나에 끼니 10곳 안팎)
@@ -39,6 +39,7 @@ public class RestaurantMatchService {
     private final TransactionTemplate readTransaction;
     private final TransactionTemplate writeTransaction;
 
+    /** Google 검색(트랜잭션 밖)과 결과 저장을 나누므로 TransactionTemplate 을 만든다 */
     public RestaurantMatchService(RestaurantRepository restaurantRepository,
                                   GooglePlacesClient placesClient,
                                   RestaurantMatchProperties props,
@@ -88,6 +89,7 @@ public class RestaurantMatchService {
         return excluded;
     }
 
+    /** 식당마다 Google Text Search 를 동시에(가상 스레드) 부르고 같은 가게인지 판단한다. 실패한 곳은 결과에서 빠진다 */
     private Map<Long, Decision> search(List<Target> targets) {
         Map<Long, Decision> result = new ConcurrentHashMap<>();
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -112,6 +114,7 @@ public class RestaurantMatchService {
     /** 트랜잭션 밖으로 가지고 나갈 식당 정보 */
     record Target(Long id, String name, String query, double lat, double lng) {
 
+        /** 식당 → 검색할 내용 (이름 + 주소, 기준 좌표) */
         static Target of(Restaurant r) {
             String query = r.getAddress() == null ? r.getName() : r.getName() + " " + r.getAddress();
             return new Target(r.getId(), r.getName(), query, r.getLocation().getY(), r.getLocation().getX());

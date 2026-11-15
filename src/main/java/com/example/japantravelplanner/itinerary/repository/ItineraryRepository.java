@@ -9,6 +9,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 일정 버전 조회: 최신 버전, 버전 목록, 특정 버전, 하루 생성 횟수(AI 비용 제한).
+ */
 @Repository
 public interface ItineraryRepository extends JpaRepository<Itinerary, Long> {
 

@@ -12,7 +12,7 @@ import java.time.ZoneId;
 import java.util.Optional;
 
 /**
- * 일정 계산에 쓸 엔화 환율 (10-12, 이슈 #6).
+ * 일정 계산에 쓸 엔화 환율 (이슈 #6).
  * 오늘(한국 시간) 받은 값이 있으면 그것 → 없으면 수출입은행(오늘부터 거슬러) → Frankfurter → 마지막 저장값 → 설정 고정값.
  * 환율 때문에 일정 생성이 막히면 안 되므로 예외를 던지지 않는다. 외부 호출이 있으니 트랜잭션 밖에서 부른다
  */
@@ -39,6 +39,7 @@ public class ExchangeRateService {
         this.clock = clock.withZone(KST);
     }
 
+    /** 지금 쓸 환율: 오늘 받은 값 → 새로 받기 → 마지막 값 → 고정값. 동시에 여러 번 받지 않게 synchronized */
     public synchronized ExchangeRate current() {
         ExchangeRate fixed = new ExchangeRate(mealProperties.getKrwPerYen(), null, ExchangeRate.FIXED);
         if (!props.isEnabled()) return fixed;
@@ -69,6 +70,7 @@ public class ExchangeRateService {
                 });
     }
 
+    /** 수출입은행에서 오늘부터 며칠 거슬러 찾고, 없으면 Frankfurter. 둘 다 실패하면 빈 값 */
     private Optional<ExchangeRate> fetch(LocalDate today) {
         try {
             for (int i = 0; i <= props.getLookbackDays(); i++) {
@@ -85,6 +87,7 @@ public class ExchangeRateService {
                 .map(d -> new ExchangeRate(d.krwPerYen(), d.date(), ExchangeRate.FRANKFURTER));
     }
 
+    /** 말이 안 되는 환율(설정 범위 밖)은 버린다 */
     private boolean sane(double krwPerYen) {
         boolean ok = krwPerYen >= props.getMinKrwPerYen() && krwPerYen <= props.getMaxKrwPerYen();
         if (!ok) log.warn("[Exchange] 범위를 벗어난 환율 {} 버림", krwPerYen);

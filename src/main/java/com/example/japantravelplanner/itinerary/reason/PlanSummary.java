@@ -22,11 +22,11 @@ public final class PlanSummary {
 
     /** 관심사마다 이름을 보여줄 관광지 수 (나머지는 "외 N곳") */
     static final int MAX_NAMES = 2;
-    /** 일정을 만든 뒤에는 채팅으로 고칠 수 있다고 알려준다 (10-11) */
+    /** 일정을 만든 뒤에는 채팅으로 고칠 수 있다고 알려준다 */
     static final String EDIT_HINT = "바꾸고 싶은 곳이 있으면 \"2일차 저녁을 스시로 바꿔줘\"처럼 여기에 말씀해 주세요.";
 
     /**
-     * 여행의 첫 일정(버전 1)에만 붙이는 사용법·주의사항 (10-11 사용자 요청).
+     * 여행의 첫 일정(버전 1)에만 붙이는 사용법·주의사항 (사용자 요청).
      * 다시 만들 때마다 요약이 쌓이므로 그 뒤에는 EDIT_HINT 한 줄만 붙인다
      */
     static final String GUIDE = """
@@ -41,9 +41,11 @@ public final class PlanSummary {
             - 식당 상세에서 한국인 리뷰 중 주의할 내용이 보이면 알려 드려요. 리뷰 몇 개를 바탕으로 한 것이라 참고만 해 주세요. 마음에 들지 않으면 바로 다른 곳으로 바꿀 수 있어요.
             - 예산은 기준 환율로 계산한 대략적인 금액이에요.""";
 
+    /** 정적 메서드만 쓴다 */
     private PlanSummary() {
     }
 
+    /** "이렇게 짰어요" 메시지: 관심사·취향별로 맞는 곳, 좋아하는 음식, 반영하지 못한 것, 알레르기 주의 */
     public static String write(Itinerary itinerary, ReasonContext context) {
         ReasonContext ctx = ReasonContext.orNone(context);
         List<ItineraryStop> stops = itinerary.getDays().stream().flatMap(day -> day.getStops().stream()).toList();
@@ -117,6 +119,7 @@ public final class PlanSummary {
         return nameKo == null || nameKo.isBlank() ? stop.getAttraction().getName() : nameKo;
     }
 
+    /** 이름 목록 (많으면 앞의 몇 곳 + "외 N곳") */
     private static String names(Set<String> names) {
         List<String> list = List.copyOf(names);
         String shown = String.join(", ", list.subList(0, Math.min(MAX_NAMES, list.size())));

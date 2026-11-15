@@ -40,7 +40,7 @@ public class Itinerary {
     @Column(name = "krw_per_yen", nullable = false)
     private double krwPerYen;
 
-    // 환율 기준일과 출처 (10-12, KOREAEXIM / FRANKFURTER / FIXED). 예전 일정은 비어 있다
+    // 환율 기준일과 출처 (KOREAEXIM / FRANKFURTER / FIXED). 예전 일정은 비어 있다
     @Column(name = "exchange_rate_date")
     private LocalDate exchangeRateDate;
 
@@ -82,10 +82,12 @@ public class Itinerary {
         return create(trip, versionNo, krwPerYen, ItinerarySource.GENERATED);
     }
 
+    /** 새 버전 (변경 메모 없음) */
     public static Itinerary create(Trip trip, int versionNo, double krwPerYen, ItinerarySource source) {
         return create(trip, versionNo, krwPerYen, source, null);
     }
 
+    /** 새 버전 (변경 메모는 300자까지) */
     public static Itinerary create(Trip trip, int versionNo, double krwPerYen, ItinerarySource source,
                                    String changeNote) {
         Itinerary itinerary = new Itinerary();
@@ -98,11 +100,13 @@ public class Itinerary {
         return itinerary;
     }
 
+    /** 하루를 이 버전에 붙인다 */
     public void addDay(ItineraryDay day) {
         days.add(day);
         day.assignTo(this);
     }
 
+    /** 처음 저장할 때 만든 시각 */
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();

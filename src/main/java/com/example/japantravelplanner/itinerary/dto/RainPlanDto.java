@@ -6,7 +6,7 @@ import java.time.LocalTime;
 import java.util.List;
 
 /**
- * 비 오는 날 대안 미리보기 (10-16). 저장하지 않고 볼 때마다 계산한다. 적용은 POST로 새 버전(EDITED).
+ * 비 오는 날 대안 미리보기. 저장하지 않고 볼 때마다 계산한다. 적용은 POST로 새 버전(EDITED).
  *
  * @param version     이 미리보기를 계산한 일정 버전 (적용할 때 함께 보내면, 그 사이 바뀌었을 때 409)
  * @param changed     바꿀 곳이 있는지 (false면 적용 버튼을 숨긴다)

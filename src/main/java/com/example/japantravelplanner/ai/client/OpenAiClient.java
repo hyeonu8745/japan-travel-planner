@@ -30,6 +30,7 @@ public class OpenAiClient {
     private final OpenAiProperties properties;
     private final RestClient restClient;
 
+    /** 연결 5초, 응답은 설정한 시간까지 기다리는 HTTP 클라이언트를 만든다 */
     public OpenAiClient(OpenAiProperties properties) {
         this.properties = properties;
 
@@ -49,6 +50,7 @@ public class OpenAiClient {
         return call(tier, instructions, input, null, properties.getMaxOutputTokens(), null);
     }
 
+    /** JSON 형식(Structured Output)으로 답을 받는다 (출력 토큰은 설정 기본값) */
     public AiResult generateJson(AiModelTier tier, String instructions, String input, Map<String, Object> format) {
         return call(tier, instructions, input, format, properties.getMaxOutputTokens(), null);
     }
@@ -71,6 +73,7 @@ public class OpenAiClient {
         return call(tier, instructions, input, format, maxOutputTokens, temperature);
     }
 
+    /** Responses API 호출 공통: 모델 고르기, 요청 조립, 텍스트 꺼내기, 실패는 AiServiceException, 사용량 로그 */
     private AiResult call(AiModelTier tier, String instructions, String input,
                           Map<String, Object> format, int maxOutputTokens, Double temperature) {
         boolean advanced = tier == AiModelTier.ADVANCED;

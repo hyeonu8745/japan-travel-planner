@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 /**
  * 조건 입력의 관심사 체크박스에는 없지만 대화에서 말한 취향 (ETC·SCHEDULE·ATMOSPHERE 조건의 낱말로 알아본다).
  * 관심사처럼 맞는 관광지에 가산점을 주고(AttractionScorer), 고른 이유 칩·요약에도 쓴다.
- * 10-10 화면에서 발견: "피규어 샵 가고 싶어요"라고 했는데 관심사 체크가 없어 일정에 반영되지 않았다.
+ * 예: "피규어 샵 가고 싶어요"는 관심사 체크박스에 없지만 일정에 반영돼야 한다.
  * 데이터에는 아키하바라 피규어·하비 숍(toy_store)이 수십 곳 있다.
  */
 public enum Wish {
@@ -33,6 +33,7 @@ public enum Wish {
         this.types = types;
     }
 
+    /** 화면에 보여 줄 한국어 이름 (예: 피규어·애니) */
     public String label() {
         return label;
     }
@@ -52,6 +53,7 @@ public enum Wish {
         return result;
     }
 
+    /** 관광지 종류가 이 취향과 맞는지 */
     public boolean matches(Attraction attraction) {
         if (attraction == null || attraction.getTypes() == null) return false;
         Set<String> attractionTypes = Arrays.stream(attraction.getTypes().split(","))

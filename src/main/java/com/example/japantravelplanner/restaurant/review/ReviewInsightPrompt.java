@@ -7,6 +7,7 @@ import java.util.Map;
 /** 리뷰 분석 프롬프트와 응답 형식 (OpenAI Structured Output, strict 모드) */
 final class ReviewInsightPrompt {
 
+    /** 상수만 둔다 */
     private ReviewInsightPrompt() {
     }
 
@@ -39,6 +40,7 @@ final class ReviewInsightPrompt {
             - index는 <review index="…">의 숫자 그대로 쓴다. 모든 리뷰에 대해 하나씩 답한다.
             """;
 
+    /** 리뷰 분석 응답의 JSON 스키마 (strict) */
     static Map<String, Object> format() {
         Map<String, Object> finding = new LinkedHashMap<>();
         finding.put("type", "object");

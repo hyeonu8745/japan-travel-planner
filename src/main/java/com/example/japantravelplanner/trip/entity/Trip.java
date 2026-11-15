@@ -15,6 +15,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * 여행 ({@code trips}): 사용자, 날짜, 권역·기준 도시, 인원, 예산, 속도, 관심사, 알레르기·이동 제약, 숙소(이름·주소·좌표),
+ * 도착·출발 공항과 비행기 시각, 상태, 다시 추천하지 않는 식당 id. 숙소 좌표는 처음 일정을 만들 때 Google 로 찾아 저장한다.
+ */
 @Entity
 @Table(name = "trips")
 @Getter
@@ -41,7 +45,7 @@ public class Trip {
     private LocalDate endDate;
 
     /**
-     * 권역과 숙소 도시 (11-08 리팩터링, 확장 계획 0-16). 날짜마다 도는 도시는 그날 지역(TripZone)의 도시다.
+     * 권역과 숙소 도시 (확장 계획 0-16). 날짜마다 도는 도시는 그날 지역(TripZone)의 도시다.
      * 지금은 모두 수도권·도쿄. 예전 행(값 없음)도 도쿄로 읽는다.
      */
     @Convert(converter = RegionConverters.RegionConverter.class)
@@ -70,7 +74,7 @@ public class Trip {
     private List<Interest> interests;
 
     /**
-     * 사용자가 이 여행에서 다른 곳으로 바꾼 식당 (10-12). 교체 후보·다시 만드는 일정에 다시 넣지 않는다.
+     * 사용자가 이 여행에서 다른 곳으로 바꾼 식당. 교체 후보·다시 만드는 일정에 다시 넣지 않는다.
      * 리뷰가 마음에 안 들어 바꾼 식당이 다음 후보로 또 나오지 않게 (Google 리뷰가 아니라 사용자 선택이라 저장해도 된다)
      */
     @ElementCollection
@@ -96,7 +100,7 @@ public class Trip {
     @Column(columnDefinition = "geometry(Point,4326)")
     private Point accommodationLocation; // 일정 생성 시 Geocoding으로 채움
 
-    // 10-15 공항 (모두 선택). 공항은 코드 문자열(Airport: NRT, HND), 시각은 비행기 도착·출발 시각(현지)
+    // 공항 (모두 선택). 공항은 코드 문자열(Airport: NRT, HND), 시각은 비행기 도착·출발 시각(현지)
     @Column(name = "arrival_airport", length = 8)
     private String arrivalAirport;
 
@@ -120,8 +124,8 @@ public class Trip {
     private LocalDateTime updatedAt;
 
     /**
-     * 일정을 고쳤을 때의 상태. 확인 대기(완성 전)면 그대로 두고, 그 밖에는 EDITING (10-12 사용자 결정:
-     * 완성 전에 고쳐도 확인 대기 유지 → 다 고친 뒤 [완성])
+     * 일정을 고쳤을 때의 상태. 확인 대기(완성 전)면 그대로 두고, 그 밖에는 EDITING
+     * (완성 전에 고쳐도 확인 대기를 유지해서, 다 고친 뒤 [완성]을 누르게 한다)
      */
     public void markEdited() {
         if (status != TripStatus.AWAITING_CONFIRMATION) {
@@ -129,6 +133,7 @@ public class Trip {
         }
     }
 
+    /** 이 여행에서 다시 추천하지 않을 식당으로 넣는다 (사용자가 다른 곳으로 바꾼 식당) */
     public void excludeRestaurant(Long restaurantId) {
         if (restaurantId == null) return;
         if (excludedRestaurantIds == null) excludedRestaurantIds = new HashSet<>();
@@ -140,39 +145,46 @@ public class Trip {
         return excludedRestaurantIds != null && excludedRestaurantIds.remove(restaurantId);
     }
 
+    /** 다시 추천하지 않을 식당 id (없으면 빈 집합) */
     public Set<Long> excludedRestaurants() {
         return excludedRestaurantIds == null ? Set.of() : excludedRestaurantIds;
     }
 
+    /** 여행 권역 (값이 없던 예전 여행은 수도권) */
     public Region getRegion() {
         return region == null ? Region.KANTO : region;
     }
 
+    /** 숙소가 있는 기준 도시 (값이 없던 예전 여행은 도쿄) */
     public City getBaseCity() {
         return baseCity == null ? City.TOKYO : baseCity;
     }
 
-    /** 비행기 도착 정보가 다 있을 때만 (공항 + 시각). 여행 권역의 공항이 아니면 없는 것으로 본다 (11-08) */
+    /** 비행기 도착 정보가 다 있을 때만 (공항 + 시각). 여행 권역의 공항이 아니면 없는 것으로 본다 */
     public java.util.Optional<Airport> arrivalAirportInfo() {
         return arrivalFlightTime == null ? java.util.Optional.empty()
                 : Airport.of(arrivalAirport).filter(a -> a.region() == getRegion());
     }
 
+    /** 비행기 출발 정보가 다 있을 때만 (공항 + 시각). 여행 권역의 공항이 아니면 없는 것으로 본다 */
     public java.util.Optional<Airport> departureAirportInfo() {
         return departureFlightTime == null ? java.util.Optional.empty()
                 : Airport.of(departureAirport).filter(a -> a.region() == getRegion());
     }
 
+    /** 일정을 만든 직후, [완성]을 누르기 전인지 */
     public boolean isAwaitingConfirmation() {
         return status == TripStatus.AWAITING_CONFIRMATION;
     }
 
+    /** 처음 저장할 때 만든·고친 시각 */
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
 
+    /** 고칠 때마다 고친 시각 */
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();

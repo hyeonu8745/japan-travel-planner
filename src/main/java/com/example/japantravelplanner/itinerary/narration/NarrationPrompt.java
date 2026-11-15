@@ -3,6 +3,7 @@ package com.example.japantravelplanner.itinerary.narration;
 /** 일정 하루 설명 단계의 시스템 프롬프트 */
 public final class NarrationPrompt {
 
+    /** 상수만 둔다 */
     private NarrationPrompt() {
     }
 

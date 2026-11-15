@@ -22,6 +22,7 @@ public record ScheduledStop(StopType type,
                             int waitMinutes,
                             TravelLeg travelIn) {
 
+    /** 장소 이름 (관광지 또는 고른 식당) */
     public String name() {
         return type == StopType.ATTRACTION
                 ? attraction.attraction().getName()

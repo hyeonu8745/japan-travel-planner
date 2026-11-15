@@ -21,7 +21,7 @@ import java.util.*;
  *  - 이름과 상관없이 sameSpotMeters(150m) 이내 (愛宕山 + 出世の石段 43m, スクランブル交差点 + ハチ公像 48m)
  * 리뷰가 minReviews(100개) 미만인 관광지도 제외 (なだれ坂 36개처럼 일정에 넣기엔 너무 작은 곳)
  * 야경 관심사면 대표 야경 명소(NightSpots)는 같은 장소 합치기에서 빼지 않는다
- *  - 歌舞伎町一番街アーチ가 137m 옆 新宿東口の猫에 합쳐져 사라져서 신주쿠 날 야경이 비었다 (10-10 여행 8 v9)
+ *  - 歌舞伎町一番街アーチ가 137m 옆 新宿東口の猫에 합쳐져 사라져서 신주쿠 날 야경이 비는 것을 막는다
  */
 @Slf4j
 @Component
@@ -33,6 +33,7 @@ public class AttractionScorer {
     private final CandidateProperties props;
     private final ZoneAssigner zoneAssigner;
 
+    /** 대화 취향 없이 점수 매기기 */
     public List<ScoredAttraction> score(List<Attraction> attractions, Collection<Interest> interests) {
         return score(attractions, interests, Set.of());
     }
@@ -51,7 +52,7 @@ public class AttractionScorer {
         List<ScoredAttraction> result = new ArrayList<>();
         for (Attraction a : attractions) {
             if (a.getLocation() == null || a.getRating() == null) continue;
-            if (SensitivePlaces.isExcluded(a.getName())) continue;   // 야스쿠니 등 민감 장소는 추천하지 않는다 (10-13)
+            if (SensitivePlaces.isExcluded(a.getName())) continue;   // 야스쿠니 등 민감 장소는 추천하지 않는다
 
             int reviews = a.getReviewCnt() == null ? 0 : a.getReviewCnt();
             if (reviews < props.getMinReviews()) continue;
@@ -74,6 +75,7 @@ public class AttractionScorer {
         return (reviews * rating + priorReviews * mean) / (reviews + priorReviews);
     }
 
+    /** 관심사 가산점: 맞는 관심사 수(최대 2개) × 관심사 가산점 */
     private double interestBonus(Attraction attraction, Collection<Interest> interests) {
         if (interests == null || interests.isEmpty()) return 0;
         long matched = interests.stream()
@@ -82,6 +84,7 @@ public class AttractionScorer {
         return Math.min(matched, 2) * props.getInterestBonus();
     }
 
+    /** 대화 취향 가산점: 하나라도 맞으면 관심사 하나만큼 (한 번) */
     private double wishBonus(Attraction attraction, Collection<Wish> wishes) {
         if (wishes == null || wishes.isEmpty()) return 0;
         return wishes.stream().anyMatch(w -> w.matches(attraction)) ? props.getInterestBonus() : 0;
@@ -103,7 +106,7 @@ public class AttractionScorer {
                 continue;
             }
             // 남겨둔 대표 야경 명소는 밤에 따로 가는 곳이라, 거리만 가까운 낮 명소(歌舞伎町 아치 옆 新宿東口の猫)는 지우지 않는다.
-            // 이름이 겹치는 같은 장소(お台場海浜公園 + お台場海浜公園の展望デッキ)는 지운다 (10-10 v11: 낮·밤에 같은 공원)
+            // 이름이 겹치는 같은 장소(お台場海浜公園 + お台場海浜公園の展望デッキ)는 지운다 (v11: 낮·밤에 같은 공원)
             boolean duplicate = kept.stream().anyMatch(k -> {
                 boolean nameDuplicate = isNearDuplicate(k.attraction().getName(), k.lat(), k.lng(),
                         candidate.attraction().getName(), candidate.lat(), candidate.lng());

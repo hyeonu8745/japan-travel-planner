@@ -5,6 +5,9 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;   // ← 추가
 import lombok.Builder;
 import lombok.Getter;
 
+/**
+ * 식당 검색 결과 한 줄. 위치 검색일 때만 거리(distanceMeters)가 있다.
+ */
 @Getter
 @Builder
 @JsonPropertyOrder({                                         // ← 추가 (여기부터)
@@ -26,10 +29,12 @@ public class RestaurantResponseDto {
     private Double longitude;
     private Integer distanceMeters; // 위치 검색일 때만 값이 있음
 
+    /** 식당 → 검색 결과 한 줄 (거리 없음) */
     public static RestaurantResponseDto from(Restaurant restaurant) {
         return from(restaurant, null);
     }
 
+    /** 식당 → 검색 결과 한 줄 (위치 검색이면 거리 포함) */
     public static RestaurantResponseDto from(Restaurant restaurant, Integer distanceMeters) {
         Double lat = null;
         Double lng = null;

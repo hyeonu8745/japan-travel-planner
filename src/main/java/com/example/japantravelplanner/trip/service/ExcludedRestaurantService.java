@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * 사용자가 이 여행에서 바꾼 식당 목록 (10-12). 다시 추천하지 않는 곳을 보여주고, "다시 추천해도 돼요"로 풀 수 있게
+ * 사용자가 이 여행에서 바꾼 식당 목록. 다시 추천하지 않는 곳을 보여주고, "다시 추천해도 돼요"로 풀 수 있게
  */
 @Service
 @RequiredArgsConstructor
@@ -25,6 +25,7 @@ public class ExcludedRestaurantService {
     public record ExcludedRestaurantDto(Long restaurantId, String name, String nameKo, List<String> genreLabels) {
     }
 
+    /** 이 여행에서 다시 추천하지 않는 식당 목록 (이름·한국어 이름·장르) */
     @Transactional(readOnly = true)
     public List<ExcludedRestaurantDto> list(Long userId, Long tripId) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);

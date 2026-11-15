@@ -6,6 +6,10 @@ import org.locationtech.jts.geom.Point;
 
 import java.time.LocalDateTime;
 
+/**
+ * 관광지 ({@code attractions}). Google Places 로 수집한 이름·주소·평점·리뷰 수·종류(types)와 좌표.
+ * Google 의 사진·소개·영업시간은 저장하지 않고 상세를 볼 때 받아온다. 한국어 이름(nameKo)은 처음 일정에 쓰일 때 AI 로 만든다.
+ */
 @Entity
 @Table(name = "attractions")
 @Getter
@@ -42,7 +46,7 @@ public class Attraction {
     @Column(columnDefinition = "geometry(Point,4326)")
     private Point location;
 
-    // 한국어 이름 (일정에 처음 쓰일 때 AI로 한 번 만들어 저장, 10-11). null = 아직 없음 → 화면은 원래 이름.
+    // 한국어 이름 (일정에 처음 쓰일 때 AI로 한 번 만들어 저장). null = 아직 없음 → 화면은 원래 이름.
     // Google 한국어 이름은 약관상 저장할 수 없어서 쓰지 않는다
     @Column(name = "name_ko", length = 200)
     private String nameKo;
@@ -53,12 +57,14 @@ public class Attraction {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    /** 처음 저장할 때 만든·고친 시각 */
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
 
+    /** 고칠 때마다 고친 시각 */
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();

@@ -8,7 +8,7 @@ import java.util.List;
 
 /**
  * 식당 상세: 타베로그 정보(우리 DB)와 Google 정보(볼 때마다 받아옴, 저장하지 않음)를 나란히.
- * 두 평점을 함께 보여주고 사용자가 비교한다 (교차 검증 A안, 10-09 결정).
+ * 두 평점을 함께 보여주고 사용자가 비교한다 (교차 검증).
  *
  * Google 쪽 화면 표시 의무는 관광지 상세와 같다 (attribution "Google Maps", 사진·리뷰 작성자, 번역 표시·원문, 원문 링크).
  *
@@ -51,8 +51,8 @@ public record RestaurantDetailResponseDto(
      * @param localizedName 한국어 이름 (없으면 null)
      * @param summary       한 줄 소개 (식당은 없는 곳이 많다)
      * @param photos        최대 5장. GET /api/restaurants/{id}/photo?name= 로 주소를 받는다
-     * @param features      식당 특성 (10-09 추가)
-     * @param reviewInsights 리뷰 분석: 차별·불친절·위생·한국인에게 좋은 점 (10-10 추가). 리뷰가 없거나 분석 실패면 null
+     * @param features      식당 특성
+     * @param reviewInsights 리뷰 분석: 차별·불친절·위생·한국인에게 좋은 점. 리뷰가 없거나 분석 실패면 null
      */
     public record GoogleDto(String placeId, String localizedName, String summary, Double rating,
                             Integer userRatingCount, List<String> openingHours, String websiteUri,

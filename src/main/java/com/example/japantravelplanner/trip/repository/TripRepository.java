@@ -7,6 +7,9 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 여행 조회. 남의 여행을 못 보게 항상 사용자 id 와 같이 찾는다 (TripAccess).
+ */
 @Repository
 public interface TripRepository extends JpaRepository<Trip, Long> {
 

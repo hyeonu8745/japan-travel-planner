@@ -60,6 +60,7 @@ public class TripEditService {
     private final TransactionTemplate readTransaction;
     private final TransactionTemplate writeTransaction;
 
+    /** 수정은 저장(트랜잭션) → 일정 맞추기(밖) 두 단계라 TransactionTemplate 을 직접 만든다 */
     public TripEditService(TripRepository tripRepository,
                            TripPreferenceRepository preferenceRepository,
                            ChatMessageRepository chatMessageRepository,
@@ -86,6 +87,7 @@ public class TripEditService {
 
     // ===================== 수정 =====================
 
+    /** 여행 조건 수정: 저장하고, 바뀐 항목에 따라 일정 시각만 다시 계산하거나 새로 만든다. 같은 여행을 다른 요청이 고치는 중이면 409 */
     public TripUpdateResponseDto update(Long userId, Long tripId, TripRequestDto request) {
         // ① 조건 저장 (일정 생성·교체와 겹치지 않게 같은 잠금을 쓴다)
         if (!lock.tryAcquire(tripId)) {
@@ -106,6 +108,7 @@ public class TripEditService {
         return new TripUpdateResponseDto(trip, saved.change().fields(), update);
     }
 
+    /** ① 조건 저장 (트랜잭션): 바뀐 항목 판단, 날짜가 바뀌면 제목을 다시, 숙소 주소가 바뀌면 좌표를 지우고, 일정이 있고 영향이 있으면 상태 변경 */
     private Saved save(Long userId, Long tripId, TripRequestDto request) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         TripChange change = TripChange.between(trip, request);
@@ -143,6 +146,7 @@ public class TripEditService {
         return new Saved(change, hasItinerary, wasAwaiting);
     }
 
+    /** ② 일정 맞추기 (트랜잭션 밖): 영향 없음 → 그대로, 시각만 → 재계산, 새로 만들기 → AI 일정 생성. 실패해도 조건은 저장된 채로 안내 */
     private ItineraryUpdate syncItinerary(Long userId, Long tripId, Saved saved) {
         TripChange change = saved.change();
         if (!saved.hasItinerary()) {
@@ -174,6 +178,7 @@ public class TripEditService {
         }
     }
 
+    /** 조건은 저장됐지만 일정을 맞추지 못했을 때의 결과 */
     private static ItineraryUpdate failed(String reason) {
         return new ItineraryUpdate(Result.FAILED, "조건은 저장했지만 일정을 다시 만들지 못했어요. " + reason, null);
     }
@@ -189,7 +194,7 @@ public class TripEditService {
             List<String> posterFiles = new ArrayList<>();
             writeTransaction.executeWithoutResult(status -> {
                 Trip trip = TripAccess.owned(tripRepository, userId, tripId);
-                // 포스터(10-12)도 함께. 파일은 DB 삭제가 끝난 뒤 지운다
+                // 포스터도 함께. 파일은 DB 삭제가 끝난 뒤 지운다
                 List<TripPoster> posters = posterRepository.findByTripId(tripId);
                 posters.forEach(p -> p.getPages().forEach(page -> posterFiles.add(page.getFilePath())));
                 posterRepository.deleteAll(posters);

@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 관광지 API. 검색은 로그인 없이, 상세·사진은 Google 요금이 들어서 로그인한 사용자만 (SecurityConfig).
+ */
 @RestController
 @RequiredArgsConstructor
 public class AttractionController {
@@ -20,6 +23,7 @@ public class AttractionController {
     private final AttractionService attractionService;
     private final AttractionDetailService attractionDetailService;
 
+    /** 관광지 조합 검색 (구·종류·최소 평점·리뷰 수·위치 반경, 정렬, 페이지). 로그인 없이 */
     @GetMapping("/api/attractions/search")
     public PageResponseDto<AttractionResponseDto> searchAttractions(AttractionSearchCondition condition) {
         return attractionService.search(condition);

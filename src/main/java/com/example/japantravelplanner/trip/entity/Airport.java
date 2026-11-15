@@ -8,19 +8,14 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * 도착·출발 공항 (10-15). DB에는 코드 문자열(NRT, HND)로 저장한다 — enum 컬럼은 CHECK 제약이 생겨
- * 확장 때 공항을 더하면 SQL이 필요하므로 (6장).
- * 확장(11월) 때 공항을 더한다 (확장 계획 0-7: KIX, UKB, FUK, CTS, NGO, OKA, HIJ, KMQ).
- * 이동 시간·운임은 공항 + 도시 짝마다 {@link AirportAccess}에 둔다.
- * 이름은 공식 한국어 표기 (10-15 정리: 나리타 국제공항, 하네다 공항).
- *
- * 11-08 리팩터링: 확장 계획 0-7의 공항 10곳과 권역을 넣었다. 여행 권역의 공항만 고를 수 있다
- * (지금 여행은 모두 수도권이라 NRT·HND만 통과). 출발 몇 분 전 도착: 대도시 공항 180분, 작은 공항(고베·히로시마·고마쓰) 120분.
+ * 도착·출발 공항 10곳과 각 공항의 권역. 여행 권역의 공항만 고를 수 있다 (지금 여행은 모두 수도권이라 NRT·HND만 통과).
+ * DB에는 코드 문자열(NRT, HND)로 저장한다 (enum 컬럼은 CHECK 제약이 생겨 공항을 더할 때마다 SQL 이 필요하다).
+ * 이동 시간·운임은 공항 + 도시 짝마다 {@link AirportAccess}에 둔다. 이름은 공식 한국어 표기 (나리타 국제공항, 하네다 공항). 출발 몇 분 전 도착: 대도시 공항 180분, 작은 공항(고베·히로시마·고마쓰) 120분.
  */
 public enum Airport {
 
-    // 10-16: 2026-11-01부터 일본 면세가 리펀드 방식(출국 때 공항 세관에서 확인 후 환급)으로 바뀌어
-    // 대도시 공항은 세관 줄이 길어진다 → 출발 3시간 전 공항 도착 (사용자 결정). 작은 공항은 확장 때 공항마다 정한다
+    // 2026-11-01부터 일본 면세가 리펀드 방식(출국 때 공항 세관에서 확인 후 환급)으로 바뀌어
+    // 대도시 공항은 세관 줄이 길어진다 → 출발 3시간 전 공항 도착. 작은 공항은 확장 때 공항마다 정한다
     NRT("나리타 국제공항", Region.KANTO, 35.7720, 140.3929, 180),
     HND("하네다 공항", Region.KANTO, 35.5494, 139.7798, 180),
     KIX("간사이 국제공항", Region.KANSAI, 34.4320, 135.2304, 180),
@@ -46,6 +41,7 @@ public enum Airport {
         this.beforeDepartureMinutes = beforeDepartureMinutes;
     }
 
+    /** 이 공항이 속한 권역 */
     public Region region() {
         return region;
     }
@@ -55,6 +51,7 @@ public enum Airport {
         return beforeDepartureMinutes;
     }
 
+    /** 공식 한국어 이름 (예: 나리타 국제공항) */
     public String label() {
         return label;
     }
@@ -64,10 +61,12 @@ public enum Airport {
         return AirportAccess.of(this, city).map(AirportAccess::minutes).orElse(60);
     }
 
+    /** 공항 위도 */
     public double lat() {
         return lat;
     }
 
+    /** 공항 경도 */
     public double lng() {
         return lng;
     }

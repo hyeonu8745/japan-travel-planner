@@ -14,6 +14,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 관광지 조합 검색 구현: 조건마다 WHERE 절을 붙이는 네이티브 SQL (거리 계산에 PostGIS). 값은 모두 바인딩 파라미터로 넣는다.
+ */
 @RequiredArgsConstructor
 public class AttractionSearchRepositoryImpl implements AttractionSearchRepository {
 
@@ -22,6 +25,7 @@ public class AttractionSearchRepositoryImpl implements AttractionSearchRepositor
 
     private final EntityManager entityManager;
 
+    /** 조건에 맞는 관광지 한 페이지와 전체 개수 */
     @Override
     public Page<Attraction> search(AttractionSearchCondition condition) {
         Map<String, Object> params = new HashMap<>();
@@ -50,6 +54,7 @@ public class AttractionSearchRepositoryImpl implements AttractionSearchRepositor
         return new PageImpl<>(content, PageRequest.of(page, size), total);
     }
 
+    /** 들어온 조건만 WHERE 절로 (값은 :파라미터로) */
     private String buildWhere(AttractionSearchCondition c, Map<String, Object> params) {
         List<String> conditions = new ArrayList<>();
 
@@ -98,6 +103,7 @@ public class AttractionSearchRepositoryImpl implements AttractionSearchRepositor
         return " WHERE " + String.join(" AND ", conditions);
     }
 
+    /** 정렬 (거리·평점·리뷰 수), 같은 값이면 id 순으로 고정 */
     private String buildOrderBy(AttractionSearchCondition c) {
         String primary = switch (c.getSort()) {
             case DISTANCE -> "ST_Distance(a.location::geography, " + BASE_POINT + ") ASC";

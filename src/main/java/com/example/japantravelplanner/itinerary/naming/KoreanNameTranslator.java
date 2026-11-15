@@ -37,6 +37,7 @@ public class KoreanNameTranslator {
     private final JsonMapper jsonMapper;
     private final KoreanNameProperties props;
 
+    /** @param props 모델(기본/고급), 한 번에 보낼 이름 수, 시간 제한 */
     public KoreanNameTranslator(OpenAiClient openAiClient, JsonMapper jsonMapper, KoreanNameProperties props) {
         this.openAiClient = openAiClient;
         this.jsonMapper = jsonMapper;
@@ -58,6 +59,7 @@ public class KoreanNameTranslator {
         return result;
     }
 
+    /** 이름 묶음 하나를 AI 로 바꾼다 (시간 제한, 실패하면 빈 결과) */
     private Map<String, String> translateChunk(List<Map.Entry<String, String>> chunk) {
         String input = buildInput(chunk);
         boolean advanced = props.isUseAdvancedModel();
@@ -107,6 +109,7 @@ public class KoreanNameTranslator {
         return names;
     }
 
+    /** 공백 정리 */
     static String clean(String name) {
         return name == null ? "" : name.replaceAll("\\s+", " ").strip();
     }

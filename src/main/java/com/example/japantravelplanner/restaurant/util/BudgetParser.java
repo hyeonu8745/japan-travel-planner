@@ -15,10 +15,12 @@ public final class BudgetParser {
     // 쉼표 포함 숫자: 1,000 / 100,000
     private static final Pattern NUMBER = Pattern.compile("\\d[\\d,]*");
 
+    /** 정적 메서드만 쓴다 */
     private BudgetParser() {
         // 유틸 클래스: 인스턴스 생성 금지
     }
 
+    /** 예산 글자 → 범위. "-"·빈 값은 정보 없음, "￥3,000～￥3,999"는 3000~3999, "～￥999"는 0~999, "￥100,000～"은 상한 없음 */
     public static BudgetRange parse(String raw) {
         if (raw == null) {
             return BudgetRange.UNKNOWN;
@@ -45,6 +47,7 @@ public final class BudgetParser {
         return new BudgetRange(min == null ? 0 : min, max);
     }
 
+    /** 글자에서 첫 번째 숫자 (쉼표 제거) */
     private static Integer firstNumber(String text) {
         Matcher m = NUMBER.matcher(text);
         if (!m.find()) {

@@ -18,6 +18,7 @@ public class PageResponseDto<T> {
     private final int size;
     private final boolean hasNext;
 
+    /** Spring Page 에서 화면에 필요한 값만 꺼낸다 */
     private PageResponseDto(Page<T> source) {
         this.content = source.getContent();
         this.totalElements = source.getTotalElements();
@@ -27,6 +28,7 @@ public class PageResponseDto<T> {
         this.hasNext = source.hasNext();
     }
 
+    /** Spring Page → 페이지 응답 */
     public static <T> PageResponseDto<T> from(Page<T> source) {
         return new PageResponseDto<>(source);
     }

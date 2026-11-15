@@ -25,6 +25,13 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Spring Security 설정.
+ * - 세션 없이 JWT 로만 인증 (JwtAuthenticationFilter), 로그인 안 하면 401 JSON
+ * - 로그인 없이 쓰는 주소: 가입·로그인·토큰 갱신·로그아웃, 관광지·식당 검색. 나머지(장소 상세 포함)는 로그인 필요
+ * - CORS: 설정한 프론트 주소만, 갱신 토큰 쿠키를 주고받도록 credentials 허용
+ * - 비밀번호는 BCrypt
+ */
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -35,6 +42,7 @@ public class SecurityConfig {
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
 
+    /** 비밀번호 해시 (BCrypt) */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -42,7 +50,7 @@ public class SecurityConfig {
 
     /**
      * 사용자 이름·비밀번호 로그인은 우리 /api/auth/login 이 하고, 나머지는 JWT 로만 인증한다.
-     * 이 빈이 없으면 Spring 이 임시 계정(user + 무작위 비밀번호)을 만들고 기동 로그에 비밀번호를 찍는다 (11-15)
+     * 이 빈이 없으면 Spring 이 임시 계정(user + 무작위 비밀번호)을 만들고 기동 로그에 비밀번호를 찍는다
      */
     @Bean
     public UserDetailsService userDetailsService() {
@@ -51,6 +59,7 @@ public class SecurityConfig {
         };
     }
 
+    /** 주소별 로그인 필요 여부, 세션 없음(STATELESS), JWT 필터, 401 을 JSON 으로 */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -82,6 +91,7 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /** CORS: 설정한 프론트 주소만, 쓰는 메서드·헤더만, 쿠키 허용. /api/** 에만 적용 */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
@@ -90,7 +100,7 @@ public class SecurityConfig {
                 .toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
-        // 11-15 갱신 토큰 쿠키를 주고받으려면 (프론트는 credentials: include / withCredentials)
+        // 갱신 토큰 쿠키를 주고받으려면 (프론트는 credentials: include / withCredentials)
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);   // 사전 확인 결과를 브라우저가 1시간 기억
 

@@ -34,6 +34,7 @@ public class MealPlanner {
     private final RestaurantFinder restaurantFinder;
     private final MealProperties props;
 
+    /** 그날 점심·저녁을 고른다 (시간대에 없는 끼니는 null, 그날 정기 휴일인 식당은 빼고) */
     public DayMeals plan(DayRoute route, TravelPoint hotel, DayWindow window,
                          MealBudget budget, FoodFilter filter, MealHistory history) {
         LocalDate date = route.day().date();   // 그날이 정기 휴일인 식당은 고르지 않는다
@@ -48,6 +49,7 @@ public class MealPlanner {
         return new DayMeals(lunch, dinner);
     }
 
+    /** 한 끼 고르기: 후보를 찾아 같은 음식 묶음 반복을 감점해 다시 순위를 매기고, 앞 끼니와 같은 장르는 피해서 고른다 (다음 후보는 대안으로, 고른 곳은 기록) */
     private PlannedMeal pick(Meal meal, TravelPoint anchor, MealBudget budget,
                              FoodFilter filter, MealHistory history, LocalDate date) {
         List<RestaurantCandidate> ranked = restaurantFinder.find(anchor.lat(), anchor.lng(), meal,
@@ -125,14 +127,17 @@ public class MealPlanner {
         return new TravelPoint(name, (a.lat() + b.lat()) / 2, (a.lng() + b.lng()) / 2);
     }
 
+    /** 관광지 위치 */
     private static TravelPoint point(String name, ScoredAttraction a) {
         return new TravelPoint(name, a.lat(), a.lng());
     }
 
+    /** 목록의 마지막 (비었으면 null) */
     private static ScoredAttraction last(List<ScoredAttraction> list) {
         return list.isEmpty() ? null : list.get(list.size() - 1);
     }
 
+    /** 로그용 한 줄 (식당 이름, 장르, 장르 중복) */
     private static String label(PlannedMeal meal) {
         if (meal == null) return "-";
         if (!meal.found()) return "후보 없음";

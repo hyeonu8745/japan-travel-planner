@@ -6,10 +6,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 거리별 지하철 운임과 1일권 계산 (10-16). 상태 없는 계산만 둔다 (테스트하기 쉽게).
+ * 거리별 지하철 운임과 1일권 계산. 상태 없는 계산만 둔다 (테스트하기 쉽게).
  */
 public final class TransitFare {
 
+    /** 정적 메서드만 쓴다 */
     private TransitFare() {
     }
 
@@ -33,6 +34,7 @@ public final class TransitFare {
         return bestPasses(dayFares, props.forCity(City.TOKYO).orElseThrow());
     }
 
+    /** 날마다 그날 요금 / 그날부터 24·48·72시간권 중 가장 싼 조합 (동적 계획법, 뒤에서부터) */
     public static PassPlan bestPasses(List<Integer> dayFares, FareProperties.CityFare props) {
         int n = dayFares.size();
         int[] best = new int[n + 1];          // best[i] = i번째 날부터 끝까지 최소 비용
@@ -78,6 +80,7 @@ public final class TransitFare {
 
     /** @param cost 1일권을 섞어 쓸 때 최소 비용, payAsYouGo 그냥 탈 때 */
     public record PassPlan(int cost, int payAsYouGo, List<Pass> passes) {
+        /** 1일권을 써서 아낀 금액 */
         public int savings() {
             return payAsYouGo - cost;
         }

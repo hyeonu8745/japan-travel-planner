@@ -7,9 +7,11 @@ import java.util.Map;
 /** 하루 설명 응답의 JSON 형식 (OpenAI Structured Output, strict 모드) */
 public final class NarrationSchema {
 
+    /** 정적 메서드만 쓴다 */
     private NarrationSchema() {
     }
 
+    /** 하루 설명 응답의 JSON 스키마 (strict) */
     public static Map<String, Object> format() {
         Map<String, Object> dayItem = new LinkedHashMap<>();
         dayItem.put("type", "object");

@@ -31,6 +31,7 @@ public final class StayTimes {
         RULES.put(Set.of("shopping_mall", "market", "department_store"), 90);
     }
 
+    /** 정적 메서드만 쓴다 */
     private StayTimes() {
     }
 

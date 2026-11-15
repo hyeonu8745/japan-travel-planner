@@ -5,6 +5,9 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+/**
+ * Google API 설정 ({@code app.google.*}): 키(.env), 시간 제한, 장소 상세 언어, 사진 크기.
+ */
 @Getter
 @Setter
 @Component

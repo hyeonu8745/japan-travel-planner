@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 공항 이동 (10-15 사용자 결정, 숙소 귀가 이동은 넣지 않고 공항만).
+ * 공항 이동 (숙소 귀가 이동은 넣지 않고 공항만).
  *
  * 첫날: 비행기 도착 → 입국·짐 찾기 → 공항에서 숙소로 → 숙소에 짐 맡기기(체크인 전) → 관광 시작
  * 마지막 날: 아침 체크아웃·짐 맡기기 → (숙소 근처 쇼핑) → 숙소에서 짐 찾기 → 공항으로 → 비행기 출발
@@ -27,6 +27,7 @@ public final class AirportPlan {
     static final int LAST_STOP_TO_HOTEL = 30;  // 마지막 장소 → 숙소 (마지막 날은 숙소 근처라 짧게 잡는다)
     static final int CHECKOUT = 15;            // 아침 체크아웃·짐 맡기기
 
+    /** 정적 메서드만 쓴다 */
     private AirportPlan() {
     }
 
@@ -48,6 +49,7 @@ public final class AirportPlan {
                 .orElse(null);
     }
 
+    /** 마지막 날 숙소를 떠나야 하는 시각(분) = 출발 − 공항 도착 여유 − 공항까지 이동 */
     private static int leaveHotel(Trip trip, Airport a) {
         return minutes(trip.getDepartureFlightTime()) - a.beforeDepartureMinutes() - a.transferMinutes(trip.getBaseCity());
     }
@@ -93,6 +95,7 @@ public final class AirportPlan {
         return minutes % 60 == 0 ? minutes / 60 + "시간" : minutes / 60 + "시간 " + minutes % 60 + "분";
     }
 
+    /** 시각 → 하루 분 */
     static int minutes(LocalTime t) {
         return t.getHour() * 60 + t.getMinute();
     }

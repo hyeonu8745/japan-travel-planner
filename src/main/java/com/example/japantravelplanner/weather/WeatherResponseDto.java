@@ -4,7 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * 여행 날짜별 날씨 (10-16, 화면 머리의 날씨 칸).
+ * 여행 날짜별 날씨 (화면 머리의 날씨 칸).
  *
  * @param source      FORECAST(모두 예보) / LAST_YEAR(모두 작년 같은 날) / MIXED / NONE(받지 못함)
  * @param message     화면에 그대로 보여줄 한 줄 (예: "출발 16일 전부터 실제 예보로 바뀌어요")

@@ -6,11 +6,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 일정을 만든 뒤 채팅으로 고치기 (10-11): AI는 사용자의 말을 정해진 명령 형식으로 바꾸기만 한다.
+ * 일정을 만든 뒤 채팅으로 고치기: AI는 사용자의 말을 정해진 명령 형식으로 바꾸기만 한다.
  * 어떤 식당·관광지로 바꿀지, 바꿔도 되는지, 실제 변경은 서버(기존 교체·삭제·추가·순서 변경 서비스)가 한다.
  */
 final class EditPrompt {
 
+    /** 상수만 둔다 */
     private EditPrompt() {
     }
 
@@ -48,6 +49,7 @@ final class EditPrompt {
             - 한국어 존댓말(~요 체)로 쓴다.
             """;
 
+    /** 명령 응답의 JSON 스키마 (strict) */
     static Map<String, Object> format() {
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("intent", Map.of("type", "string", "enum", INTENTS));

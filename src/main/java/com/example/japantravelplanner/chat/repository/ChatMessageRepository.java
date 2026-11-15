@@ -7,6 +7,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * 대화 메시지 조회: 전체 기록, AI 에 보낼 최근 10개, 시간당 메시지 수 제한용 개수.
+ */
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
 
     // 대화 이력 전체 (화면 표시용)
@@ -18,7 +21,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
     // 사용자별 최근 메시지 수 (호출 제한용, #30)
     long countByTripUserIdAndRoleAndCreatedAtAfter(Long userId, ChatRole role, LocalDateTime after);
 
-    // 이 여행에서 사용자가 보낸 메시지 수 (10-16: 대화가 길어지면 서버가 생성 준비로 넘긴다, ReadyCheck)
+    // 이 여행에서 사용자가 보낸 메시지 수 (대화가 길어지면 서버가 생성 준비로 넘긴다, ReadyCheck)
     long countByTripIdAndRole(Long tripId, ChatRole role);
 
     // 첫 인사 메시지를 이미 보냈는지 (대화가 하나라도 있는지)

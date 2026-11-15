@@ -26,6 +26,7 @@ public class GoogleRoutesClient {
     private final GoogleProperties properties;
     private final RestClient restClient;
 
+    /** 연결 5초, 응답은 설정한 시간까지 기다리는 Routes API 클라이언트를 만든다 */
     public GoogleRoutesClient(GoogleProperties properties) {
         this.properties = properties;
 
@@ -91,6 +92,7 @@ public class GoogleRoutesClient {
         return result;
     }
 
+    /** Routes API 요청의 출발·도착 지점 형식 (위도·경도) */
     private Map<String, Object> waypoint(TravelPoint p) {
         return Map.of("waypoint", Map.of("location", Map.of("latLng",
                 Map.of("latitude", p.lat(), "longitude", p.lng()))));

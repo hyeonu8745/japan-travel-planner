@@ -38,7 +38,7 @@ public class GooglePlacesClient {
 
     /**
      * 식당 상세에서 추가로 받는 특성 (아침·점심·저녁, 채식, 주류, 예약, 포장, 결제 수단 등).
-     * 모두 Enterprise + Atmosphere 등급 안이라 상세 요금이 늘지 않는다 (10-09 문서 확인)
+     * 모두 Enterprise + Atmosphere 등급 안이라 상세 요금이 늘지 않는다
      */
     static final String RESTAURANT_FIELD_MASK = String.join(",", DETAILS_FIELD_MASK,
             "servesBreakfast", "servesBrunch", "servesLunch", "servesDinner", "servesVegetarianFood",
@@ -56,6 +56,7 @@ public class GooglePlacesClient {
     private final GoogleProperties properties;
     private final RestClient restClient;
 
+    /** 연결 5초, 응답은 설정한 시간까지 기다리는 Places API (New) 클라이언트를 만든다 */
     public GooglePlacesClient(GoogleProperties properties) {
         this.properties = properties;
 
@@ -85,6 +86,7 @@ public class GooglePlacesClient {
         return details;
     }
 
+    /** 장소 상세 한 건을 필요한 필드(fieldMask)만 받아온다. 없는 장소(404)면 빈 값, 그 밖의 실패는 ExternalApiException */
     private <T> Optional<T> fetchDetails(String placeId, String fieldMask, Class<T> type) {
         try {
             T details = restClient.get()
@@ -245,6 +247,7 @@ public class GooglePlacesClient {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record SearchPlace(String id, LocalizedText displayName, LatLng location, String businessStatus) {
 
+        /** 표시 이름 글자 (없으면 null) */
         public String nameText() {
             return displayName == null ? null : displayName.text();
         }

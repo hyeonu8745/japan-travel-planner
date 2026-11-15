@@ -8,11 +8,12 @@ import java.util.List;
 /**
  * 하루의 지역과 관광지 후보 (점수 높은 순)
  * @param zone    그날의 중심 지역
- * @param partner 함께 도는 이웃 지역 (10-11: 하루에 두 지역). 없으면 null
+ * @param partner 함께 도는 이웃 지역 (하루에 두 지역). 없으면 null
  */
 public record DayZone(int dayNumber, LocalDate date, TripZone zone, List<ScoredAttraction> candidates,
                       TripZone partner) {
 
+    /** 짝 지역 없이 한 지역만 도는 날 */
     public DayZone(int dayNumber, LocalDate date, TripZone zone, List<ScoredAttraction> candidates) {
         this(dayNumber, date, zone, candidates, null);
     }

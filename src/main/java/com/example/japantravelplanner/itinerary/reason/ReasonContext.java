@@ -24,10 +24,12 @@ public record ReasonContext(List<Interest> interests, FoodFilter food, Set<Wish>
         wishes = wishes == null ? Set.of() : Set.copyOf(wishes);
     }
 
+    /** 대화 취향(Wish) 없이 */
     public ReasonContext(List<Interest> interests, FoodFilter food) {
         this(interests, food, Set.of());
     }
 
+    /** null 이면 빈 맥락 */
     public static ReasonContext orNone(ReasonContext context) {
         return context == null ? NONE : context;
     }

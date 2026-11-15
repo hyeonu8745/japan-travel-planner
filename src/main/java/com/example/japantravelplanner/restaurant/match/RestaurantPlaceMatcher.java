@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 /**
  * Google 검색 결과 중 타베로그 식당과 같은 가게를 고른다 (계산만, 외부 호출 없음).
  *
- * 같은 가게로 보는 조건 (10-09 표본 50곳으로 정함):
+ * 같은 가게로 보는 조건 (실제 식당 표본으로 정함):
  *  - 우리 좌표와 maxDistance 안 (도쿄역 지하상가처럼 좌표가 수백 m 어긋나는 곳이 있어서 넉넉하게)
  *  - 이름 비슷한 정도 minSimilarity 이상 (한쪽 이름이 다른 쪽에 들어 있으면 1.0: 「うりんぼ」↔「博多ラーメン うりんぼ」)
  *  - 지점 이름이 서로 다르지 않음 (「クラウゾ 本店」↔「クラウゾ 2号店」은 88m 거리에 이름도 맞지만 다른 가게였다)
@@ -35,6 +35,7 @@ public final class RestaurantPlaceMatcher {
             Pattern.compile("[\\s\\u3000・·\\-‐－_/()（）\\[\\]【】「」『』'\".,、。!！?？&＆]");
     private static final Pattern TRAILING_BRANCH = Pattern.compile("(本店|支店|店)$");
 
+    /** 정적 메서드만 쓴다 */
     private RestaurantPlaceMatcher() {
     }
 
@@ -52,11 +53,13 @@ public final class RestaurantPlaceMatcher {
     /** @param placeId MATCHED·CLOSED일 때 찾은 장소, NOT_FOUND면 null */
     public record Decision(GoogleMatchStatus status, String placeId) {
 
+        /** 같은 가게를 찾지 못함 */
         static Decision notFound() {
             return new Decision(GoogleMatchStatus.NOT_FOUND, null);
         }
     }
 
+    /** 검색 결과 중 거리·이름 기준을 넘는 가장 비슷한 곳을 고른다. 폐업이면 CLOSED, 없으면 NOT_FOUND */
     public static Decision decide(String name, double lat, double lng, List<SearchPlace> places, Criteria criteria) {
         SearchPlace best = null;
         double bestSimilarity = -1;
@@ -122,6 +125,7 @@ public final class RestaurantPlaceMatcher {
         return 2.0 * common.size() / (gx.size() + gy.size());
     }
 
+    /** 글자 두 개씩 묶은 집합 (이름 비슷한 정도 계산용) */
     private static Set<String> bigrams(String s) {
         Set<String> result = new HashSet<>();
         if (s.length() < 2) {

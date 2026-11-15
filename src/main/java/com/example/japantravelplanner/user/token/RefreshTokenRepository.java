@@ -11,6 +11,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 갱신 토큰 조회: 해시로 찾기(행 잠금), 사용자의 살아 있는 토큰, 브라우저(family) 전체 폐기, 오래된 기록 정리.
+ */
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
 
     /** 같은 토큰으로 거의 동시에 갱신해도 한 번만 바뀌게 행을 잠근다 */

@@ -16,7 +16,7 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * 일정 → 교통비 추정 (10-16). 저장하지 않고 식비 요약을 볼 때마다 계산한다.
+ * 일정 → 교통비 추정. 저장하지 않고 식비 요약을 볼 때마다 계산한다.
  *
  * - 지하철: 일정의 대중교통(TRANSIT) 구간마다 거리별 운임. 하루 끝 마지막 장소 → 숙소도 걷기엔 멀면 한 구간 더한다
  *   (일정에는 숙소로 돌아가는 구간이 없다). 메트로 운임을 최소, 도에이 운임을 최대로 본다.
@@ -26,6 +26,7 @@ import java.util.List;
  */
 public final class TransportEstimator {
 
+    /** 정적 메서드만 쓴다 */
     private TransportEstimator() {
     }
 
@@ -37,7 +38,7 @@ public final class TransportEstimator {
                                              int travelers, double walkLimitMeters, double transitDetour) {
         boolean rentalCar = trip.getTransportMode() == TransportMode.RENTAL_CAR;
         Point hotel = trip.getAccommodationLocation();
-        // 숙소 도시의 운임 (11-08). 확장 전에는 도쿄 값만 있어서, 값이 없는 도시도 도쿄 값으로 계산한다
+        // 숙소 도시의 운임. 확장 전에는 도쿄 값만 있어서, 값이 없는 도시도 도쿄 값으로 계산한다
         FareProperties.CityFare fare = props.forCity(trip.getBaseCity())
                 .orElseGet(() -> props.forCity(City.TOKYO).orElseThrow());
 
@@ -94,6 +95,7 @@ public final class TransportEstimator {
         return straight <= walkLimitMeters ? null : (int) Math.round(straight * transitDetour);
     }
 
+    /** 공항 이동 (도착·출발, 싼 방법과 빠른 방법). 공항 정보가 없으면 null */
     static TransportEstimate.Airport airport(Trip trip) {
         TransportEstimate.Leg arrival = trip.arrivalAirportInfo().flatMap(a -> AirportAccess.of(a, trip.getBaseCity()))
                 .map(TransportEstimator::leg).orElse(null);
@@ -105,10 +107,12 @@ public final class TransportEstimator {
         return new TransportEstimate.Airport(arrival, departure, min, max);
     }
 
+    /** 공항 ↔ 도시 이동 한 구간 */
     private static TransportEstimate.Leg leg(AirportAccess a) {
         return new TransportEstimate.Leg(a.airport().label(), a.cheapYen(), a.cheapLabel(), a.fastYen(), a.fastLabel());
     }
 
+    /** 엔 범위 → 엔·원 범위 */
     private static TransportEstimate.Range range(int minYen, int maxYen, double krwPerYen) {
         return new TransportEstimate.Range(minYen, maxYen,
                 (int) Math.round(minYen * krwPerYen), (int) Math.round(maxYen * krwPerYen));

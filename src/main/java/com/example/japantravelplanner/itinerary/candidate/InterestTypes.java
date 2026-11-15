@@ -10,17 +10,18 @@ import java.util.stream.Collectors;
 
 /**
  * 관광지가 관심사와 맞는지 (점수 가산 AttractionScorer, 고른 이유 칩 StopReasons가 같이 쓴다)
- *  - 야경: 대표 야경 명소(NightSpots)만. 예전에는 observation_deck·landmark·bridge type이면 모두 맞다고 봐서
- *    SKY VIEW(무료 전망 공간)가 가산점을 받아 아침 첫 장소로 들어가고 "관심사: 야경" 칩까지 붙었다 (10-10 여행 8 v9)
+ *  - 야경: 대표 야경 명소(NightSpots)만. observation_deck·landmark·bridge type 만으로는 맞다고 보지 않는다
+ *    (작은 무료 전망 공간이 가산점을 받아 아침 첫 장소로 들어가지 않게)
  *  - 나머지: Google Places type
  */
 public final class InterestTypes {
 
+    /** 정적 메서드만 쓴다 */
     private InterestTypes() {
     }
 
     private static final Map<Interest, Set<String>> TYPES = Map.of(
-            // 박물관·미술관은 뺐다: 데이터를 넓히니 팀랩·건담 베이스·세이코 뮤지엄까지 "관심사: 전통 명소"가 됐다 (10-10 v10)
+            // 박물관·미술관은 넣지 않는다 (팀랩·건담 베이스 같은 곳까지 "관심사: 전통 명소"가 된다)
             Interest.TRADITIONAL, Set.of("buddhist_temple", "shinto_shrine", "place_of_worship",
                     "historical_landmark", "historical_place"),
             // store, clothing_store 같은 범용 태그는 모스크·박물관 기념품점에도 붙어서 제외
@@ -37,6 +38,7 @@ public final class InterestTypes {
         return TYPES.getOrDefault(interest, Set.of());
     }
 
+    /** 관광지가 관심사와 맞는지 (야경은 대표 야경 명소만, 나머지는 Google 종류) */
     public static boolean matches(Interest interest, Attraction attraction) {
         if (attraction == null) return false;
         if (interest == Interest.NIGHT_VIEW) return NightSpots.isRepresentative(attraction);
@@ -49,7 +51,7 @@ public final class InterestTypes {
 
     /**
      * market type 중 먹거리와 상관없는 곳은 '현지 음식'으로 보지 않는다.
-     * 10-10 요약에 "관심사 '현지 음식'에 맞는 곳: アメ横商店街, かっぱ橋道具街"가 나왔다 — 갓파바시는 주방용품 거리다.
+     * 요약에 "관심사 '현지 음식'에 맞는 곳: アメ横商店街, かっぱ橋道具街"가 나왔다 — 갓파바시는 주방용품 거리다.
      * 할인점(ドン・キホーテ)도 market이 붙어 있어 뺀다
      */
     private static boolean isFoodMarket(Attraction attraction, Set<String> types) {

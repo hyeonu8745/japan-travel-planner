@@ -19,6 +19,7 @@ import java.util.function.Function;
 /** 계산된 일정(ScheduledDay)을 저장할 엔티티로 바꾼다. DB 없이 테스트할 수 있게 순수 함수로 둔다 */
 public final class ItineraryMapper {
 
+    /** 정적 메서드만 쓴다 */
     private ItineraryMapper() {
     }
 
@@ -55,6 +56,7 @@ public final class ItineraryMapper {
         return itinerary;
     }
 
+    /** 계산된 항목 → 저장할 항목 (관광지·식당은 id 로 참조만) */
     private static ItineraryStop toStop(ScheduledStop stop, int order,
                                         Function<Long, Attraction> attractionRef,
                                         Function<Long, Restaurant> restaurantRef) {

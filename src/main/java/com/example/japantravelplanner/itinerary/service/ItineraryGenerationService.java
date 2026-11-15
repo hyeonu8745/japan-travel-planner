@@ -83,6 +83,7 @@ public class ItineraryGenerationService {
     private final ExchangeRateService exchangeRates;
     private final ItineraryVersions versions;
 
+    /** 버전 저장 공통 흐름(ItineraryVersions)을 자기 의존성으로 만들어 쓴다 */
     public ItineraryGenerationService(TripRepository tripRepository,
                                       TripPreferenceRepository preferenceRepository,
                                       ItineraryRepository itineraryRepository,
@@ -119,9 +120,10 @@ public class ItineraryGenerationService {
 
     // ===================== 생성 =====================
 
+    /** 일정 만들기 (잠금): ① 계산 → ①-1 고른 식당 Google 확인(폐업이면 빼고 다시 계산) → ①-2 한국어 이름 → ② AI 설명 → ③ 저장 */
     public ItineraryResponseDto generate(Long userId, Long tripId) {
         return versions.locked(tripId, "이미 일정을 만들고 있어요. 잠시만 기다려주세요.", () -> {
-            // ⓪ 환율: 오늘 값이 없으면 외부 API (트랜잭션 밖). 실패해도 마지막 값·고정값으로 계속 (10-12)
+            // ⓪ 환율: 오늘 값이 없으면 외부 API (트랜잭션 밖). 실패해도 마지막 값·고정값으로 계속
             ExchangeRate rate = exchangeRates.current();
 
             // ① 계산 (숙소 좌표를 처음 찾으면 여행에 저장하므로 쓰기 트랜잭션)
@@ -149,6 +151,7 @@ public class ItineraryGenerationService {
         });
     }
 
+    /** ① 계산 (트랜잭션): 내 여행, 하루 생성 횟수, 숙소 좌표, 일정 계산 */
     private Planned plan(Long userId, Long tripId, ExchangeRate rate) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
 
@@ -169,6 +172,7 @@ public class ItineraryGenerationService {
         return new Planned(result, brief);
     }
 
+    /** ③ 저장 (트랜잭션): 새 버전 번호로 저장하고 상태를 확인 대기로, 채팅에 "이렇게 짰어요" 요약을 남긴다 */
     private ItineraryResponseDto save(Long userId, Long tripId, Planned planned, Map<Integer, String> descriptions,
                                       ExchangeRate rate) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
@@ -183,7 +187,7 @@ public class ItineraryGenerationService {
 
         // 같은 버전 번호로 동시에 저장한 경우만 409 (교체·되돌리기와 같은 기준)
         versions.save(itinerary, "일정이 동시에 만들어졌어요. 잠시 후 다시 확인해주세요.");
-        // AI로 새로 만든 일정은 사용자가 [완성]을 누를 때까지 확인 대기 (10-12, 프론트 요청)
+        // AI로 새로 만든 일정은 사용자가 [완성]을 누를 때까지 확인 대기 (프론트 요청)
         trip.setStatus(TripStatus.AWAITING_CONFIRMATION);
 
         // 어떻게 짰는지 채팅에 남긴다 (일정이 만들어진 뒤에는 채팅 입력이 막혀 있어서 기록으로만 보인다)
@@ -202,7 +206,7 @@ public class ItineraryGenerationService {
     public ItineraryResponseDto getLatest(Long userId, Long tripId) {
         return versions.read(() -> {
             TripAccess.owned(tripRepository, userId, tripId);
-            // 11-08: 수정 응답과 같게 식당 대안도 풀어서 준다 (예전에는 빈 값이라 새로고침하면 대안이 사라졌다)
+            // 수정 응답과 같게 식당 대안도 풀어서 준다
             return versions.toResponse(versions.latest(tripId));
         });
     }
@@ -210,7 +214,7 @@ public class ItineraryGenerationService {
     // ===================== 완성 확인 =====================
 
     /**
-     * 사용자가 [완성]을 눌렀다 (10-12, 프론트 요청). 확인 대기(AWAITING_CONFIRMATION)면 GENERATED로 바꾸고 가장 최근 일정을 돌려준다.
+     * 사용자가 [완성]을 눌렀다 (프론트 요청). 확인 대기(AWAITING_CONFIRMATION)면 GENERATED로 바꾸고 가장 최근 일정을 돌려준다.
      * 이미 GENERATED·EDITING이면 바꾸지 않고 같은 응답 (여러 번 눌러도 같은 결과).
      * 일정이 없거나, 조건을 바꾼 뒤 일정을 다시 맞추지 못한 상태(READY_TO_GENERATE 등)면 409
      */
@@ -244,6 +248,7 @@ public class ItineraryGenerationService {
         return ids;
     }
 
+    /** 계산 결과에 들어간 관광지 목록 */
     static List<Attraction> attractionsOf(ItineraryPlanner.Result result) {
         return result.days().stream().flatMap(day -> day.stops().stream())
                 .filter(stop -> stop.attraction() != null)

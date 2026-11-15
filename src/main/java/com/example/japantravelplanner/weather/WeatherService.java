@@ -20,7 +20,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 여행 날짜별 날씨 (10-16). 저장하지 않고 메모리에 잠깐 캐시한다.
+ * 여행 날짜별 날씨. 저장하지 않고 메모리에 잠깐 캐시한다.
  * - 오늘(일본 날짜) − 92일 ~ 오늘 + 15일: 예보 API (지나간 날도 같은 API가 실제 값을 준다)
  * - 그 밖(보통 한 달 뒤 여행): 작년 같은 날의 실제 날씨 (archive API) — "이맘때는 이랬어요" 참고용
  * 위치는 숙소 좌표, 아직 없으면(일정을 만들기 전) 도쿄역. Open-Meteo 호출은 트랜잭션 밖.
@@ -46,6 +46,7 @@ public class WeatherService {
         this.clock = clock.withZone(JST);
     }
 
+    /** 여행 날짜별 날씨. 숙소 좌표가 없으면 도쿄 중심 기준 */
     public WeatherResponseDto get(Long userId, Long tripId) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         Point hotel = trip.getAccommodationLocation();
@@ -54,6 +55,7 @@ public class WeatherService {
         return build(tripId, trip.getStartDate(), trip.getEndDate(), lat, lng);
     }
 
+    /** 날짜 구간을 예보 구간과 작년 날씨 구간으로 나눠 받아 날마다 합친다 */
     WeatherResponseDto build(Long tripId, LocalDate start, LocalDate end, double lat, double lng) {
         if (!props.isEnabled() || start == null || end == null) {
             return new WeatherResponseDto(tripId, "NONE", "날씨 정보를 불러오지 못했어요.", List.of(), WeatherResponseDto.ATTRIBUTION);
@@ -93,6 +95,7 @@ public class WeatherService {
         return new WeatherResponseDto(tripId, source, message(source), days, WeatherResponseDto.ATTRIBUTION);
     }
 
+    /** 하루 날씨 → 응답 (예보면 강수 확률, 작년이면 실제 강수량으로 비 여부) */
     WeatherResponseDto.DayDto toDay(int dayNumber, LocalDate date, DailyWeather w, boolean forecast) {
         WeatherCondition condition = WeatherCondition.of(w.weatherCode());
         boolean rainy = forecast
@@ -105,6 +108,7 @@ public class WeatherService {
                 forecast ? w.rainProbability() : null, w.rainMm(), rainy, forecast && rainy);
     }
 
+    /** 날씨 출처에 맞는 화면 안내 한 줄 */
     static String message(String source) {
         return switch (source) {
             case "FORECAST" -> "일기예보예요. 날씨는 바뀔 수 있으니 출발 전에 다시 확인해 주세요.";
@@ -114,6 +118,7 @@ public class WeatherService {
         };
     }
 
+    /** 한 구간 날씨를 받아온다 (같은 요청은 메모리에 잠깐 캐시) */
     private Map<LocalDate, DailyWeather> fetch(String kind, double lat, double lng, LocalDate from, LocalDate to,
                                                boolean forecast) {
         String key = kind + ":" + WeatherClient.round(lat) + "," + WeatherClient.round(lng) + ":" + from + ":" + to;

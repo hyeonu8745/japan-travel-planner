@@ -17,6 +17,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.annotation.CookieValue;
 
+/**
+ * 인증 API.
+ * - signup: 가입 / login: 접근 토큰(본문) + 갱신 토큰 쿠키 / refresh: 쿠키로 새 접근 토큰(쿠키도 교체) / logout: 이 브라우저 로그인 끝내기
+ * - 접근 토큰이 만료되면(401) 프론트는 refresh 를 한 번 부르고 원래 요청을 다시 보낸다
+ */
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -26,6 +31,7 @@ public class AuthController {
     private final RefreshTokenService refreshTokens;
     private final RefreshCookie refreshCookie;
 
+    /** 회원가입 → 201 (같은 이메일이면 409) */
     @PostMapping("/signup")
     public ResponseEntity<SignupResponseDto> signup(@Valid @RequestBody SignupRequestDto request) {
         SignupResponseDto response = userService.signup(request);
@@ -33,7 +39,7 @@ public class AuthController {
     }
 
     /**
-     * 로그인: 본문은 예전과 같다(접근 토큰 1시간). 11-15 갱신 토큰(7일)을 HttpOnly 쿠키로 같이 준다.
+     * 로그인: 본문에 접근 토큰(1시간), 갱신 토큰(7일)은 HttpOnly 쿠키로 준다.
      * 같은 브라우저의 예전 갱신 토큰 쿠키가 오면 그 로그인은 닫고 새로 연다 (브라우저 수를 다시 세지 않게)
      */
     @PostMapping("/login")

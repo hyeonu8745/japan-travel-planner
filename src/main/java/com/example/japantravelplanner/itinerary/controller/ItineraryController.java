@@ -27,6 +27,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * 일정 API. 계산·수정은 서비스가 하고, 응답의 한국어 이름이 비어 있으면 여기서 채운다(KoreanNameService.fill).
+ */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/trips/{tripId}/itinerary")
@@ -55,7 +58,7 @@ public class ItineraryController {
     }
 
     /**
-     * 일정 [완성] (10-12). 확인 대기(AWAITING_CONFIRMATION)면 GENERATED로 바꾼다. 여러 번 불러도 같은 결과.
+     * 일정 [완성]. 확인 대기(AWAITING_CONFIRMATION)면 GENERATED로 바꾼다. 여러 번 불러도 같은 결과.
      * 일정이 없거나 조건이 바뀌어 다시 만들어야 하는 상태면 409
      */
     @PostMapping("/confirm")
@@ -64,7 +67,7 @@ public class ItineraryController {
         return confirmed.withItinerary(koreanNames.fill(confirmed.itinerary()));
     }
 
-    /** 비 오는 날 대안 미리보기 (10-16). 그날 실외 관광지를 근처 실내 장소로 바꾼 순서·시각, 저장하지 않는다 */
+    /** 비 오는 날 대안 미리보기. 그날 실외 관광지를 근처 실내 장소로 바꾼 순서·시각, 저장하지 않는다 */
     @GetMapping("/days/{dayNumber}/rain-plan")
     public RainPlanDto rainPlan(@AuthenticationPrincipal Long userId, @PathVariable Long tripId,
                                 @PathVariable int dayNumber) {
@@ -80,7 +83,7 @@ public class ItineraryController {
                 request == null ? null : request.version()));
     }
 
-    /** 가장 최근 일정의 식비 요약 (10-12). 교통비·숙박비·입장료·쇼핑은 제외 */
+    /** 가장 최근 일정의 식비 요약. 교통비·숙박비·입장료·쇼핑은 제외 */
     @GetMapping("/budget")
     public BudgetSummaryDto budget(@AuthenticationPrincipal Long userId, @PathVariable Long tripId) {
         return budgetSummaryService.summarize(userId, tripId);

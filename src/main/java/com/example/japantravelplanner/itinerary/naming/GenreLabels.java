@@ -16,7 +16,7 @@ import java.util.Set;
 
 /**
  * 타베로그 장르(일본어) → 한국어 이름표 (resources/data/genre_labels.csv, 데이터의 장르 222개 전부).
- * 화면 칩과 AI 하루 설명이 같은 이름을 쓴다. 10-10: 설명 AI가 장르를 그때그때 옮겨서 とんかつ가 "돈카쓰"가 됐다.
+ * 화면 칩과 AI 하루 설명이 같은 이름을 쓴다 (AI 가 그때그때 옮기면 とんかつ가 "돈카쓰"처럼 된다).
  * 표기는 여행자가 실제로 부르는 이름 (사용자 의견: 돈카츠·츠케멘·야키토리. 국립국어원식 "돈가스"·"쓰케멘"은 쓰지 않는다).
  * 순수 계산이라 정적 메서드로 쓴다 (응답 DTO 변환이 정적이라서).
  */
@@ -25,6 +25,7 @@ public final class GenreLabels {
     static final String PATH = "/data/genre_labels.csv";
     private static final Map<String, String> LABELS = load();
 
+    /** 정적 메서드만 쓴다 */
     private GenreLabels() {
     }
 
@@ -48,10 +49,12 @@ public final class GenreLabels {
         return labels.isEmpty() ? null : String.join("·", labels);
     }
 
+    /** 이름표에 있는 장르인지 */
     static boolean has(String genre) {
         return LABELS.containsKey(genre);
     }
 
+    /** resources/data/genre_labels.csv 를 읽어 장르 → 한국어 표로 */
     private static Map<String, String> load() {
         Map<String, String> labels = new HashMap<>();
         try (InputStream in = GenreLabels.class.getResourceAsStream(PATH)) {

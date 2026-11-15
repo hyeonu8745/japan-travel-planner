@@ -31,9 +31,11 @@ public final class PlaceContentMapper {
     /** Google 사진 이름 형식: places/{placeId}/photos/{photoId} */
     private static final Pattern PHOTO_NAME = Pattern.compile("places/[A-Za-z0-9_-]+/photos/[A-Za-z0-9_-]+");
 
+    /** 정적 메서드만 쓴다 */
     private PlaceContentMapper() {
     }
 
+    /** 사진 목록 (최대 개수까지, 작성자 표기 포함) */
     public static List<PhotoDto> photos(PlaceDetails place) {
         return place.photos() == null ? List.of() : place.photos().stream()
                 .filter(p -> p.name() != null)
@@ -42,11 +44,13 @@ public final class PlaceContentMapper {
                 .toList();
     }
 
+    /** 리뷰 목록 (번역 여부·원문·작성자 포함) */
     public static List<ReviewDto> reviews(PlaceDetails place) {
         return place.reviews() == null ? List.of()
                 : place.reviews().stream().map(PlaceContentMapper::review).toList();
     }
 
+    /** 요일별 영업시간 글 (없으면 빈 목록) */
     public static List<String> openingHours(PlaceDetails place) {
         return place.regularOpeningHours() == null || place.regularOpeningHours().weekdayDescriptions() == null
                 ? List.of() : place.regularOpeningHours().weekdayDescriptions();
@@ -81,15 +85,18 @@ public final class PlaceContentMapper {
                 r.relativePublishTimeDescription(), r.publishTime(), r.googleMapsUri());
     }
 
+    /** 사진 작성자 목록 */
     private static List<AuthorDto> authors(List<AuthorAttribution> attributions) {
         return attributions == null ? List.of()
                 : attributions.stream().map(PlaceContentMapper::author).toList();
     }
 
+    /** 사진 작성자 한 명 (이름·링크·프로필 사진) */
     private static AuthorDto author(AuthorAttribution a) {
         return a == null ? null : new AuthorDto(a.displayName(), a.uri(), a.photoUri());
     }
 
+    /** 다국어 글에서 글자만 (비어 있으면 null) */
     public static String text(LocalizedText t) {
         return t == null || t.text() == null || t.text().isBlank() ? null : t.text();
     }

@@ -7,9 +7,11 @@ public final class GeoUtils {
 
     private static final double EARTH_RADIUS_METERS = 6_371_008.8;
 
+    /** 정적 메서드만 쓴다 */
     private GeoUtils() {
     }
 
+    /** 두 좌표 사이 직선 거리(m), Haversine 공식 */
     public static double distanceMeters(double lat1, double lng1, double lat2, double lng2) {
         double dLat = Math.toRadians(lat2 - lat1);
         double dLng = Math.toRadians(lng2 - lng1);
@@ -26,6 +28,7 @@ public final class GeoUtils {
         return point == null ? null : point.getY();
     }
 
+    /** JTS 점에서 경도 (점이 없으면 null) */
     public static Double lng(Point point) {
         return point == null ? null : point.getX();
     }

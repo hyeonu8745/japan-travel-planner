@@ -17,6 +17,7 @@ public class ReasonContextLoader {
     private final TripPreferenceRepository preferenceRepository;
     private final FoodFilterResolver foodFilterResolver;
 
+    /** 여행의 관심사·음식 조건·대화 취향을 읽는다 (트랜잭션 안에서) */
     public ReasonContext load(Trip trip) {
         if (trip == null) return ReasonContext.NONE;
         TripPreference preference = preferenceRepository.findByTripId(trip.getId()).orElse(null);

@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Open-Meteo 호출 (10-16). 실패하면 예외 대신 빈 값 (날씨는 일정에 꼭 필요한 정보가 아니다, 원칙 6).
+ * Open-Meteo 호출. 실패하면 예외 대신 빈 값 (날씨는 일정에 꼭 필요한 정보가 아니다, 원칙 6).
  * 시간대는 Asia/Tokyo (일본 날짜 기준 하루).
  */
 @Slf4j
@@ -31,6 +31,7 @@ public class WeatherClient {
     private final JsonMapper jsonMapper;
     private final RestClient restClient;
 
+    /** 설정한 시간 제한의 HTTP 클라이언트를 만든다 */
     public WeatherClient(WeatherProperties props, JsonMapper jsonMapper) {
         this.props = props;
         this.jsonMapper = jsonMapper;
@@ -40,14 +41,17 @@ public class WeatherClient {
         this.restClient = RestClient.builder().requestFactory(factory).build();
     }
 
+    /** 예보 API (오늘 − 92일 ~ 오늘 + 15일) */
     public Optional<List<DailyWeather>> forecast(double lat, double lng, LocalDate start, LocalDate end) {
         return call(props.getForecastUrl(), FORECAST_DAILY, lat, lng, start, end, "예보");
     }
 
+    /** 과거 실제 날씨 API (작년 같은 날 보여 줄 때) */
     public Optional<List<DailyWeather>> archive(double lat, double lng, LocalDate start, LocalDate end) {
         return call(props.getArchiveUrl(), ARCHIVE_DAILY, lat, lng, start, end, "작년 날씨");
     }
 
+    /** Open-Meteo 호출 공통: 실패하면 로그만 남기고 빈 값 */
     private Optional<List<DailyWeather>> call(String url, String daily, double lat, double lng,
                                               LocalDate start, LocalDate end, String label) {
         try {
@@ -65,7 +69,7 @@ public class WeatherClient {
     }
 
     /**
-     * 요청 주소. 한 번만 인코딩한다 (10-16 사고: 주소 틀에 "Asia%2FTokyo"를 직접 쓰자 RestClient가 %를 다시 %25로 바꿔
+     * 요청 주소. 한 번만 인코딩한다 (주소 틀에 "Asia%2FTokyo"를 직접 쓰면 RestClient 가 %를 다시 %25로 바꿔
      * "Asia%252FTokyo"가 가서 400). 완성된 주소는 URI로 넘겨 다시 인코딩되지 않게 한다
      */
     static String url(String base, String daily, double lat, double lng, LocalDate start, LocalDate end) {
@@ -98,11 +102,13 @@ public class WeatherClient {
         return result;
     }
 
+    /** 하루 배열에서 i 번째 정수 (없으면 null) */
     private static Integer intAt(JsonNode daily, String field, int i) {
         JsonNode v = daily.path(field).path(i);
         return v.isNumber() ? v.asInt() : null;
     }
 
+    /** 하루 배열에서 i 번째 실수 (없으면 null) */
     private static Double doubleAt(JsonNode daily, String field, int i) {
         JsonNode v = daily.path(field).path(i);
         return v.isNumber() ? v.asDouble() : null;

@@ -5,7 +5,7 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-/** 엔화 환율 (10-12, 이슈 #6). 기본은 한국수출입은행 매매기준율, 실패하면 Frankfurter → 마지막 저장값 → 고정값 */
+/** 엔화 환율 (이슈 #6). 기본은 한국수출입은행 매매기준율, 실패하면 Frankfurter → 마지막 저장값 → 고정값 */
 @Getter
 @Setter
 @Component

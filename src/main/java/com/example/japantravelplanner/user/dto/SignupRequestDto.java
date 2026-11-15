@@ -9,6 +9,9 @@ import lombok.Setter;
 
 import java.nio.charset.StandardCharsets;
 
+/**
+ * 가입 요청: 이메일, 비밀번호(8~64자, 영문+숫자, BCrypt 한도 72바이트 이하), 닉네임.
+ */
 @Getter
 @Setter
 public class SignupRequestDto {
@@ -33,6 +36,7 @@ public class SignupRequestDto {
         this.email = email == null ? null : email.trim();
     }
 
+    /** 닉네임 앞뒤 공백을 지운다 */
     public void setNickname(String nickname) {
         this.nickname = nickname == null ? null : nickname.trim();
     }

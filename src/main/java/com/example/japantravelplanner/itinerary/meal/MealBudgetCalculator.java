@@ -30,6 +30,7 @@ public class MealBudgetCalculator {
                 Math.max(dinner, props.getMinDinnerYen()));
     }
 
+    /** 100엔 단위로 내림 */
     private int floorTo100(double yen) {
         return (int) (Math.floor(yen / 100) * 100);
     }

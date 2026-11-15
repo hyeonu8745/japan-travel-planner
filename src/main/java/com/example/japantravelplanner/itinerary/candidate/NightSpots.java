@@ -8,10 +8,8 @@ import java.util.Map;
 /**
  * 저녁 뒤 야경 장소.
  *
- * 예전에는 그날 지역에서 점수가 가장 높은 전망대(observation_deck)를 무조건 넣었다.
- * 10-10 여행 8 v8에서 6일 중 4일 저녁이 전망대였고, SKY VIEW(카렛타 시오도메 무료 전망 공간, 리뷰 513)처럼
- * 대표성이 낮은 곳도 들어갔다. 반대로 오다이바 날은 전망대가 없어서 야경이 비고,
- * 오다이바 야경의 대표인 레인보우브리지 쪽은 낮에 들렀다.
+ * 그날 지역에서 점수가 가장 높은 전망대를 무조건 넣으면 저녁이 전망대만 반복되고 대표성이 낮은 곳도 들어간다.
+ * 또 전망대가 없는 지역(오다이바)은 야경이 비고, 그 지역 야경의 대표(레인보우브리지 쪽)를 낮에 들르게 된다.
  *
  * 그래서 저녁 뒤에는 아래 대표 야경 명소만 넣고, 종류(전망대·물가·거리·야간 조명)를 섞는다 (NightSpotPlanner).
  * 이름은 관광지 데이터(2026-10-10, 119곳)의 name 그대로다. 데이터를 다시 모으면 이름이 맞는지 확인해야 한다.
@@ -38,6 +36,7 @@ public final class NightSpots {
             "歌舞伎町一番街アーチ", Kind.CITY_LIGHTS,
             "浅草寺", Kind.LIGHT_UP);
 
+    /** 정적 메서드만 쓴다 */
     private NightSpots() {
     }
 
@@ -59,6 +58,7 @@ public final class NightSpots {
         return kindOf(attraction) != null;
     }
 
+    /** 전망대(observation_deck)인지 */
     public static boolean isObservatory(Attraction attraction) {
         if (attraction == null || attraction.getTypes() == null) return false;
         return Arrays.stream(attraction.getTypes().split(",")).map(String::trim).anyMatch(OBSERVATION_DECK::equals);

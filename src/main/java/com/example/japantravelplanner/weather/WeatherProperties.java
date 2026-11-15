@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * 여행 날씨 (10-16). Open-Meteo (키 없음, 비상업 무료, 출처 표시 "Weather data by Open-Meteo.com").
+ * 여행 날씨. Open-Meteo (키 없음, 비상업 무료, 출처 표시 "Weather data by Open-Meteo.com").
  * 예보는 오늘부터 16일 뒤까지(과거 92일도 같은 API), 그 밖의 날짜는 작년 같은 날 실제 날씨(archive API)를 보여준다.
  */
 @Getter

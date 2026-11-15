@@ -91,6 +91,7 @@ public class ItineraryAttractionEditService {
     private final PlaceTypeLabels typeLabels;
     private final ItineraryVersions versions;
 
+    /** 버전 저장 공통 흐름(ItineraryVersions)을 자기 의존성으로 만들어 쓴다 */
     public ItineraryAttractionEditService(TripRepository tripRepository,
                                           TripPreferenceRepository preferenceRepository,
                                           ItineraryRepository itineraryRepository,
@@ -124,6 +125,7 @@ public class ItineraryAttractionEditService {
 
     // ===================== 후보 조회 =====================
 
+    /** 관광지 항목 하나를 바꿀 때의 후보 (같은 지역 먼저, 점수 순, 넣었을 때 하루가 얼마나 밀리는지) */
     public AttractionCandidatesResponseDto candidates(Long userId, Long tripId, Long stopId) {
         return versions.read(() -> {
             Target target = load(userId, tripId, stopId);
@@ -132,6 +134,7 @@ public class ItineraryAttractionEditService {
         });
     }
 
+    /** 후보 → 응답 (앞 장소에서의 이동, 하루 끝이 얼마나 바뀌는지, 시간 안에 들어가는지) */
     private AttractionCandidatesResponseDto toCandidatesResponse(Target target, List<ScoredAttraction> found) {
         // 앞 장소에서 각 후보까지의 이동 (이동 시간 표는 한 번만 만든다)
         List<TravelPoint> points = new ArrayList<>();
@@ -162,10 +165,12 @@ public class ItineraryAttractionEditService {
 
     // ===================== 교체 =====================
 
+    /** 관광지 바꾸기 → 새 버전 (같은 여행을 고치는 중이면 409) */
     public ItineraryResponseDto replace(Long userId, Long tripId, Long stopId, Long attractionId) {
         return versions.locked(tripId, () -> doReplace(userId, tripId, stopId, attractionId));
     }
 
+    /** 바꾸기: 후보에 있는 관광지만, 바뀐 날 시각만 다시 계산해서 저장 */
     private ItineraryResponseDto doReplace(Long userId, Long tripId, Long stopId, Long attractionId) {
         Target target = load(userId, tripId, stopId);
         ItineraryStop stop = target.stop();
@@ -210,7 +215,7 @@ public class ItineraryAttractionEditService {
         return retimedDay(target, swapOf(target.stop(), replacement, stay));
     }
 
-    /** 10-16: 여러 곳을 한 번에 바꾼 날 (비 오는 날 대안). 바꾸지 않는 항목은 그대로 */
+    /** 여러 곳을 한 번에 바꾼 날 (비 오는 날 대안). 바꾸지 않는 항목은 그대로 */
     private ItineraryDay retimedDay(Target target, Map<ItineraryStop, Swap> swaps) {
         ItineraryDay day = target.day();
         Retimed retimed = retimeDay(target, swaps);
@@ -250,6 +255,7 @@ public class ItineraryAttractionEditService {
         return retimeDay(target, replacement == null ? Map.of() : swapOf(target.stop(), replacement, replacementStay));
     }
 
+    /** 바뀐 관광지로 그날 시각을 다시 계산한다 (순서는 그대로) */
     private Retimed retimeDay(Target target, Map<ItineraryStop, Swap> swaps) {
         ItineraryDay day = target.day();
         List<RetimeItem> items = new ArrayList<>();
@@ -264,12 +270,13 @@ public class ItineraryAttractionEditService {
         return dayScheduler.retime(items, day.getWindowStart(), day.getWindowEnd(), target.hotel(), target.options());
     }
 
+    /** 마지막 항목을 떠나는 시각(하루 분) */
     private static int lastDepartureMinutes(Retimed retimed) {
         var last = retimed.stops().get(retimed.stops().size() - 1).departure();
         return (int) Duration.between(java.time.LocalTime.MIDNIGHT, last).toMinutes();
     }
 
-    // ===================== 비 오는 날 대안 (10-16) =====================
+    // ===================== 비 오는 날 대안 =====================
 
     /**
      * 그날 실외 관광지(Shelter.OUTDOOR)를 같은 지역(모자라면 3km 안)의 실내 관광지로 바꾼 일정 미리보기.
@@ -303,6 +310,7 @@ public class ItineraryAttractionEditService {
         });
     }
 
+    /** 비 오는 날 대안 계산: 그날 실외 관광지마다 근처 실내 관광지로 바꾸고 시각을 다시 계산한다 (저장하지 않음) */
     private RainPlan planRain(Long userId, Long tripId, int dayNumber) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         Itinerary latest = versions.latest(tripId);
@@ -334,6 +342,7 @@ public class ItineraryAttractionEditService {
         return new RainPlan(trip, latest, day, base, swaps, kept, outdoor, retimed);
     }
 
+    /** 비 오는 날 대안 → 미리보기 응답 */
     private RainPlanDto toRainPlanDto(RainPlan plan) {
         List<RainPlanDto.SwapDto> swaps = plan.swaps().entrySet().stream()
                 .map(e -> new RainPlanDto.SwapDto(e.getKey().getId(), e.getKey().getStopOrder(),
@@ -359,6 +368,7 @@ public class ItineraryAttractionEditService {
                 plan.retimed() == null ? List.of() : List.copyOf(plan.retimed().warnings()), stops);
     }
 
+    /** 비 오는 날 대안 안내 문구 (실외가 없음 / 바꿀 곳 없음 / N곳 바꿈) */
     static String rainMessage(int outdoor, int swapped, List<String> kept) {
         if (outdoor == 0) return "이 날은 실외 관광지가 없어 비가 와도 그대로 다니면 돼요.";
         if (swapped == 0) return "근처에 바꿀 만한 실내 장소가 없어요. 우산을 챙겨 그대로 다니거나 다른 날과 바꿔 보세요.";
@@ -374,11 +384,13 @@ public class ItineraryAttractionEditService {
                 .collect(Collectors.joining(", "));
     }
 
+    /** 관광지 → 미리보기의 장소 한 칸 */
     private RainPlanDto.PlaceDto place(Attraction a, int stay) {
         return new RainPlanDto.PlaceDto(a.getId(), a.getName(), a.getNameKo(), typeLabels.toVisibleLabels(a.getTypes()),
                 GeoUtils.lat(a.getLocation()), GeoUtils.lng(a.getLocation()), stay);
     }
 
+    /** 항목 하나만 바꾸는 표 */
     private static Map<ItineraryStop, Swap> swapOf(ItineraryStop stop, Attraction attraction, int stay) {
         Map<ItineraryStop, Swap> map = new java.util.IdentityHashMap<>();
         map.put(stop, new Swap(attraction, stay));
@@ -424,6 +436,7 @@ public class ItineraryAttractionEditService {
         return result;
     }
 
+    /** 일정에 이미 쓴 관광지 id */
     private static Set<Long> usedAttractionIds(Itinerary itinerary) {
         return itinerary.getDays().stream()
                 .flatMap(day -> day.getStops().stream())
@@ -434,6 +447,7 @@ public class ItineraryAttractionEditService {
 
     // ===================== 불러오기·검사 =====================
 
+    /** 최신 버전의 관광지 항목을 찾아 바꾸기에 필요한 것을 모은다 (식당 항목이면 400) */
     private Target load(Long userId, Long tripId, Long stopId) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         ItineraryVersions.LatestStop found = versions.latestStop(tripId, stopId);
@@ -446,6 +460,7 @@ public class ItineraryAttractionEditService {
         return targetFor(trip, latest, day, stop);
     }
 
+    /** 바꾸기 계산에 필요한 것: 이동 방식, 숙소 위치, 앞 장소, 관광지 점수 */
     private Target targetFor(Trip trip, Itinerary latest, ItineraryDay day, ItineraryStop stop) {
         Long tripId = trip.getId();
         TripPreference preference = preferenceRepository.findByTripId(tripId).orElse(null);

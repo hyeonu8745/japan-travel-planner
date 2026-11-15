@@ -36,6 +36,7 @@ public class ExchangeRateRecord {
     @Column(name = "fetched_at", nullable = false)
     private LocalDateTime fetchedAt;
 
+    /** 받아 온 환율 한 건 */
     public static ExchangeRateRecord of(double krwPerYen, LocalDate rateDate, String source, LocalDateTime fetchedAt) {
         ExchangeRateRecord r = new ExchangeRateRecord();
         r.krwPerYen = krwPerYen;
@@ -45,6 +46,7 @@ public class ExchangeRateRecord {
         return r;
     }
 
+    /** 저장된 값 → 일정 계산용 환율 */
     public ExchangeRate toRate() {
         return new ExchangeRate(krwPerYen, rateDate, source);
     }

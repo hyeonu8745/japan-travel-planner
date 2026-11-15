@@ -19,11 +19,11 @@ import java.util.stream.Collectors;
  * - 대화에서 말한 지역(SCHEDULE·ETC 조건에 지역 이름)은 꼭 포함
  * - 오다이바는 야경·쇼핑 관심사가 없으면 점수 절반 (관광지가 적어서)
  * - 첫날·마지막 날은 숙소에서 가까운 지역
- * - 하루에 두 지역 (10-11 사용자 결정): 중심 지역에서 이동 범위(가까운 곳 위주 7km, 대중교통 10km, 렌터카 12km) 안의
+ * - 하루에 두 지역: 중심 지역에서 이동 범위(가까운 곳 위주 7km, 대중교통 10km, 렌터카 12km) 안의
  *   이웃 지역 하나를 함께 돌고, 두 지역 관광지를 섞어서 후보로 쓴다 (예: 아사쿠사+아키하바라, 롯폰기+시부야)
  * - 날짜마다 후보: 기본은 지역 안에서 종류·위치를 섞어서 고른다 (같은 종류·500m 안이면 감점).
  *   가까운 곳 위주 여행(TravelOptions.compact)은 예전처럼 점수순
- *   (10-10 사용자 결정: 점수순으로만 고르면 浜離宮恩賜庭園 + 그 안의 三百年の松처럼 주변만 돌았다)
+ * (점수순으로만 고르면 浜離宮恩賜庭園 + 그 안의 三百年の松처럼 주변만 돌았다)
  */
 @Slf4j
 @Component
@@ -51,7 +51,7 @@ public class DayZonePlanner {
     }
 
     /**
-     * @param lastDayNearHotel true면 마지막 날은 숙소 근처 쇼핑 (10-15, 비행기 출발 시각이 있을 때):
+     * @param lastDayNearHotel true면 마지막 날은 숙소 근처 쇼핑 (비행기 출발 시각이 있을 때):
      *                         숙소가 있는 지역, 이웃 지역 없이, 숙소에서 lastDayRadiusMeters 안 관광지, 쇼핑 가산, 놀이공원 등 제외
      */
     public List<DayZone> plan(List<ScoredAttraction> scored, LocalDate startDate, int days, int perDay,
@@ -217,6 +217,7 @@ public class DayZonePlanner {
         return List.copyOf(picked);
     }
 
+    /** 이미 고른 곳과 같은 종류이거나 아주 가까우면 감점한 점수 (하루가 비슷한 곳으로만 채워지지 않게) */
     double adjustedScore(ScoredAttraction candidate, List<ScoredAttraction> picked) {
         PlaceKind kind = PlaceKind.of(candidate.attraction());
         long sameKind = kind == PlaceKind.OTHER ? 0
@@ -261,6 +262,7 @@ public class DayZonePlanner {
         return byBrand.values().stream().limit(count).toList();
     }
 
+    /** 마지막 날 점수: 쇼핑 장소에 가산점 (출발 전 숙소 근처 쇼핑) */
     private double lastDayScore(ScoredAttraction c) {
         return c.score() + (PlaceKind.of(c.attraction()) == PlaceKind.SHOPPING ? props.getLastDayShoppingBonus() : 0);
     }
@@ -278,6 +280,7 @@ public class DayZonePlanner {
         return Arrays.asList(days);
     }
 
+    /** 대화에서 말한 지역 (일정·기타 조건에 지역 별칭이 들어 있으면) */
     private Set<TripZone> requestedZones(List<PreferenceConstraint> constraints) {
         Set<TripZone> result = new LinkedHashSet<>();
         if (constraints == null) return result;

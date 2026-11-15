@@ -49,7 +49,7 @@ public class TravelTimeService {
                 if (walk.minutes() <= walkThresholdMinutes) {
                     legs[i][j] = walk;
                 } else {
-                    // 예전에는 렌트카면 모든 구간을 운전으로 잡아서, 숙소에서 22m 떨어진 곳도 "차로 6분"(주차 5분 포함)이 됐다
+                    // 렌터카여도 걷는 게 빠르면 걷는다 (아주 가까운 곳까지 "차로 6분"(주차 포함)이 되지 않게)
                     TravelLeg ride = baseMode == LegMode.DRIVE ? driveLeg(straight) : transitLeg(straight);
                     legs[i][j] = ride.minutes() < walk.minutes() ? ride : walk;
                 }
@@ -72,6 +72,7 @@ public class TravelTimeService {
         }
     }
 
+    /** 도보 구간 (Google 값이 있으면 그것, 없으면 직선 × 우회 비율 ÷ 걷는 속도) */
     private TravelLeg walkLeg(double straight, RouteElement google) {
         if (google != null) {
             int minutes = Math.max(1, (int) Math.ceil(google.seconds() / 60.0));
@@ -82,18 +83,21 @@ public class TravelTimeService {
         return new TravelLeg(minutes, (int) distance, LegMode.WALK, false);
     }
 
+    /** 대중교통 구간 (직선 × 우회 비율 ÷ 속도 + 타고 내리는 시간) */
     private TravelLeg transitLeg(double straight) {
         double distance = straight * props.getTransitDetour();
         int minutes = (int) Math.ceil(distance / props.getTransitMetersPerMinute()) + props.getTransitOverheadMinutes();
         return new TravelLeg(minutes, (int) distance, LegMode.TRANSIT, false);
     }
 
+    /** 렌터카 구간 (직선 × 우회 비율 ÷ 속도 + 주차 시간) */
     private TravelLeg driveLeg(double straight) {
         double distance = straight * props.getTransitDetour();
         int minutes = (int) Math.ceil(distance / props.getDriveMetersPerMinute()) + props.getDriveOverheadMinutes();
         return new TravelLeg(minutes, (int) distance, LegMode.DRIVE, false);
     }
 
+    /** 두 장소의 직선 거리(m) */
     static double straightDistance(TravelPoint a, TravelPoint b) {
         return GeoUtils.distanceMeters(a.lat(), a.lng(), b.lat(), b.lng());
     }

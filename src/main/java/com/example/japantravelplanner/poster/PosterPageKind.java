@@ -1,5 +1,8 @@
 package com.example.japantravelplanner.poster;
 
+/**
+ * 포스터 장 종류 (일러스트 지도 / 상세 일정표).
+ */
 public enum PosterPageKind {
     /** 일러스트 지도 포스터 (1장) */
     COVER,

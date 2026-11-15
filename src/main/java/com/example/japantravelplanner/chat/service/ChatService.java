@@ -37,6 +37,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * 대화 한 번의 흐름 (취향 대화 / 채팅 수정 공통 입구).
+ * ① 확인 (트랜잭션): 내 여행인지, 대화할 수 있는 상태인지, 시간당 메시지 수
+ * ② AI 호출 (트랜잭션 밖): 일정 전이면 취향 정리, 일정 뒤면 ItineraryChatEditService 로 넘긴다
+ * ③ 저장 (트랜잭션): 사용자 말과 AI 답, 정리된 조건, 여행 상태(준비되면 READY_TO_GENERATE)
+ */
 @Slf4j
 @Service
 public class ChatService {
@@ -49,7 +55,7 @@ public class ChatService {
     private static final int MAX_CONSTRAINTS = 30;
     private static final List<TripStatus> CHAT_ALLOWED_STATUSES = List.of(
             TripStatus.CONDITIONS_SET, TripStatus.PREFERENCE_GATHERING, TripStatus.READY_TO_GENERATE);
-    /** 일정이 만들어진 뒤에는 같은 채팅이 일정 수정 대화가 된다 (10-11, 예전에는 409로 막았다) */
+    /** 일정이 만들어진 뒤에는 같은 채팅이 일정 수정 대화가 된다 */
     private static final List<TripStatus> EDIT_STATUSES = List.of(
             TripStatus.AWAITING_CONFIRMATION, TripStatus.GENERATED, TripStatus.EDITING);
 
@@ -62,6 +68,7 @@ public class ChatService {
     private final TransactionTemplate readTransaction;
     private final TransactionTemplate writeTransaction;
 
+    /** AI 호출 앞뒤로 트랜잭션을 나누므로 읽기·쓰기 TransactionTemplate 을 만든다 */
     public ChatService(TripRepository tripRepository,
                        TripPreferenceRepository tripPreferenceRepository,
                        ChatMessageRepository chatMessageRepository,
@@ -82,6 +89,7 @@ public class ChatService {
 
     // ===================== 메시지 전송 =====================
 
+    /** 메시지 하나 처리: 일정이 있으면 채팅 수정으로 넘기고, 없으면 취향 대화(AI) 후 저장 */
     public ChatReplyResponseDto sendMessage(Long userId, Long tripId, String content) {
         // 내 여행인지, 호출 제한을 넘지 않았는지 (두 대화 모두)
         TripStatus tripStatus = readTransaction.execute(s -> checkTrip(userId, tripId));
@@ -100,6 +108,7 @@ public class ChatService {
         return writeTransaction.execute(status -> saveTurn(tripId, content, turn));
     }
 
+    /** 내 여행인지와 시간당 메시지 수(30개)를 확인하고 여행 상태를 돌려준다 */
     private TripStatus checkTrip(Long userId, Long tripId) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         long recentCount = chatMessageRepository.countByTripUserIdAndRoleAndCreatedAtAfter(
@@ -110,6 +119,7 @@ public class ChatService {
         return trip.getStatus();
     }
 
+    /** AI 에 보낼 맥락: 여행 조건, 지금까지 정리된 취향, 최근 대화 10개 */
     private String buildContext(Long userId, Long tripId) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
 
@@ -125,6 +135,7 @@ public class ChatService {
         return describeTrip(trip) + "\n" + describePreference(preference) + "\n" + describeHistory(recent, trip);
     }
 
+    /** 기본 모델로 묻고, 형식 오류면 한 번 더, 그래도 안 되거나 복잡한 요청이면 고급 모델로 */
     private AiTurn askAi(Long tripId, String input) {
         AiTurn turn = tryAsk(AiModelTier.BASIC, input);
         if (turn == null) {
@@ -141,6 +152,7 @@ public class ChatService {
         return turn;
     }
 
+    /** AI 한 번 호출. 응답 형식이 틀리거나 답이 비면 null */
     private AiTurn tryAsk(AiModelTier tier, String input) {
         AiResult ai = openAiClient.generateJson(tier, PreferencePrompt.INSTRUCTIONS, input, PreferenceChatSchema.format());
         try {
@@ -155,6 +167,7 @@ public class ChatService {
         }
     }
 
+    /** 사용자 말·AI 답·정리본 저장, 인원 언급 반영, 준비 판단(ReadyCheck)과 상태 변경, 답이 질문으로 끝나게 */
     private ChatReplyResponseDto saveTurn(Long tripId, String content, AiTurn turn) {
         Trip trip = tripRepository.findById(tripId)
                 .orElseThrow(() -> new NotFoundException("여행을 찾을 수 없습니다."));
@@ -168,13 +181,13 @@ public class ChatService {
                     + "인원이 바뀌었다면 플래너의 '여행 조건' 메뉴에서 수정해주세요.";
         }
 
-        // ② 10-16: AI가 준비를 미루며 같은 질문을 되풀이해도, 충분히 들었으면 서버가 준비로 넘긴다 (ReadyCheck)
+        // ② AI가 준비를 미루며 같은 질문을 되풀이해도, 충분히 들었으면 서버가 준비로 넘긴다 (ReadyCheck)
         List<PreferenceConstraint> constraints = toConstraints(result.constraints());
         long userTurns = chatMessageRepository.countByTripIdAndRole(tripId, ChatRole.USER) + 1;
         boolean ready = result.readyToGenerate() || ReadyCheck.enough(userTurns, constraints);
         boolean forced = ready && !result.readyToGenerate();
 
-        // ③ 준비 전에는 답이 질문으로 끝나게 (AI가 "잘 전달되었습니다!"로 대화를 끊은 적이 있다)
+        // ③ 준비 전에는 답이 질문으로 끝나게 (AI 가 "잘 전달되었습니다!"처럼 대화를 끊지 않게)
         reply = ReplyFlow.keepGoing(reply, ready, result.userWantsGeneration());
 
         // ④ 생성 준비 상태로 처음 바뀌는 순간에는 제안 문장을 서버가 보장
@@ -244,11 +257,13 @@ public class ChatService {
         });
     }
 
+    /** 서버가 만드는 첫 인사 메시지 저장 */
     private ChatMessage saveGreeting(Trip trip) {
         return chatMessageRepository.save(ChatMessage.builder()
                 .trip(trip).role(ChatRole.ASSISTANT).content(ChatGreeting.of(trip)).build());
     }
 
+    /** 정리된 취향 (없으면 빈 정리본) */
     public PreferenceResponseDto getPreference(Long userId, Long tripId) {
         return readTransaction.execute(status -> {
             TripAccess.owned(tripRepository, userId, tripId);
@@ -260,6 +275,7 @@ public class ChatService {
 
     // ===================== AI 입력 만들기 =====================
 
+    /** AI 입력용 여행 조건 글 */
     private String describeTrip(Trip trip) {
         long nights = ChronoUnit.DAYS.between(trip.getStartDate(), trip.getEndDate());
         String interests = trip.getInterests() == null || trip.getInterests().isEmpty()
@@ -290,7 +306,7 @@ public class ChatService {
                 describeFlights(trip));
     }
 
-    /** 10-15: 여행 조건에 비행기 시각이 있으면 AI가 도착·출발 시각을 다시 묻지 않게 알려준다 */
+    /** 여행 조건에 비행기 시각이 있으면 AI가 도착·출발 시각을 다시 묻지 않게 알려준다 */
     static String describeFlights(Trip trip) {
         String arrival = trip.arrivalAirportInfo()
                 .map(a -> "도착 " + a.label() + " " + trip.getArrivalFlightTime()).orElse(null);
@@ -301,6 +317,7 @@ public class ChatService {
         return (arrival == null ? "도착 입력 안 함" : arrival) + " / " + (departure == null ? "출발 입력 안 함" : departure);
     }
 
+    /** AI 입력용 지금까지 정리된 취향 글 (식비 비율, 조건 목록, 요약) */
     private String describePreference(TripPreference preference) {
         if (preference == null) {
             return "[현재까지 정리된 취향]\n- 아직 없음 (첫 대화)\n- 식비 비율: 0.4\n";
@@ -325,6 +342,7 @@ public class ChatService {
                 blankToNone(preference.getSummary()));
     }
 
+    /** AI 입력용 최근 대화 글 (대화가 없으면 첫 인사만) */
     private String describeHistory(List<ChatMessage> messages, Trip trip) {
         if (messages.isEmpty()) {
             // 첫 인사가 아직 저장되기 전이라도 AI는 자기가 먼저 음식을 물었다고 알아야 한다
@@ -337,6 +355,7 @@ public class ChatService {
 
     // ===================== AI 결과 정리 =====================
 
+    /** AI 가 준 조건 → 저장할 조건 (빈 설명은 버리고 최대 30개) */
     private List<PreferenceConstraint> toConstraints(List<PreferenceChatResult.ConstraintItem> items) {
         if (items == null) {
             return List.of();
@@ -349,6 +368,7 @@ public class ChatService {
                 .toList();
     }
 
+    /** AI 가 준 카테고리 → enum (모르는 값이면 ETC) */
     private ConstraintCategory toCategory(String value) {
         try {
             return ConstraintCategory.valueOf(value);
@@ -357,6 +377,7 @@ public class ChatService {
         }
     }
 
+    /** "HH:mm" → 시각 (비었거나 틀리면 null) */
     private LocalTime parseTime(String value) {
         if (value == null || value.isBlank()) {
             return null;
@@ -376,10 +397,12 @@ public class ChatService {
         return Math.max(0.2, Math.min(0.7, value));
     }
 
+    /** 비어 있으면 "없음" */
     private String blankToNone(String value) {
         return value == null || value.isBlank() ? "없음" : value;
     }
 
+    /** 최대 길이까지 자른다 */
     private String truncate(String value, int max) {
         return value.length() <= max ? value : value.substring(0, max);
     }

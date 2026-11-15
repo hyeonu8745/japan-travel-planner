@@ -17,6 +17,10 @@ import org.springframework.stereotype.Component;
 import java.io.FileReader;
 import java.nio.file.Paths;
 
+/**
+ * 서버 시작 때 타베로그 식당 CSV(도쿄)를 DB 에 넣는다. 이미 데이터가 있으면 건너뛴다. 예산 글자는 넣을 때 숫자로 바꾼다.
+ * 11월 확장 때 새 데이터(clean_restaurants_*.json) 가져오기로 바꾼다.
+ */
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -31,6 +35,7 @@ public class RestaurantDataImporter implements CommandLineRunner {
 
     private static final String CSV_PATH = "data/processed/restaurants_tokyo_filtered_geocoded.csv";
 
+    /** 서버 시작 때 식당이 하나도 없으면 CSV 를 읽어 넣는다 (중복 store_id 는 건너뛴다) */
     @Override
     public void run(String... args) throws Exception {
         long existingCount = restaurantRepository.count();
@@ -88,6 +93,7 @@ public class RestaurantDataImporter implements CommandLineRunner {
                 successCount, skipCount, noLocationCount, errorCount);
     }
 
+    /** CSV 한 줄 → 식당 (위도·경도가 있으면 좌표, 예산 글자는 숫자 범위로도) */
     private Restaurant mapRowToRestaurant(String[] row) {
         Point location = null;
         String latStr = row[16];
@@ -123,14 +129,17 @@ public class RestaurantDataImporter implements CommandLineRunner {
         return restaurant;
     }
 
+    /** 비어 있지 않은지 */
     private boolean isNotBlank(String s) {
         return s != null && !s.isBlank();
     }
 
+    /** 비어 있으면 null */
     private String nullIfBlank(String s) {
         return isNotBlank(s) ? s : null;
     }
 
+    /** 숫자 글자 → 정수 ("123.0"도 읽는다, 비었거나 틀리면 null) */
     private Integer parseIntOrNull(String s) {
         if (!isNotBlank(s)) return null;
         try {
@@ -140,6 +149,7 @@ public class RestaurantDataImporter implements CommandLineRunner {
         }
     }
 
+    /** 숫자 글자 → 실수 (비었거나 틀리면 null) */
     private Double parseDoubleOrNull(String s) {
         if (!isNotBlank(s)) return null;
         try {

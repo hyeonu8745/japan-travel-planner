@@ -16,6 +16,9 @@ import com.example.japantravelplanner.global.dto.PageResponseDto;
 
 import java.util.List;
 
+/**
+ * 식당 API. 검색은 로그인 없이, 상세·사진은 Google 요금이 들어서 로그인한 사용자만 (SecurityConfig).
+ */
 @RestController
 @RequiredArgsConstructor
 public class RestaurantController {
@@ -23,6 +26,7 @@ public class RestaurantController {
     private final RestaurantService restaurantService;
     private final RestaurantDetailService restaurantDetailService;
 
+    /** 한 지점 반경 안의 식당 (로그인 없이) */
     @GetMapping("/api/restaurants/nearby")
     public List<RestaurantResponseDto> getNearbyRestaurants(
             @RequestParam double lat,
@@ -32,6 +36,7 @@ public class RestaurantController {
         return restaurantService.findNearbyRestaurants(lat, lng, radius);
     }
 
+    /** 식당 조합 검색 (장르·최소 평점·리뷰 수·끼니 예산·위치 반경, 정렬, 페이지). 로그인 없이 */
     @GetMapping("/api/restaurants/search")
     public PageResponseDto<RestaurantResponseDto> searchRestaurants(RestaurantSearchCondition condition) {
         return restaurantService.search(condition);

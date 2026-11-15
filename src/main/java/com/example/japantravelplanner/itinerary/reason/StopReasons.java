@@ -28,7 +28,7 @@ public final class StopReasons {
 
     static final int MAX_REASONS = 3;
     /**
-     * Google 평점이 이 이상이면 "평점 높음". 도쿄 관광지는 4.5가 흔해서(10-10 실제 일정에서 21곳 중 13곳)
+     * Google 평점이 이 이상이면 "평점 높음". 도쿄 관광지는 4.5가 흔해서 (실제 일정에서 21곳 중 13곳)
      * 4.5로는 칩이 거의 모든 곳에 붙어 의미가 없었다. 4.6이면 21곳 중 4곳
      */
     static final double HIGH_GOOGLE_RATING = 4.6;
@@ -38,9 +38,11 @@ public final class StopReasons {
     static final double HIGH_TABELOG_RATING = 3.6;
     static final int NEAR_WALK_MINUTES = 10;
 
+    /** 정적 메서드만 쓴다 */
     private StopReasons() {
     }
 
+    /** 일정 항목 하나의 이유 칩 목록 */
     public static List<StopReason> of(ItineraryStop stop, ReasonContext context) {
         ReasonContext ctx = ReasonContext.orNone(context);
         List<StopReason> reasons = new ArrayList<>();
@@ -78,6 +80,7 @@ public final class StopReasons {
         return !prefer.isEmpty() && !Collections.disjoint(RestaurantFinder.genresOf(restaurant.getGenre()), prefer);
     }
 
+    /** 관심사 → 한국어 이름 */
     public static String interestLabel(Interest interest) {
         return switch (interest) {
             case FOOD -> "현지 음식";
@@ -87,6 +90,7 @@ public final class StopReasons {
         };
     }
 
+    /** 관광지 이유: 맞는 관심사, 대화 취향, 높은 평점, 아주 많은 리뷰 */
     private static void addAttractionReasons(List<StopReason> reasons, Attraction a, ReasonContext ctx) {
         if (a == null) return;
         for (Interest interest : matchedInterests(a, ctx)) {
@@ -104,6 +108,7 @@ public final class StopReasons {
         }
     }
 
+    /** 식당 이유: 좋아하는 음식, 높은 타베로그 평점, 가까움 등 */
     private static void addRestaurantReasons(List<StopReason> reasons, Restaurant r, ReasonContext ctx) {
         if (r == null) return;
         if (matchesPreferredFood(r, ctx)) {

@@ -26,6 +26,7 @@ public class ExchangeRateClient {
     private final JsonMapper jsonMapper;
     private final RestClient restClient;
 
+    /** 설정한 시간 제한의 HTTP 클라이언트를 만든다 */
     public ExchangeRateClient(ExchangeRateProperties props, JsonMapper jsonMapper) {
         this.props = props;
         this.jsonMapper = jsonMapper;
@@ -59,6 +60,7 @@ public class ExchangeRateClient {
 
     /** 수출입은행을 지금 쓸 수 없음 (다음 수단으로 넘어간다) */
     public static class Unavailable extends RuntimeException {
+        /** @param reason 받지 못한 이유 (로그용, 인증키는 넣지 않는다) */
         public Unavailable(String reason) {
             super(reason);
         }

@@ -35,7 +35,7 @@ public class TripPoster {
     @Column(length = 50)
     private String model;
 
-    /** 그림 스타일 (10-14). 그 전에 만든 포스터는 null = 수채화 */
+    /** 그림 스타일. 그 전에 만든 포스터는 null = 수채화 */
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private PosterStyle style;
@@ -57,10 +57,12 @@ public class TripPoster {
     @OrderBy("pageNo ASC")
     private List<TripPosterPage> pages = new ArrayList<>();
 
+    /** 기본 옵션으로 새 묶음 (그리는 중) */
     public static TripPoster start(Trip trip, int itineraryVersion, String model, LocalDateTime now) {
         return start(trip, itineraryVersion, model, PosterOptions.DEFAULT, now);
     }
 
+    /** 새 묶음 (그리는 중, 스타일·캐릭터·일정 버전·모델 기록) */
     public static TripPoster start(Trip trip, int itineraryVersion, String model, PosterOptions options, LocalDateTime now) {
         TripPoster p = new TripPoster();
         p.style = options.style();
@@ -73,11 +75,13 @@ public class TripPoster {
         return p;
     }
 
+    /** 장을 묶음에 붙인다 */
     public void addPage(TripPosterPage page) {
         pages.add(page);
         page.attach(this);
     }
 
+    /** 묶음을 끝낸다 (오류 문구는 300자까지) */
     public void finish(PosterStatus result, String error, LocalDateTime now) {
         this.status = result;
         this.errorMessage = error == null || error.length() <= 300 ? error : error.substring(0, 300);

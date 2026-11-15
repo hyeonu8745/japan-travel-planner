@@ -12,6 +12,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * 모든 오류 응답을 {@code {"message": "..."}} 한 모양으로 바꾼다.
+ * 우리가 쓴 문구(BadRequestException 등)만 그대로 보여 주고, 라이브러리·내부 오류 문구는 일반 문구로 바꾼 뒤 로그에만 남긴다.
+ */
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -22,7 +26,7 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, e.getMessage(), "잘못된 요청입니다.");
     }
 
-    // 그 밖의 IllegalArgumentException(라이브러리의 NumberFormatException 등) → 400, 내부 문구는 로그에만 (11-15 보안 1-4)
+    // 그 밖의 IllegalArgumentException(라이브러리의 NumberFormatException 등) → 400, 내부 문구는 로그에만
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException e) {
         log.warn("잘못된 요청: {}", e.toString());
@@ -54,7 +58,7 @@ public class GlobalExceptionHandler {
                 "요청 본문 형식이 올바르지 않습니다. (JSON 문법, 날짜 형식, 선택 값을 확인해주세요)", null);
     }
 
-    // 갱신 토큰 없음·만료·폐기 → 401 (11-15)
+    // 갱신 토큰 없음·만료·폐기 → 401
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<Map<String, String>> handleUnauthorized(UnauthorizedException e) {
         return error(HttpStatus.UNAUTHORIZED, e.getMessage(), "다시 로그인해주세요.");
@@ -96,7 +100,7 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), "외부 서비스에 일시적인 문제가 있습니다.");
     }
 
-    // 처리하지 않은 예외 → 500, 내부 문구·스택은 로그에만 (11-15 보안 1-4)
+    // 처리하지 않은 예외 → 500, 내부 문구·스택은 로그에만
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleUnexpected(Exception e) throws Exception {
         // Spring 이 상태 코드를 정해 둔 예외(없는 주소 404, 허용 안 된 메서드 405 등)는 원래대로

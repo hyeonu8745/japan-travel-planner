@@ -13,10 +13,12 @@ public class PosterStorage {
 
     private final Path root;
 
+    /** @param props 저장 폴더 (storage/posters) */
     public PosterStorage(PosterProperties props) {
         this.root = Path.of(props.getStorageDir()).toAbsolutePath().normalize();
     }
 
+    /** PNG 를 저장하고 상대 경로를 돌려준다 ({tripId}/{posterId}-{pageNo}.png) */
     public String save(long tripId, long posterId, int pageNo, byte[] png) {
         String relative = tripId + "/" + posterId + "-" + pageNo + ".png";
         Path file = resolve(relative);
@@ -29,6 +31,7 @@ public class PosterStorage {
         return relative;
     }
 
+    /** 저장된 PNG 읽기 */
     public byte[] read(String relative) {
         try {
             return Files.readAllBytes(resolve(relative));
@@ -37,6 +40,7 @@ public class PosterStorage {
         }
     }
 
+    /** 파일 지우기 (없거나 실패해도 조용히) */
     public void deleteQuietly(String relative) {
         if (relative == null) return;
         try {
@@ -46,6 +50,7 @@ public class PosterStorage {
         }
     }
 
+    /** 상대 경로 → 실제 경로. 저장 폴더 밖으로 나가는 경로(../ 등)는 거절 */
     private Path resolve(String relative) {
         Path file = root.resolve(relative).normalize();
         if (!file.startsWith(root)) throw new IllegalArgumentException("잘못된 파일 경로");

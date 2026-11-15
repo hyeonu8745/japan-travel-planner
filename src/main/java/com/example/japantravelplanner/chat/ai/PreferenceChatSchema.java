@@ -11,9 +11,11 @@ public final class PreferenceChatSchema {
     private static final List<String> CATEGORIES = List.of(
             "FOOD_PREFER", "FOOD_AVOID", "ATMOSPHERE", "MOBILITY", "SMOKING", "SCHEDULE", "ETC");
 
+    /** 정적 메서드만 쓴다 */
     private PreferenceChatSchema() {
     }
 
+    /** OpenAI Structured Output 에 넘길 JSON 스키마 (strict) */
     public static Map<String, Object> format() {
         Map<String, Object> constraintItem = new LinkedHashMap<>();
         constraintItem.put("type", "object");

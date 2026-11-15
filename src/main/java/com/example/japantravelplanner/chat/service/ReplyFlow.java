@@ -3,12 +3,13 @@ package com.example.japantravelplanner.chat.service;
 /**
  * AI 답이 대화를 끊지 않게 한다.
  * 일정을 만들 준비가 되기 전에는 답이 질문으로 끝나야 하는데, AI가 "취향이 잘 전달되었습니다!"처럼
- * 끝맺어 버린 적이 있다 (10-10). 그러면 서버가 다음 질문을 붙인다.
+ * 끝맺어 버리면 서버가 다음 질문을 붙인다.
  */
 final class ReplyFlow {
 
     static final String FOLLOW_UP = "이 밖에 여행에서 꼭 하고 싶은 것이나 신경 쓰이는 점이 있으세요?";
 
+    /** 정적 메서드만 쓴다 */
     private ReplyFlow() {
     }
 

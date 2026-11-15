@@ -20,6 +20,7 @@ public class GenerationLock {
         return running.add(tripId);
     }
 
+    /** 잠금을 푼다 (작업이 끝나면 반드시, finally 에서) */
     public void release(Long tripId) {
         running.remove(tripId);
     }

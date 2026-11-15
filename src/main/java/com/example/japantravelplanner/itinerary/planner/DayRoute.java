@@ -25,6 +25,7 @@ public record DayRoute(DayZone day,
                        TravelLeg endLeg,
                        int travelMinutes) {
 
+    /** 관광지가 없는 날 (시간이 없는 날 등) */
     public static DayRoute empty(DayZone day) {
         return new DayRoute(day, List.of(), List.of(), null, List.of(), List.of(), null, 0);
     }

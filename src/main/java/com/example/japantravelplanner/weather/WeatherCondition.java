@@ -11,14 +11,17 @@ public enum WeatherCondition {
         this.label = label;
     }
 
+    /** 화면에 보여 줄 한국어 (예: 맑음) */
     public String label() {
         return label;
     }
 
+    /** 젖는 날씨인지 (비·뇌우·이슬비·눈) */
     public boolean wet() {
         return this == RAIN || this == THUNDER || this == DRIZZLE || this == SNOW;
     }
 
+    /** WMO 날씨 코드 → 종류 (모르는 코드는 UNKNOWN) */
     public static WeatherCondition of(Integer code) {
         if (code == null) return UNKNOWN;
         if (code == 0) return SUNNY;

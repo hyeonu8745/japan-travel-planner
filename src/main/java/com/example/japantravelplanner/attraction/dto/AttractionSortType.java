@@ -1,5 +1,8 @@
 package com.example.japantravelplanner.attraction.dto;
 
+/**
+ * 관광지 검색 정렬 (거리순은 위치 조건이 있어야 한다).
+ */
 public enum AttractionSortType {
     DISTANCE,   // 거리순 (위치 조건 필수)
     RATING,     // 평점순

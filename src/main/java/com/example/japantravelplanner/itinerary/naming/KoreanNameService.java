@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 장소·식당의 한국어 이름 (10-11 사용자 결정 (가)): 일정에 처음 쓰일 때 AI로 한 번 만들어 DB에 저장하고,
+ * 장소·식당의 한국어 이름: 일정에 처음 쓰일 때 AI로 한 번 만들어 DB에 저장하고,
  * 그 뒤로는 저장된 이름을 쓴다. 화면은 "한국어 + 작게 원래 이름".
  *  - Google 한국어 이름은 쓰지 않는다: 볼 때마다 요금이 들고 약관상 저장할 수 없다
  *  - 9,399곳을 미리 다 만들지 않는다: 일정에 들어간 곳(고른 곳 + 식당 다음 후보)만
@@ -102,8 +102,8 @@ public class KoreanNameService {
     }
 
     /**
-     * 후보 몇 곳의 한국어 이름 (채팅 수정에서 "이렇게 바꿀까요?"를 묻기 전, 10-11).
-     * 후보 목록 API는 이름을 만들지 않아서 迎賓館赤坂離宮처럼 원래 이름으로 물어봤다. 만든 이름은 저장된다
+     * 후보 몇 곳의 한국어 이름 (채팅 수정에서 "이렇게 바꿀까요?"를 묻기 전).
+     * 후보 목록 API 는 이름을 만들지 않으므로, 묻기 전에 여기서 만든다 (안 그러면 迎賓館赤坂離宮처럼 원래 이름으로 묻게 된다). 만든 이름은 저장된다
      * @param attractions 관광지 id → 원래 이름 (이름이 이미 있는 곳은 넘기지 않는다)
      * @param restaurants 식당 id → 원래 이름
      * @return "a12"·"r34" 키 대신 종류별 id → 한국어 이름 (만들지 못한 곳은 빠진다)
@@ -153,6 +153,7 @@ public class KoreanNameService {
         return made;
     }
 
+    /** 관광지·식당 id 를 하나의 키로 (A12, R34) */
     private static String key(char kind, Long id) {
         return kind + String.valueOf(id);
     }

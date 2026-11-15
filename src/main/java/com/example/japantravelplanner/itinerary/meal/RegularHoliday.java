@@ -35,6 +35,7 @@ public final class RegularHoliday {
     private static final Pattern PARENTHESES = Pattern.compile("\\([^)]*\\)");
     private static final Pattern SEPARATORS = Pattern.compile("[、,，・/／\\s&＆]");
 
+    /** 정적 메서드만 쓴다 */
     private RegularHoliday() {
     }
 
@@ -75,10 +76,12 @@ public final class RegularHoliday {
         return date != null && closedDays(holidayText).contains(date.getDayOfWeek());
     }
 
+    /** 글에 표시 중 하나라도 들어 있는지 */
     private static boolean containsAny(String text, List<String> markers) {
         return markers.stream().anyMatch(text::contains);
     }
 
+    /** 요일 한자 → 요일 (월火水木金土日) */
     private static DayOfWeek toDayOfWeek(char c) {
         return switch (c) {
             case '月' -> DayOfWeek.MONDAY;

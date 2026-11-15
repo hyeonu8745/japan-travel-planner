@@ -14,6 +14,9 @@ import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
+/**
+ * 여행 만들기·고치기 요청. 날짜는 최대 7일, 공항은 여행 권역의 공항만, 비행기 시각은 공항과 같이 (검증 어노테이션).
+ */
 @Getter
 @Setter
 public class TripRequestDto {
@@ -58,28 +61,31 @@ public class TripRequestDto {
     @Size(max = 500, message = "숙소 주소는 500자 이하여야 합니다.")
     private String accommodationAddress;
 
-    // 10-15 공항 (모두 선택). 공항 코드 NRT(나리타) / HND(하네다), 시각은 "HH:mm" (비행기 도착·출발 시각)
+    // 공항 (모두 선택). 공항 코드 NRT(나리타) / HND(하네다), 시각은 "HH:mm" (비행기 도착·출발 시각)
     private String arrivalAirport;
     private LocalTime arrivalFlightTime;
     private String departureAirport;
     private LocalTime departureFlightTime;
 
-    // 11-08: 공항은 여행 권역의 공항만. 지금 여행은 모두 수도권(도쿄)이라 NRT·HND (11월 확장 때 요청에 권역을 받는다)
+    // 공항은 여행 권역의 공항만. 지금 여행은 모두 수도권(도쿄)이라 NRT·HND (11월 확장 때 요청에 권역을 받는다)
     @AssertTrue(message = "공항은 NRT(나리타), HND(하네다) 중에서 골라주세요.")
     public boolean isAirportKnown() {
         return Airport.isKnownOrBlank(arrivalAirport, Region.KANTO) && Airport.isKnownOrBlank(departureAirport, Region.KANTO);
     }
 
+    /** 비행기 시각을 넣었으면 그 공항도 골랐는지 */
     @AssertTrue(message = "비행기 시각을 입력했다면 공항도 골라주세요.")
     public boolean isAirportGivenWithTime() {
         return (arrivalFlightTime == null || !isBlank(arrivalAirport))
                 && (departureFlightTime == null || !isBlank(departureAirport));
     }
 
+    /** 비어 있거나 공백뿐인지 */
     private static boolean isBlank(String s) {
         return s == null || s.isBlank();
     }
 
+    /** 종료일이 시작일보다 앞이 아닌지 (비어 있으면 @NotNull 이 따로 알린다) */
     @AssertTrue(message = "종료일은 시작일과 같거나 이후여야 합니다.")
     public boolean isDateRangeValid() {
         if (startDate == null || endDate == null) {
@@ -88,6 +94,7 @@ public class TripRequestDto {
         return !endDate.isBefore(startDate);
     }
 
+    /** 여행 기간이 최대 일수(7일) 안인지 */
     @AssertTrue(message = "여행 기간은 최대 7일입니다.")
     public boolean isWithinMaxDays() {
         if (startDate == null || endDate == null) {

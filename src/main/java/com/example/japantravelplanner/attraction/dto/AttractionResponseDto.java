@@ -10,6 +10,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * 관광지 검색 결과 한 줄. 위치 검색일 때만 거리(distanceMeters)가 있다.
+ */
 @Getter
 @Builder
 @JsonPropertyOrder({
@@ -30,6 +33,7 @@ public class AttractionResponseDto {
     private Double longitude;
     private String googleMapsUrl;     // 입장료·영업시간 등은 Google Maps에서 확인
 
+    /** 관광지 → 검색 결과 한 줄 (종류는 쉼표로 나누고, Google 지도 검색 주소를 붙인다) */
     public static AttractionResponseDto from(Attraction attraction, Integer distanceMeters) {
         Double lat = null;
         Double lng = null;
@@ -64,6 +68,7 @@ public class AttractionResponseDto {
                 .toList();
     }
 
+    /** Google 지도에서 이 장소를 여는 주소 (place_id 가 없으면 null) */
     private static String googleMapsUrl(Attraction attraction) {
         if (attraction.getPlaceId() == null) {
             return null;

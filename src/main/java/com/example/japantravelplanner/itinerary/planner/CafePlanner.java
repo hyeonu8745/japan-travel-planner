@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 오후 쉬는 시간 카페 넣기 (10-16). 하루 시각표가 다 정해진 뒤에 한 곳을 끼워 넣고 시각만 다시 계산한다.
+ * 오후 쉬는 시간 카페 넣기. 하루 시각표가 다 정해진 뒤에 한 곳을 끼워 넣고 시각만 다시 계산한다.
  * - 점심과 저녁이 모두 있는 날만 (반나절 일정·도착 날 오후 늦게 시작하는 날은 넣지 않음)
  * - 점심 뒤 ~ 저녁 앞 사이에서 앞 장소를 떠나는 시각이 14:00~16:30인 자리, 15:00에 가장 가까운 곳
  * - 앞뒤 장소의 중간 근처 카페 (RestaurantFinder.findCafe), 여행 전체에서 같은 가게는 한 번, 끼니와 같은 음식 조건(피할 음식·알레르기)
@@ -35,6 +35,7 @@ public class CafePlanner {
     private final DayScheduler dayScheduler;
     private final CafeProperties props;
 
+    /** 점심과 저녁 사이 알맞은 자리에 카페 한 곳을 넣고 시각을 다시 계산한다. 넣을 자리가 없거나 저녁이 늦어지면 그대로 */
     public ScheduledDay addBreak(ScheduledDay day, DayWindow window, TravelPoint hotel, TravelOptions options,
                                  FoodFilter filter, Set<Long> usedRestaurantIds) {
         if (!props.isEnabled() || window.isEmpty()) return day;
@@ -106,11 +107,13 @@ public class CafePlanner {
         return best;
     }
 
+    /** 그 종류 항목의 위치 (없으면 -1) */
     private static int indexOf(List<ScheduledStop> stops, StopType type) {
         for (int i = 0; i < stops.size(); i++) if (stops.get(i).type() == type) return i;
         return -1;
     }
 
+    /** 항목의 위치 (관광지면 관광지, 식당이면 식당) */
     private static TravelPoint pointOf(ScheduledStop s) {
         if (s.type() == StopType.ATTRACTION) {
             return new TravelPoint(s.name(), s.attraction().lat(), s.attraction().lng());
@@ -119,6 +122,7 @@ public class CafePlanner {
         return TravelPoint.of(s.name(), location);
     }
 
+    /** 시각 → 하루 분 */
     private static int minutes(LocalTime t) {
         return t.getHour() * 60 + t.getMinute();
     }

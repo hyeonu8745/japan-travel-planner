@@ -14,6 +14,9 @@ import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 
+/**
+ * 여행 API. 조건을 고치면(PUT) 바뀐 항목에 따라 일정 시각만 다시 계산하거나 새로 만들 준비 상태로 바꾼다 (TripEditService).
+ */
 @RestController
 @RequestMapping("/api/trips")
 @RequiredArgsConstructor
@@ -22,17 +25,20 @@ public class TripController {
     private final TripService tripService;
     private final TripEditService tripEditService;
 
+    /** 여행 만들기 (상태 CONDITIONS_SET) → 201 */
     @PostMapping
     public ResponseEntity<TripResponseDto> createTrip(@AuthenticationPrincipal Long userId,
                                                       @Valid @RequestBody TripRequestDto request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(tripService.createTrip(userId, request));
     }
 
+    /** 내 여행 목록 */
     @GetMapping
     public List<TripResponseDto> getMyTrips(@AuthenticationPrincipal Long userId) {
         return tripService.getMyTrips(userId);
     }
 
+    /** 여행 하나 (남의 여행이면 404) */
     @GetMapping("/{tripId}")
     public TripResponseDto getTrip(@AuthenticationPrincipal Long userId,
                                    @PathVariable Long tripId) {

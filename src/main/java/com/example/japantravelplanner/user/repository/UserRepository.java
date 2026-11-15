@@ -6,6 +6,9 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
+/**
+ * 회원 조회 (이메일로).
+ */
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
 

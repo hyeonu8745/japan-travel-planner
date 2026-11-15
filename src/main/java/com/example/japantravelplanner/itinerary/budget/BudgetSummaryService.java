@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 일정의 식비 요약 (10-12). 일정에 들어간 식당의 끼니별 1인 예산 범위(타베로그)를 더하고 인원을 곱해,
+ * 일정의 식비 요약. 일정에 들어간 식당의 끼니별 1인 예산 범위(타베로그)를 더하고 인원을 곱해,
  * 그 일정 버전의 환율로 원화로 바꾼 뒤 식비 예산(전체 예산 × 식비 비율)과 비교한다. 저장하지 않고 볼 때마다 계산한다.
  */
 @Service
@@ -39,6 +39,7 @@ public class BudgetSummaryService {
     private final FareProperties fareProperties;
     private final TravelProperties travelProperties;
 
+    /** 최신 일정의 식비·교통비 요약 (식비 비율은 취향 정리본, 없으면 기본 0.4) */
     @Transactional(readOnly = true)
     public BudgetSummaryDto summarize(Long userId, Long tripId) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
@@ -49,10 +50,12 @@ public class BudgetSummaryService {
         return summarize(trip, itinerary, foodRatio, fareProperties, travelProperties);
     }
 
+    /** 기본 운임·이동 설정으로 계산 (테스트용) */
     static BudgetSummaryDto summarize(Trip trip, Itinerary itinerary, double foodRatio) {
         return summarize(trip, itinerary, foodRatio, new FareProperties(), new TravelProperties());
     }
 
+    /** 요약 계산: 끼니별 1인 예산 범위 × 인원 → 원화, 식비 예산과 비교, 교통비 추정, 합계 */
     static BudgetSummaryDto summarize(Trip trip, Itinerary itinerary, double foodRatio,
                                       FareProperties fares, TravelProperties travel) {
         int travelers = trip.getTravelers() == null || trip.getTravelers() < 1 ? 1 : trip.getTravelers();
@@ -68,7 +71,7 @@ public class BudgetSummaryService {
             for (ItineraryStop stop : day.getStops()) {
                 if (stop.getType() == StopType.ATTRACTION || stop.getRestaurant() == null) continue;
                 Restaurant r = stop.getRestaurant();
-                // 쉬는 시간 카페(10-16)는 점심 예산(낮 가격), 없으면 저녁 예산으로
+                // 쉬는 시간 카페는 점심 예산(낮 가격), 없으면 저녁 예산으로
                 boolean lunch = stop.getType() == StopType.LUNCH
                         || (stop.getType() == StopType.CAFE && (r.getBudgetLunchMin() != null || r.getBudgetLunchMax() != null));
                 Integer[] range = range(lunch ? r.getBudgetLunchMin() : r.getBudgetDinnerMin(),
@@ -99,7 +102,7 @@ public class BudgetSummaryService {
                 : food.minKrw() > foodBudget ? "OVER" : "MAYBE_OVER";
         int share = tripBudget <= 0 ? 0 : (int) Math.round(food.maxKrw() * 100.0 / tripBudget);
 
-        // 10-16 교통비: 숙소로 돌아갈 때 도보 기준(30분)보다 멀면 지하철 한 구간
+        // 교통비: 숙소로 돌아갈 때 도보 기준(30분)보다 멀면 지하철 한 구간
         double walkLimit = travel.getWalkThresholdMinutes() * travel.getWalkMetersPerMinute() / travel.getWalkDetour();
         TransportEstimate transport = TransportEstimator.estimate(trip, itinerary, fares, rate, travelers,
                 walkLimit, travel.getTransitDetour());
@@ -125,10 +128,12 @@ public class BudgetSummaryService {
         return new Integer[]{Math.min(low, high), Math.max(low, high)};
     }
 
+    /** 엔 → 원 (반올림) */
     static int krw(int yen, double krwPerYen) {
         return (int) Math.round(yen * krwPerYen);
     }
 
+    /** 환율 출처 → 화면 표시 이름 */
     static String sourceLabel(String source) {
         if (source == null) return "고정 환율";
         return switch (source) {

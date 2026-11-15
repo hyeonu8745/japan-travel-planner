@@ -9,9 +9,11 @@ import java.util.List;
  */
 public final class CsvParser {
 
+    /** 정적 메서드만 쓴다 */
     private CsvParser() {
     }
 
+    /** CSV 한 줄 → 칸 목록. 따옴표 안의 쉼표는 나누지 않고, "" 는 따옴표 한 개로 읽는다 */
     public static List<String> parseLine(String line) {
         List<String> fields = new ArrayList<>();
         StringBuilder current = new StringBuilder();

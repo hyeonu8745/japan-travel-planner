@@ -10,6 +10,9 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 식당 조회. 반경 검색은 PostGIS, 조합 검색은 {@link RestaurantSearchRepository}, Google 매칭 결과·한국어 이름 저장.
+ */
 @Repository
 public interface RestaurantRepository extends JpaRepository<Restaurant, Long>, RestaurantSearchRepository {
 

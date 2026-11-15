@@ -3,6 +3,7 @@ package com.example.japantravelplanner.chat.ai;
 /** 취향 대화 단계의 시스템 프롬프트 */
 public final class PreferencePrompt {
 
+    /** 상수만 둔다 */
     private PreferencePrompt() {
     }
 

@@ -31,6 +31,7 @@ public class FoodDictionary {
     private final Map<FoodPreferenceType, List<String>> keywordsByLength =
             new EnumMap<>(FoodPreferenceType.class);
 
+    /** 기본 사전 파일(resources/data/food_dictionary.csv)을 읽는다 */
     public FoodDictionary() {
         this(new ClassPathResource(DEFAULT_PATH));
     }
@@ -52,6 +53,7 @@ public class FoodDictionary {
                 entries.get(FoodPreferenceType.AVOID).size());
     }
 
+    /** CSV(한국어 낱말, 장르들, PREFER/AVOID) 를 읽어 낱말 → 장르 표로. 비어 있으면 서버가 켜지지 않게 예외 */
     private void load(Resource resource) {
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {

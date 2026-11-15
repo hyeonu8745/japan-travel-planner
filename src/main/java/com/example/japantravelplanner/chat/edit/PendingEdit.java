@@ -28,6 +28,7 @@ record PendingEdit(String kind, int version, Long stopId, Integer day, Integer p
     record Option(Long id, String label) {
     }
 
+    /** 선택지가 여러 개라 번호로 골라야 하는지 */
     boolean needsChoice() {
         return options != null && options.size() > 1;
     }

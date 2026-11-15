@@ -34,6 +34,7 @@ public record TripChange(Impact impact, List<String> fields) {
     private static final Set<String> RETIME_FIELDS = Set.of(
             "accommodationAddress", "transportMode", "mobilityConstraints");
 
+    /** 저장된 여행과 새 요청을 비교해 바뀐 항목과 일정에 줄 영향(새로 만들기 / 시각만 / 없음)을 정한다 */
     public static TripChange between(Trip trip, TripRequestDto request) {
         List<String> fields = new ArrayList<>();
         check(fields, "startDate", trip.getStartDate(), request.getStartDate());
@@ -61,6 +62,7 @@ public record TripChange(Impact impact, List<String> fields) {
         return new TripChange(impact, List.copyOf(fields));
     }
 
+    /** 이 항목이 바뀌었는지 */
     public boolean changed(String field) {
         return fields.contains(field);
     }
@@ -70,6 +72,7 @@ public record TripChange(Impact impact, List<String> fields) {
         return String.join(", ", fields.stream().map(TripChange::label).toList());
     }
 
+    /** 필드 이름 → 화면 안내에 쓰는 한국어 이름 */
     static String label(String field) {
         return switch (field) {
             case "startDate" -> "시작일";
@@ -91,6 +94,7 @@ public record TripChange(Impact impact, List<String> fields) {
         };
     }
 
+    /** 값이 다르면 바뀐 항목에 넣는다 */
     private static void check(List<String> fields, String name, Object before, Object after) {
         if (!Objects.equals(before, after)) {
             fields.add(name);

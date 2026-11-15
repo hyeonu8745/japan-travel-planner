@@ -14,6 +14,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 식당 조합 검색 구현: 조건마다 WHERE 절을 붙이는 네이티브 SQL (거리 계산에 PostGIS). 값은 모두 바인딩 파라미터로 넣는다.
+ */
 @RequiredArgsConstructor
 public class RestaurantSearchRepositoryImpl implements RestaurantSearchRepository {
 
@@ -23,6 +26,7 @@ public class RestaurantSearchRepositoryImpl implements RestaurantSearchRepositor
 
     private final EntityManager entityManager;
 
+    /** 조건에 맞는 식당 한 페이지와 전체 개수 */
     @Override
     public Page<Restaurant> search(RestaurantSearchCondition condition) {
         Map<String, Object> params = new HashMap<>();

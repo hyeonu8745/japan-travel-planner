@@ -22,15 +22,16 @@ public class MealHistory {
     private final Map<String, Integer> groupCounts = new HashMap<>();
     private Set<String> lastGenres = Set.of();
 
+    /** 빈 기록 (뺄 식당 없음) */
     public MealHistory() {
     }
 
-    /** @param excluded 처음부터 고르지 않을 식당 (사용자가 이 여행에서 바꾼 식당, 10-12) */
+    /** @param excluded 처음부터 고르지 않을 식당 (사용자가 이 여행에서 바꾼 식당) */
     public MealHistory(Set<Long> excluded) {
         if (excluded != null) usedIds.addAll(excluded);
     }
 
-    /** 끼니 장르 흐름(앞 끼니 장르)에는 넣지 않고 "이미 고른 곳"만 (쉬는 시간 카페, 10-16) */
+    /** 끼니 장르 흐름(앞 끼니 장르)에는 넣지 않고 "이미 고른 곳"만 (쉬는 시간 카페) */
     public void recordUsedOnly(Long restaurantId) {
         if (restaurantId != null) usedIds.add(restaurantId);
     }
@@ -52,10 +53,12 @@ public class MealHistory {
                 .orElse(0);
     }
 
+    /** 이미 고른 식당 id (다시 고르지 않는다) */
     public Set<Long> usedIds() {
         return Collections.unmodifiableSet(usedIds);
     }
 
+    /** 바로 앞 끼니의 대표 장르 */
     public Set<String> lastGenres() {
         return lastGenres;
     }

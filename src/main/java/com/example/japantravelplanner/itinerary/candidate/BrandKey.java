@@ -6,7 +6,7 @@ import java.util.Set;
 
 /**
  * 같은 가게의 다른 지점을 하나로 보기 위한 이름 (관광지).
- * 10-10 여행 8 v10: "Chopsticks Studio Ginza / Shinjuku / Shibuya"가 2·5·6일차에 하나씩 들어갔다.
+ * (예: "Chopsticks Studio Ginza / Shinjuku / Shibuya"가 여러 날에 하나씩 들어가지 않게)
  * 마지막 단어가 지점 표시(○○店, 지역 이름)면 그 단어를 뺀 이름을 쓴다. 아니면 이름 그대로.
  */
 public final class BrandKey {
@@ -17,11 +17,12 @@ public final class BrandKey {
             "ikebukuro", "omotesando", "tokyo", "銀座", "新宿", "渋谷", "浅草", "原宿", "秋葉原", "上野", "六本木",
             "お台場", "池袋", "表参道", "東京");
 
+    /** 정적 메서드만 쓴다 */
     private BrandKey() {
     }
 
     /**
-     * 띄어쓰기 없이 지역 이름이 붙은 지점 ("忍者体験カフェ原宿" ↔ "忍者体験カフェ浅草", 10-11 여행 8 v12).
+     * 띄어쓰기 없이 지역 이름이 붙은 지점 ("忍者体験カフェ原宿" ↔ "忍者体験カフェ浅草").
      * 일본어 지역 이름으로 끝나고 앞부분이 3글자 이상일 때만 뺀다 ("新宿御苑", "浅草寺"처럼 지역 이름으로 끝나지 않으면 그대로)
      */
     static String withoutGluedArea(String name) {
@@ -34,6 +35,7 @@ public final class BrandKey {
         return name;
     }
 
+    /** 관광지 이름 → 지점 표시를 뺀 가게 이름 (마지막 단어가 ○○店이나 지역 이름이면 뺀다) */
     public static String of(String name) {
         if (name == null) return "";
         String[] tokens = name.trim().split("\\s+");

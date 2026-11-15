@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 로그인 무차별 대입 막기 (11-15 보안 1-1).
+ * 로그인 무차별 대입 막기.
  * 같은 이메일 + 같은 IP 로 연속 maxFailures 번 틀리면 lockMinutes 분 동안 맞는 비밀번호도 받지 않는다.
  * 마지막 실패에서 lockMinutes 가 지나면 횟수를 처음부터 센다. 성공하면 바로 지운다.
  * 서버 한 대라 메모리에 둔다 (서버를 여러 대로 늘리면 Redis 로 옮긴다, GenerationLock 과 같은 한계).
@@ -26,6 +26,10 @@ public class LoginAttemptLimiter {
     private final Clock clock;
     private final Map<String, Attempt> attempts = new ConcurrentHashMap<>();
 
+    /**
+     * @param props 실패 횟수·막는 시간 설정
+     * @param clock 서버 시계 (테스트에서 시간을 고정·이동할 수 있게)
+     */
     public LoginAttemptLimiter(LoginAttemptProperties props, Clock clock) {
         this.props = props;
         this.clock = clock;
@@ -46,6 +50,7 @@ public class LoginAttemptLimiter {
         }
     }
 
+    /** 로그인 실패 한 번 기록. 마지막 실패에서 막는 시간이 지났으면 1부터 다시 센다 */
     public void recordFailure(String email, String ip) {
         Instant now = clock.instant();
         if (attempts.size() >= CLEANUP_THRESHOLD) {
@@ -55,22 +60,27 @@ public class LoginAttemptLimiter {
                 a == null || expired(a, now) ? new Attempt(1, now) : new Attempt(a.failures() + 1, now));
     }
 
+    /** 로그인 성공: 그 이메일 + IP 의 실패 기록을 지운다 */
     public void recordSuccess(String email, String ip) {
         attempts.remove(key(email, ip));
     }
 
+    /** 기록 개수 (테스트용) */
     int size() {
         return attempts.size();
     }
 
+    /** 마지막 실패에서 막는 시간이 다 지났는지 */
     private boolean expired(Attempt a, Instant now) {
         return !now.isBefore(a.lastFailure().plus(lockDuration()));
     }
 
+    /** 막는 시간 (설정의 분) */
     private Duration lockDuration() {
         return Duration.ofMinutes(props.getLockMinutes());
     }
 
+    /** 기록 키: 이메일 + IP */
     private static String key(String email, String ip) {
         return email + "|" + (ip == null ? "" : ip);
     }

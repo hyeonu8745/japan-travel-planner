@@ -7,9 +7,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 취향 대화를 서버가 끝낼 때 (10-16).
- * AI가 ready_to_generate를 계속 false로 두고 이미 들은 분위기·음식을 다시 묻는 바람에
- * 14번을 답해도 "일정을 만들어드릴까요?"가 나오지 않은 적이 있다 (여행 조건 4박 5일, 프론트 테스트).
+ * 취향 대화를 서버가 끝낼 때.
+ * AI 가 ready_to_generate 를 계속 false 로 두고 이미 들은 분위기·음식을 다시 물으면 대화가 끝나지 않는다.
  * 그래서 AI 판단과 별도로, 이만큼 들었으면 서버가 생성 준비로 넘긴다. 도착·출발 시각은 몰라도 기본값으로 만든다.
  */
 final class ReadyCheck {
@@ -22,6 +21,7 @@ final class ReadyCheck {
     private static final Set<ConstraintCategory> FOOD = Set.of(ConstraintCategory.FOOD_PREFER, ConstraintCategory.FOOD_AVOID);
     private static final Set<ConstraintCategory> FEEL = Set.of(ConstraintCategory.ATMOSPHERE, ConstraintCategory.MOBILITY);
 
+    /** 정적 메서드만 쓴다 */
     private ReadyCheck() {
     }
 

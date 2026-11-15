@@ -27,6 +27,7 @@ public class PosterImageClient {
     private final JsonMapper jsonMapper;
     private final RestClient restClient;
 
+    /** OpenAI 이미지 API 클라이언트 (연결 10초, 응답은 설정한 시간까지. 그림 한 장에 수십 초) */
     public PosterImageClient(OpenAiProperties openAi, PosterProperties props, JsonMapper jsonMapper) {
         this.props = props;
         this.jsonMapper = jsonMapper;
@@ -68,6 +69,7 @@ public class PosterImageClient {
         }
     }
 
+    /** 응답 JSON 의 base64 그림 → PNG 바이트. 비어 있으면 AiServiceException */
     static byte[] parse(JsonMapper mapper, String response) {
         if (response == null || response.isBlank()) throw new AiServiceException("포스터 이미지 응답이 비어 있어요.", null);
         JsonNode data = mapper.readTree(response).path("data");

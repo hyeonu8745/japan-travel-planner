@@ -8,6 +8,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 @Configuration
 public class PosterConfig {
 
+    /** 포스터 그리기 전용 스레드 풀 (동시에 그릴 장 수 = 설정 parallel, 대기 50장) */
     @Bean(name = "posterExecutor")
     public ThreadPoolTaskExecutor posterExecutor(PosterProperties props) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

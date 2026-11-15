@@ -26,7 +26,7 @@ public class KoreanNameProperties {
 
     /**
      * true면 고급 모델(gpt-5.6-terra)로 만든다. 한자 읽기가 더 정확하지만 느리고 비싸다 (이름마다 한 번만 만들어서 저장).
-     * 10-11 여행 8: 기본 모델이 増上寺를 "조우장사"(한국 한자음), Chopsticks를 "초밥"(뜻 번역)으로 만들었다
+     * (기본 모델은 増上寺를 "조우장사"(한국 한자음)처럼 읽거나 Chopsticks 를 "초밥"처럼 뜻으로 옮길 때가 있다)
      */
     private boolean useAdvancedModel = false;
 }

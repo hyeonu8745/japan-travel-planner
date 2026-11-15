@@ -4,7 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * 교통비 추정 결과 (10-16, 식비 요약 응답의 transport). 금액은 엔, 원은 그 일정 버전의 환율로.
+ * 교통비 추정 결과 (식비 요약 응답의 transport). 금액은 엔, 원은 그 일정 버전의 환율로.
  *
  * @param perPerson  1인 교통비 (지하철 + 공항)
  * @param total      인원 전체

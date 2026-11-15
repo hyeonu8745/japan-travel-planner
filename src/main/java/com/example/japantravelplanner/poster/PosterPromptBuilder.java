@@ -15,12 +15,13 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * 일정 → 이미지 AI에 보낼 글 (10-12). 서버가 정한 글자(제목, DAY, 장소 이름, 시각)를 그대로 쓰게 하고
+ * 일정 → 이미지 AI에 보낼 글. 서버가 정한 글자(제목, DAY, 장소 이름, 시각)를 그대로 쓰게 하고
  * 목록에 없는 장소·글자를 넣지 않게 한다 (계산은 서버, AI는 그리기만 — 하루 설명과 같은 원칙).
  * 장소 이름은 한국어 이름(없으면 원래 이름), 식당은 음식 종류(장르 한국어 이름)로 쓴다.
  */
 public final class PosterPromptBuilder {
 
+    /** 정적 메서드만 쓴다 */
     private PosterPromptBuilder() {
     }
 
@@ -28,12 +29,13 @@ public final class PosterPromptBuilder {
     public record PageSpec(int pageNo, PosterPageKind kind, String size, String prompt) {
     }
 
+    /** 기본 옵션(수채화, 캐릭터 없음)으로 장마다 그림 지시를 만든다 */
     public static List<PageSpec> build(ItineraryResponseDto itinerary, String title, LocalDate startDate,
                                        PosterProperties props) {
         return build(itinerary, title, startDate, props, PosterOptions.DEFAULT);
     }
 
-    /** 10-14: 모든 장을 A4 비율 한 크기로 (인쇄 여백 없게), 스타일·캐릭터는 모든 장에 같게 */
+    /** 모든 장을 A4 비율 한 크기로 (인쇄 여백 없게), 스타일·캐릭터는 모든 장에 같게 */
     public static List<PageSpec> build(ItineraryResponseDto itinerary, String title, LocalDate startDate,
                                        PosterProperties props, PosterOptions options) {
         PosterOptions opt = options == null ? PosterOptions.DEFAULT : options;
@@ -59,6 +61,7 @@ public final class PosterPromptBuilder {
         return pages;
     }
 
+    /** 날 목록을 size 개씩 나눈다 (지도 한 장·상세 한 장에 넣을 날) */
     private static List<List<DayDto>> chunks(List<DayDto> days, int size) {
         int n = Math.max(1, size);
         List<List<DayDto>> result = new ArrayList<>();
@@ -70,6 +73,7 @@ public final class PosterPromptBuilder {
 
     // ===================== 1장: 지도 포스터 =====================
 
+    /** 지도 포스터 한 장의 그림 지시: 스타일, 제목, 날마다 지역·장소 이름, 계절 분위기, 지켜야 할 규칙 */
     static String cover(List<DayDto> days, String heading, String season, int pageNo, PosterProperties props,
                         PosterOptions opt) {
         StringBuilder sb = new StringBuilder();
@@ -106,6 +110,7 @@ public final class PosterPromptBuilder {
         return List.copyOf(labels);
     }
 
+    /** 지도 포스터에 넣을 하루 장소: 많으면 식당을 줄인다 (저녁 하나는 남긴다) */
     static List<StopDto> coverStops(DayDto day, int max) {
         List<StopDto> list = new ArrayList<>(day.stops());
         List<StopDto> meals = list.stream().filter(s -> s.type() != StopType.ATTRACTION).toList();
@@ -126,7 +131,7 @@ public final class PosterPromptBuilder {
 
     /**
      * 그림 힌트: 원래 이름(일본어 등)과 종류. 한국어 이름만 주면 엉뚱하게 그린다
-     * (10-12 첫 포스터: "슛세노 이시단"(出世の石段, 신사 돌계단)을 스테이크 접시로 그렸다)
+     * (예: "슛세노 이시단"만 주면 出世の石段(신사 돌계단)을 음식 접시로 그릴 수 있다)
      */
     static String drawingHint(StopDto s) {
         if (s.type() != StopType.ATTRACTION) {
@@ -140,6 +145,7 @@ public final class PosterPromptBuilder {
 
     // ===================== 2장~: 상세 일정표 =====================
 
+    /** 상세 일정표 한 장의 그림 지시: 시각·장소 이름·짧은 설명을 그대로 적게 한다 */
     static String detail(List<DayDto> days, String title, String season, int pageNo, int detailPages, boolean last,
                          PosterOptions opt) {
         StringBuilder sb = new StringBuilder();
@@ -167,6 +173,7 @@ public final class PosterPromptBuilder {
         return sb.toString();
     }
 
+    /** 상세 일정표 줄 옆의 짧은 메모 (식당은 "점심 · 식당 이름", 관광지는 "종류 · 체류 분") */
     static String note(StopDto s) {
         String meal = switch (s.type()) {
             case LUNCH -> "점심";
@@ -185,7 +192,7 @@ public final class PosterPromptBuilder {
     // ===================== 공통 =====================
 
     /**
-     * 캐릭터 (10-14). 10-12에는 병아리 마스코트를 고정으로 넣었지만 빼기로 했다.
+     * 캐릭터 (고정 마스코트는 두지 않는다).
      * 사용자가 설명을 주면 그 설명으로 새로 그린 캐릭터를 모든 장에 같게, 없으면 AI가 자유롭게 꾸민다.
      * 사용자 글은 따옴표 안의 "설명"으로만 쓰고 지시로 따르지 않게 한다. 기존 캐릭터·브랜드를 닮지 않게 한다
      */
@@ -199,6 +206,7 @@ public final class PosterPromptBuilder {
                 + "This character" + action + ".";
     }
 
+    /** 모든 장에 공통인 그림 규칙 (같은 스타일, 읽기 쉬운 한글, 실제 사람·저작권 캐릭터 금지) */
     static String drawingRules(PosterOptions opt) {
         return "\nSTYLE: " + opt.style().prompt() + ", warm and friendly, the same style on every page, "
                 + "clean readable Korean typography in rounded handwriting style, high legibility, no photorealism, "
@@ -221,15 +229,18 @@ public final class PosterPromptBuilder {
         return displayName(s);
     }
 
+    /** 그림에 쓸 장소 이름 (한국어 이름이 있으면 그것, 따옴표는 지운다) */
     static String displayName(StopDto s) {
         String name = s.nameKo() != null && !s.nameKo().isBlank() ? s.nameKo() : s.name();
         return name.replace("\"", "").strip();
     }
 
+    /** 그날 지역 이름 (하루 두 지역이면 둘 다) */
     static String areaLabel(DayDto day) {
         return day.zonesLabel() != null ? day.zonesLabel() : day.zoneLabel();
     }
 
+    /** 날짜 표시 (예: 12/3 (수)) */
     static String dateLabel(LocalDate date) {
         if (date == null) return "";
         return date.getMonthValue() + "/" + date.getDayOfMonth() + " (" + date.getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.KOREAN) + ")";
@@ -246,6 +257,7 @@ public final class PosterPromptBuilder {
         return modes.isEmpty() ? null : String.join(", ", modes);
     }
 
+    /** 여행 달에 맞는 계절 분위기 (영어, 그림 지시용) */
     static String season(LocalDate start) {
         int m = start == null ? LocalDate.now().getMonthValue() : start.getMonthValue();
         if (m == 12 || m <= 2) return "winter, light snow, cozy scarves";

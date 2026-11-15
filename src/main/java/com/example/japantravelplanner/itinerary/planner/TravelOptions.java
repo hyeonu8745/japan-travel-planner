@@ -14,15 +14,14 @@ import java.util.regex.Pattern;
 /**
  * 여행 하나의 이동 방식. 동선·끼니·시간 계산이 모두 같은 값을 쓰도록 한 곳에서 정한다.
  *
- * 걷는 기준 (10-10 사용자 결정: 기본은 30분까지 걷는다, 가까운 곳을 원하면 예전처럼 좁게)
+ * 걷는 기준 (기본은 30분까지 걷는다, 가까운 곳을 원하면 예전처럼 좁게)
  *  1. 조건 입력에 이동 제약이 있으면 짧게 (relaxed, 가까운 곳 위주)
- *     여유 속도는 하루 장소 수·체류 시간만 줄이고 이동 범위는 기본과 같다 (10-10 사용자 결정 (나):
- *     "여유롭게"는 덜 바쁘게이지 가까운 곳만이 아니다. 여행 8이 여유 속도라 1km 남짓도 대중교통이 됐다)
+ *     여유 속도는 하루 장소 수·체류 시간만 줄이고 이동 범위는 기본과 같다
+ *     ("여유롭게"는 덜 바쁘게이지 가까운 곳만이 아니다)
  *  2. 대화의 이동 조건에 "N분 정도 걸어서"처럼 시간이 있으면 그 시간 (10~40분, 기본보다 짧으면 가까운 곳 위주)
  *  3. 대화에서 가까운 곳·적게 걷기·계단·체력 이야기가 있으면 짧게 (가까운 곳 위주)
  *  4. 그 밖에는 기본 (30분, 지역 안에서 넓게)
- * 예전에는 대화에 이동 조건이 하나라도 있으면 무조건 짧게 해서, "30분 정도 거리면 걸어서 다니고 싶어"(여행 8)가
- * 오히려 도보 10분으로 처리됐다.
+ * 이동 조건이 있다고 무조건 짧게 하지 않는다 ("30분 정도 거리면 걸어서 다니고 싶어"는 오히려 길게 걷겠다는 뜻).
  *
  * @param mode                 기본 이동수단 (대중교통 또는 렌트카)
  * @param walkThresholdMinutes 이 시간 이내는 걸어감
@@ -59,10 +58,12 @@ public record TravelOptions(LegMode mode, int walkThresholdMinutes, boolean comp
         this(mode, walkThresholdMinutes, false, null);
     }
 
+    /** 대화에서 걷는 시간을 따로 말하지 않았을 때 */
     public TravelOptions(LegMode mode, int walkThresholdMinutes, boolean compact) {
         this(mode, walkThresholdMinutes, compact, null);
     }
 
+    /** 여행 조건과 대화의 이동 조건으로 이동 방식·걷는 기준을 정한다 */
     public static TravelOptions of(Trip trip, List<PreferenceConstraint> constraints, TravelProperties props) {
         LegMode mode = trip.getTransportMode() == TransportMode.RENTAL_CAR ? LegMode.DRIVE : LegMode.TRANSIT;
 
@@ -93,6 +94,7 @@ public record TravelOptions(LegMode mode, int walkThresholdMinutes, boolean comp
                 : new TravelOptions(mode, props.getWalkThresholdMinutes(), false, dailyWalk);
     }
 
+    /** 가까운 곳·적게 걷기를 원하는 말이 있는지 (계단, 체력, 무릎 등) */
     static boolean wantsGentle(String text) {
         if (text == null) return false;
         return GENTLE_WORDS.stream().anyMatch(text::contains);

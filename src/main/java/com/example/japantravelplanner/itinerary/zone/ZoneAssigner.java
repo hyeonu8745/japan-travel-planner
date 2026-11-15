@@ -13,6 +13,7 @@ public class ZoneAssigner {
 
     static final double MAX_DISTANCE_M = TripZone.MAX_DISTANCE_M;
 
+    /** 가장 가까운 지역 (어느 지역 중심에서도 3km 를 넘으면 빈 값) */
     public Optional<TripZone> assign(double lat, double lng) {
         return TripZone.nearest(lat, lng);
     }

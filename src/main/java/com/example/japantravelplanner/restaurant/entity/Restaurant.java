@@ -8,6 +8,10 @@ import org.locationtech.jts.geom.Point;
 
 import java.time.LocalDateTime;
 
+/**
+ * 식당 ({@code restaurants}): 타베로그 데이터(이름·장르·평점·리뷰 수·예산 글자·휴일·주소·가까운 역)와 좌표.
+ * 예산 글자는 숫자 범위(budgetDinnerMin·Max 등)로도 둔다. Google 과 맞춰 본 결과는 place ID 와 상태만 저장한다 (약관).
+ */
 @Entity
 @Table(name = "restaurants")
 @Getter
@@ -98,7 +102,7 @@ public class Restaurant {
     @Column(name = "google_matched_at")
     private LocalDateTime googleMatchedAt;
 
-    // 한국어 이름 (일정에 처음 쓰일 때 AI로 한 번 만들어 저장, 10-11). null = 아직 없음 → 화면은 원래 이름
+    // 한국어 이름 (일정에 처음 쓰일 때 AI로 한 번 만들어 저장). null = 아직 없음 → 화면은 원래 이름
     @Column(name = "name_ko", length = 200)
     private String nameKo;
 
@@ -130,12 +134,14 @@ public class Restaurant {
         this.googleMatchedAt = matchedAt;
     }
 
+    /** 처음 저장할 때 만든·고친 시각 */
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
 
+    /** 고칠 때마다 고친 시각 */
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();

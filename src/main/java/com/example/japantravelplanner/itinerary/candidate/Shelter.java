@@ -7,7 +7,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 비를 피할 수 있는 곳인지 (10-16 비 오는 날 대안). 관광지 종류(Google types)로만 판단한다.
+ * 비를 피할 수 있는 곳인지 (비 오는 날 대안). 관광지 종류(Google types)로만 판단한다.
  * - INDOOR: 박물관·미술관, 백화점·쇼핑몰·상점, 수족관, 게임센터, 전망대(실내 전망실), 영화관 등
  * - OUTDOOR: 공원·정원, 동물원·놀이공원, 신사·절, 기념비·명소 등 (실내 종류가 섞여 있지 않을 때)
  * - UNKNOWN: 거리·시장·관광 명소처럼 둘 다 아니거나 섞인 곳 → 비 오는 날 대안에서 바꾸지 않는다 (원칙 6: 불확실하면 그대로)
@@ -30,6 +30,7 @@ public enum Shelter {
             "park", "garden", "botanical_garden", "national_park", "zoo", "amusement_park",
             "buddhist_temple", "shinto_shrine");
 
+    /** 관광지가 실내·실외인지 Google 종류로 판단 (실내 종류가 있어도 주로 실외인 종류(공원 등)가 있으면 실외, 모르면 UNKNOWN) */
     public static Shelter of(Attraction attraction) {
         if (attraction == null || attraction.getTypes() == null) return UNKNOWN;
         Set<String> types = Arrays.stream(attraction.getTypes().split(","))

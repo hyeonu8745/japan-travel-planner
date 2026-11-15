@@ -21,6 +21,7 @@ public class FoodFilterResolver {
 
     private final FoodDictionary dictionary;
 
+    /** 취향 조건(좋아함·피함·흡연) + 알레르기 → 음식 조건. 낱말은 음식 사전으로 장르로 바꾼다 */
     public FoodFilter resolve(List<PreferenceConstraint> constraints, String allergies) {
         Set<String> prefer = new LinkedHashSet<>();
         Set<String> avoid = new LinkedHashSet<>();

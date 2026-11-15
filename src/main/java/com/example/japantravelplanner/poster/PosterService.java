@@ -25,7 +25,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
- * 여행 포스터 (10-12). 1장 = 일러스트 지도 포스터, 2장부터 = 상세 일정표 (모두 이미지 AI).
+ * 여행 포스터. 1장 = 일러스트 지도 포스터, 2장부터 = 상세 일정표 (모두 이미지 AI).
  * 한 장에 수십 초가 걸려서 요청은 바로 202로 돌려주고 따로 그린다 → 화면은 GET으로 상태를 확인.
  * 그림 내용(제목·DAY·장소 이름·시각)은 서버가 일정에서 정하고, AI는 그대로 그리기만 한다 (PosterPromptBuilder).
  * 이미지 AI 호출은 트랜잭션 밖. 여행당 24시간 dailyLimit번.
@@ -47,6 +47,7 @@ public class PosterService {
     private final TransactionTemplate readTransaction;
     private final TransactionTemplate writeTransaction;
 
+    /** 그림 그리기는 별도 스레드, 저장은 TransactionTemplate 으로 나눠서 한다 */
     public PosterService(TripRepository tripRepository, ItineraryRepository itineraryRepository,
                          TripPosterRepository posterRepository, ItineraryGenerationService generationService,
                          KoreanNameService koreanNames, PosterImageClient imageClient, PosterStorage storage,
@@ -70,11 +71,12 @@ public class PosterService {
 
     // ===================== 만들기 =====================
 
+    /** 기본 옵션으로 포스터 만들기 시작 */
     public PosterResponseDto start(Long userId, Long tripId) {
         return start(userId, tripId, null);
     }
 
-    /** 10-14: 스타일·캐릭터 옵션. 잘못된 값은 잠금·횟수 확인 전에 400 */
+    /** 스타일·캐릭터 옵션. 잘못된 값은 잠금·횟수 확인 전에 400 */
     public PosterResponseDto start(Long userId, Long tripId, PosterRequestDto request) {
         PosterOptions options = PosterOptions.from(request);
         if (!props.isEnabled()) throw new ConflictException("지금은 포스터를 만들 수 없어요.");
@@ -121,6 +123,7 @@ public class PosterService {
         return get(userId, tripId);
     }
 
+    /** 한 장 그리기: 그림 생성 → 파일 저장 → 장 상태 완료. 실패하면 그 장만 실패 */
     private void render(long tripId, long posterId, int pageNo, String prompt, String size) {
         try {
             byte[] png = imageClient.generate(prompt, size);
@@ -132,11 +135,13 @@ public class PosterService {
         }
     }
 
+    /** 한 장의 상태를 바꿔 저장한다 (그림 스레드에서 부른다) */
     private void updatePage(long posterId, int pageNo, java.util.function.Consumer<TripPosterPage> change) {
         writeTransaction.executeWithoutResult(status -> posterRepository.findById(posterId).ifPresent(p ->
                 p.getPages().stream().filter(page -> page.getPageNo() == pageNo).findFirst().ifPresent(change)));
     }
 
+    /** 모든 장이 끝나면 묶음 상태를 정한다 (모두 완료 → 완료, 하나라도 실패 → 실패와 안내) */
     private void finish(long posterId) {
         writeTransaction.executeWithoutResult(status -> posterRepository.findById(posterId).ifPresent(p -> {
             long done = p.getPages().stream().filter(page -> page.getStatus() == PosterStatus.DONE).count();
@@ -151,7 +156,7 @@ public class PosterService {
     }
 
     /**
-     * 서버가 시작될 때 GENERATING으로 남은 묶음(그리던 중 재시작)을 실패로 정리한다 (10-12).
+     * 서버가 시작될 때 GENERATING으로 남은 묶음(그리던 중 재시작)을 실패로 정리한다.
      * 그림은 서버 안에서 그리므로 재시작하면 작업이 사라지고, 정리하지 않으면 20분 동안 새로 만들 수 없었다.
      * 서버가 한 대일 때의 처리 (여러 대가 되면 다른 서버가 그리는 중인 묶음까지 지우지 않게 바꿔야 한다)
      */
@@ -200,6 +205,7 @@ public class PosterService {
         return storage.read(path);
     }
 
+    /** 포스터 묶음 → 응답 (장마다 그림 주소, 그 뒤 일정이 바뀌었는지, 오늘 남은 횟수) */
     private PosterResponseDto toDto(TripPoster poster) {
         Long tripId = poster.getTrip().getId();
         int latestVersion = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId)
@@ -216,11 +222,13 @@ public class PosterService {
                 poster.getStyle() == null ? PosterStyle.WATERCOLOR : poster.getStyle(), poster.getCharacterDesc());
     }
 
+    /** 이 여행에서 24시간 안에 더 만들 수 있는 묶음 수 */
     private int remaining(Long tripId) {
         long used = posterRepository.countUsed(tripId, LocalDateTime.now().minusHours(24));
         return (int) Math.max(0, props.getDailyLimit() - used);
     }
 
+    /** 그리는 중으로 너무 오래 남았는지 (서버 재시작 등으로 끝나지 못한 묶음) */
     private boolean isStale(TripPoster poster) {
         return poster.getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(props.getStaleMinutes()));
     }

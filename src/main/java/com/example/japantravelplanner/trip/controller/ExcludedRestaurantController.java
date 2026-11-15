@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/** 사용자가 이 여행에서 바꿔서 다시 추천하지 않는 식당 (10-12) */
+/** 사용자가 이 여행에서 바꿔서 다시 추천하지 않는 식당 */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/trips/{tripId}/excluded-restaurants")
@@ -17,6 +17,7 @@ public class ExcludedRestaurantController {
 
     private final ExcludedRestaurantService service;
 
+    /** 이 여행에서 바꿔서 다시 추천하지 않는 식당 목록 */
     @GetMapping
     public List<ExcludedRestaurantDto> list(@AuthenticationPrincipal Long userId, @PathVariable Long tripId) {
         return service.list(userId, tripId);

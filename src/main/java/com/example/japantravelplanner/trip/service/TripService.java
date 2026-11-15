@@ -17,6 +17,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * 여행 만들기·목록·조회. 제목은 날짜로 만든다("도쿄 3박 4일" 등).
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -25,6 +28,7 @@ public class TripService {
     private final TripRepository tripRepository;
     private final UserRepository userRepository;
 
+    /** 여행 만들기: 제목은 날짜로, 공항 코드는 대문자로 저장, 상태는 CONDITIONS_SET */
     @Transactional
     public TripResponseDto createTrip(Long userId, TripRequestDto request) {
         User user = userRepository.findById(userId)
@@ -66,12 +70,14 @@ public class TripService {
         return "도쿄 " + nights + "박 " + (nights + 1) + "일";
     }
 
+    /** 내 여행 목록 */
     public List<TripResponseDto> getMyTrips(Long userId) {
         return tripRepository.findByUserId(userId).stream()
                 .map(TripResponseDto::from)
                 .collect(Collectors.toList());
     }
 
+    /** 내 여행 하나 (남의 여행이면 404) */
     public TripResponseDto getTrip(Long userId, Long tripId) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         return TripResponseDto.from(trip);

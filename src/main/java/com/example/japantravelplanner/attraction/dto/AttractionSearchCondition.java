@@ -34,14 +34,17 @@ public class AttractionSearchCondition {
     private int page = 0;
     private int size = 20;
 
+    /** 위치 조건(위도·경도)이 있는지 */
     public boolean hasLocation() {
         return lat != null && lng != null;
     }
 
+    /** 종류 조건이 있는지 */
     public boolean hasTypes() {
         return types != null && !types.isEmpty();
     }
 
+    /** 조건 값 검사 (리뷰 수, 위도·경도 짝, 반경, 거리순은 위치 필요, 종류 개수, 페이지 크기). 틀리면 400 */
     public void validate() {
         if (minReviews != null && minReviews < 0) {
             throw new BadRequestException("minReviews는 0 이상이어야 합니다.");

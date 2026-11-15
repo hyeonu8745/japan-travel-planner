@@ -22,6 +22,7 @@ public final class NightSpotPlanner {
     /** 이 시각보다 늦게 시작하는 날은 저녁 뒤 야경까지 넣을 시간이 없다 */
     static final LocalTime LATEST_START = LocalTime.of(18, 0);
 
+    /** 정적 메서드만 쓴다 */
     private NightSpotPlanner() {
     }
 
@@ -70,6 +71,7 @@ public final class NightSpotPlanner {
         return result;
     }
 
+    /** 그날 저녁 뒤 야경을 넣을 수 있는지 (저녁이 있고, 하루가 너무 늦게 시작하지 않는 날) */
     static boolean eligible(DayWindow window) {
         return window != null && !window.isEmpty() && window.dinner() && !window.start().isAfter(LATEST_START);
     }

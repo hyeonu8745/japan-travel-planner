@@ -32,6 +32,7 @@ public class RestaurantSearchCondition {
     private int page = 0;
     private int size = 20;
 
+    /** 위치 조건(위도·경도)이 있는지 */
     public boolean hasLocation() {
         return lat != null && lng != null;
     }

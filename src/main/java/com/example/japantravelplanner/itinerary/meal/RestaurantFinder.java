@@ -66,24 +66,24 @@ public class RestaurantFinder {
     }
 
     /**
-     * 원하는 장르만 찾는다 (채팅 수정 "2일차 저녁을 스시로", 10-11).
+     * 원하는 장르만 찾는다 (채팅 수정 "2일차 저녁을 스시로").
      * 보통 검색은 가까운 곳이 3곳 이상이면 500m에서 멈추고 예산을 넘는 곳은 빼서, 스시처럼 비싸거나 드문 장르는
-     * 1km 안에 있어도 후보에 들어오지 않았다. 그래서 예산 안에서 가장 넓은 반경까지 → 그래도 없으면 예산을 올려서 찾는다.
+     * 1km 안에 있어도 후보에 들어오지 않는다. 그래서 예산 안에서 가장 넓은 반경까지 → 그래도 없으면 예산을 올려서 찾는다.
      * 다른 조건(피할 음식, 흡연, 폐업 의심, 간식·술 위주 제외)은 보통 검색과 같다.
      */
     public List<RestaurantCandidate> findWanted(double lat, double lng, Meal meal, int maxYen, FoodFilter filter,
                                                 Set<Long> excludeIds, int limit, Set<String> wanted) {
         if (wanted == null || wanted.isEmpty()) return List.of();
-        // ① 보통 반경(1.5km까지) × 예산 단계 → ② 그래도 없으면 더 넓은 반경(2·3km) × 예산 단계 (10-11 여행 9:
-        //    "5일차 점심 장어덮밥" → 진구마에 근처 1.5km 안에 장어집이 없어 카레집만 나왔다)
+        // ① 보통 반경(1.5km까지) × 예산 단계 → ② 그래도 없으면 더 넓은 반경(2·3km) × 예산 단계
+        //    (예: "점심 장어덮밥"인데 1.5km 안에 장어집이 없을 때)
         List<RestaurantCandidate> found = findWanted(lat, lng, meal, maxYen, filter, excludeIds, limit, wanted, c -> true);
         if (found.isEmpty()) log.info("[Meal] {} 원하는 장르 {} 후보 없음", meal, wanted);
         return found;
     }
 
     /**
-     * 채팅에서 고른 식당이 "원하는 장르 넓게 찾기"의 후보가 될 수 있는 곳인지 (교체 검증용, 10-11).
-     * 그 식당의 장르로 다시 찾으면 같은 장르의 더 가까운 곳(일식 등)이 먼저 나와 1.8km 떨어진 고른 곳까지 가지 않았다.
+     * 채팅에서 고른 식당이 "원하는 장르 넓게 찾기"의 후보가 될 수 있는 곳인지 (교체 검증용).
+     * 그 식당의 장르로 다시 찾으면 같은 장르의 더 가까운 곳이 먼저 나와 멀리 있는 고른 곳까지 가지 않는다.
      * 그래서 같은 반경·예산 단계를 그 식당 하나만 놓고 따라간다
      */
     public Optional<RestaurantCandidate> findWantedOne(double lat, double lng, Meal meal, int maxYen, FoodFilter filter,
@@ -93,6 +93,7 @@ public class RestaurantFinder {
                 c -> restaurantId.equals(c.restaurant().getId())).stream().findFirst();
     }
 
+    /** 원하는 장르 찾기: 보통 반경에서 먼저, 없으면 더 넓은 반경 */
     private List<RestaurantCandidate> findWanted(double lat, double lng, Meal meal, int maxYen, FoodFilter filter,
                                                  Set<Long> excludeIds, int limit, Set<String> wanted,
                                                  java.util.function.Predicate<RestaurantCandidate> only) {
@@ -104,6 +105,7 @@ public class RestaurantFinder {
         return found;
     }
 
+    /** 원하는 장르 찾기 한 단계: 예산 단계 × 반경을 넓혀 가며 처음 나오는 곳까지 */
     private List<RestaurantCandidate> findWanted(double lat, double lng, Meal meal, int maxYen, FoodFilter filter,
                                                  Set<Long> excludeIds, int limit, Set<String> wanted,
                                                  List<Integer> radii,
@@ -128,6 +130,7 @@ public class RestaurantFinder {
         return List.of();
     }
 
+    /** 반경 안의 식당을 조건(예산·음식·흡연·휴일·이미 고른 곳)으로 걸러 점수(보정 평점 − 거리 감점 + 좋아하는 음식) 순으로 */
     private List<RestaurantCandidate> search(double lat, double lng, int radius, Meal meal, int maxYen,
                                              FoodFilter filter, Set<Long> excludeIds, LocalDate visitDate,
                                              boolean relaxed) {
@@ -166,10 +169,12 @@ public class RestaurantFinder {
         return result;
     }
 
+    /** 보정 평점: 리뷰가 적으면 주변 평균 쪽으로 끌어당긴다 (베이즈 평균) */
     static double bayesian(double rating, int reviews, double mean, int priorReviews) {
         return (reviews * rating + priorReviews * mean) / (reviews + priorReviews);
     }
 
+    /** 타베로그 장르 문자열(쉼표 구분) → 장르 집합 */
     public static Set<String> genresOf(String genreCsv) {
         if (genreCsv == null || genreCsv.isBlank()) return Set.of();
         Set<String> result = new HashSet<>();
@@ -182,7 +187,7 @@ public class RestaurantFinder {
     /**
      * 흡연 가능성이 있는 장르: ~バー(바), バル·バール(스페인식 바), 居酒屋, 立ち飲み.
      * ハンバーガー·ジュースバー·ネパール料理는 해당 없음
-     * (バル·バール를 빼먹어서 「スペイン料理,バル・バール」가 "담배 연기 싫음" 여행의 저녁으로 뽑힌 적이 있다)
+     * (バル·バール 도 넣어야 「スペイン料理,バル・バール」가 "담배 연기 싫음" 여행에서 빠진다)
      */
     static boolean isSmokyGenre(String genre) {
         if (genre.contains("ジュース")) return false;
@@ -190,7 +195,7 @@ public class RestaurantFinder {
                 || genre.contains("居酒屋") || genre.contains("立ち飲み");
     }
 
-    // ===================== 쉬는 시간 카페 (10-16) =====================
+    // ===================== 쉬는 시간 카페 =====================
 
     /** 앉아서 쉬는 곳으로 볼 대표 장르 (빵집·과자점·떡집처럼 사 가는 곳은 뺀다) */
     private static final List<String> CAFE_KEYWORDS = List.of(
@@ -204,10 +209,10 @@ public class RestaurantFinder {
     }
 
     /**
-     * 오후 쉬는 시간 카페 후보 (10-16). 반경을 넓혀가며 찾고, 평점에서 거리(km)×distancePenalty를 뺀 점수순.
+     * 오후 쉬는 시간 카페 후보. 반경을 넓혀가며 찾고, 평점에서 거리(km)×distancePenalty를 뺀 점수순.
      * 대표 장르가 카페·디저트인 곳, 폐업 의심·그날 정기 휴일 제외, 1인 예산(점심 → 없으면 저녁 상한)이 maxYen 넘는 곳 제외
      * (예산 정보가 없으면 통과 — 원칙 6). 끼니 후보처럼 흡연 장르·술집은 걸러진다(대표 장르가 카페라서).
-     * 10-16: 끼니와 같은 음식 조건(피할 음식·알레르기·담배)을 적용한다. 처음에는 빠져 있어 "디저트는 빼 주세요"에도 카페가 들어갔다
+     * 끼니와 같은 음식 조건(피할 음식·알레르기·담배)을 적용한다. 처음에는 빠져 있어 "디저트는 빼 주세요"에도 카페가 들어갔다
      */
     public List<RestaurantCandidate> findCafe(double lat, double lng, FoodFilter filter, Set<Long> excludeIds, LocalDate visitDate,
                                               List<Integer> radii, int maxYen, double distancePenalty, int limit) {
@@ -218,7 +223,7 @@ public class RestaurantFinder {
                 if (r.isExcludedByGoogleMatch()) continue;
                 if (RegularHoliday.isClosedOn(r.getHoliday(), visitDate)) continue;
                 if (!isCafeLed(r.getGenre()) || isDrinkLed(r.getGenre())) continue;
-                if (filter != null && filter.excludes(genresOf(r.getGenre()))) continue;   // 10-16: 디저트·카페를 피하거나 밀가루 알레르기 등
+                if (filter != null && filter.excludes(genresOf(r.getGenre()))) continue;   // 디저트·카페를 피하거나 밀가루 알레르기 등
                 Integer budget = r.getBudgetLunchMax() != null ? r.getBudgetLunchMax() : r.getBudgetDinnerMax();
                 if (budget != null && budget > maxYen) continue;
                 double km = GeoUtils.distanceMeters(lat, lng, r.getLocation().getY(), r.getLocation().getX()) / 1000.0;
@@ -240,6 +245,7 @@ public class RestaurantFinder {
             "クレープ", "ドーナツ", "マカロン", "プリン", "紅茶", "ジュース", "コーヒー", "団子", "せんべい",
             "ベーグル", "ベーカリー", "ラウンジ");
 
+    /** 간식 장르인지 (끼니로 고르지 않는다) */
     static boolean isSnackGenre(String genre) {
         return SNACK_KEYWORDS.stream().anyMatch(genre::contains);
     }
@@ -261,7 +267,7 @@ public class RestaurantFinder {
 
     /**
      * 술이 중심인 곳: 대표(첫 번째) 장르가 바이고, 두 번째 장르도 식사가 아닌 곳 (없거나, 바·간식·라운지).
-     * 「バー,ラウンジ,ワインバー」(호텔 라운지 바), 「バー」만 있는 곳이 여행 저녁으로 뽑힌 적이 있다.
+     * 「バー,ラウンジ,ワインバー」(호텔 라운지 바), 「バー」만 있는 곳은 저녁 식사 장소로 고르지 않는다.
      * 「バー,ビストロ」「ダイニングバー,イタリアン」처럼 두 번째가 식사면 식사하는 곳으로 보고 남긴다.
      */
     static boolean isDrinkLed(String genreCsv) {

@@ -48,6 +48,7 @@ public class TripPreference {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    /** 여행 하나의 빈 정리본 */
     public TripPreference(Trip trip) {
         this.trip = trip;
     }
@@ -65,6 +66,7 @@ public class TripPreference {
         this.summary = summary;
     }
 
+    /** 저장할 때마다 고친 시각 */
     @PrePersist
     @PreUpdate
     protected void onSave() {

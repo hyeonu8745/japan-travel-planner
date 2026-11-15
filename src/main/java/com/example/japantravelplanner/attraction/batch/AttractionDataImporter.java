@@ -23,8 +23,7 @@ import java.util.Set;
  * 관광지 CSV를 DB에 넣는다 (서버 시작 때마다).
  * DB에 없는 place_id만 추가하고, 이미 있는 관광지는 건드리지 않는다.
  *  - 일정 항목(itinerary_stops)이 관광지 id를 참조해서, 지우고 다시 넣으면 저장된 일정·이력이 깨진다
- *  - 10-10 수집 범위를 넓힌 CSV(검색어·구 추가)를 그대로 덮어써도 새 관광지만 들어간다
- * 예전에는 한 건이라도 있으면 통째로 건너뛰어서, CSV를 바꿔도 반영되지 않았다.
+ *  - 수집 범위를 넓힌 CSV 를 그대로 덮어써도 새 관광지만 들어간다
  */
 @Component
 @RequiredArgsConstructor
@@ -39,6 +38,7 @@ public class AttractionDataImporter implements CommandLineRunner {
 
     private static final String CSV_PATH = "data/processed/attractions_tokyo.csv";
 
+    /** 서버 시작 때 CSV 를 읽어 DB 에 없는 place_id 만 넣는다 (파일이 없으면 건너뛴다) */
     @Override
     public void run(String... args) throws Exception {
         if (!Paths.get(CSV_PATH).toFile().exists()) {
@@ -84,6 +84,7 @@ public class AttractionDataImporter implements CommandLineRunner {
         }
     }
 
+    /** CSV 한 줄 → 관광지 (칸 순서: 구, place_id, 이름, 주소, 위도, 경도, 평점, 리뷰 수, 종류) */
     private Attraction mapRowToAttraction(String[] row) {
         // CSV 컬럼 순서: ward, place_id, name, address,
         //                latitude, longitude, rating, review_cnt, types
@@ -104,6 +105,7 @@ public class AttractionDataImporter implements CommandLineRunner {
                 .build();
     }
 
+    /** 숫자 글자 → 실수 (비었거나 틀리면 null) */
     private Double parseDoubleOrNull(String s) {
         if (s == null || s.isBlank()) return null;
         try {
@@ -113,6 +115,7 @@ public class AttractionDataImporter implements CommandLineRunner {
         }
     }
 
+    /** 숫자 글자 → 정수 ("123.0"도 읽는다, 비었거나 틀리면 null) */
     private Integer parseIntOrNull(String s) {
         if (s == null || s.isBlank()) return null;
         try {

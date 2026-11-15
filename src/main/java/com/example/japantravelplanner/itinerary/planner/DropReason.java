@@ -11,6 +11,7 @@ public enum DropReason {
         this.label = label;
     }
 
+    /** 화면에 보여 줄 한국어 이유 */
     public String label() {
         return label;
     }

@@ -24,9 +24,11 @@ public final class NarrationInputBuilder {
 
     private static final int MAX_CONSTRAINT_CHARS = 100;
 
+    /** 정적 메서드만 쓴다 */
     private NarrationInputBuilder() {
     }
 
+    /** AI 입력 글: 여행 정보(인원·속도·관심사·취향) + 날마다 지역과 장소를 시간대와 함께 */
     public static String build(TripBrief brief, List<ScheduledDay> days, Function<String, List<String>> typeLabels) {
         StringBuilder sb = new StringBuilder();
 
@@ -105,6 +107,7 @@ public final class NarrationInputBuilder {
         return parts;
     }
 
+    /** 하루 항목 중 그 종류가 처음 나오는 위치 (없으면 -1) */
     private static int indexOf(List<ScheduledStop> stops, StopType type) {
         for (int i = 0; i < stops.size(); i++) {
             if (stops.get(i).type() == type) return i;
@@ -112,6 +115,7 @@ public final class NarrationInputBuilder {
         return -1;
     }
 
+    /** 항목 한 줄 설명 (식당은 장르, 관광지는 종류) */
     private static String describe(ScheduledStop stop, String dayPart, Function<String, List<String>> typeLabels) {
         return switch (stop.type()) {
             case LUNCH -> "점심 식당 " + nameOf(stop) + " (장르: " + genreOf(stop) + ")";
@@ -125,7 +129,7 @@ public final class NarrationInputBuilder {
         };
     }
 
-    /** 한국어 이름이 있으면 그것을 (화면 일정표와 같은 이름, 10-11). 없으면 원래 이름 */
+    /** 한국어 이름이 있으면 그것을 (화면 일정표와 같은 이름). 없으면 원래 이름 */
     static String nameOf(ScheduledStop stop) {
         String nameKo = stop.type() == StopType.ATTRACTION
                 ? stop.attraction().attraction().getNameKo()
@@ -133,9 +137,9 @@ public final class NarrationInputBuilder {
         return nameKo == null || nameKo.isBlank() ? stop.name() : nameKo;
     }
 
-    /** 장르는 서버의 한국어 이름표로 (화면 칩과 같은 이름. AI가 그때그때 옮기면 "돈카쓰"처럼 어색했다) */
+    /** 장르는 서버의 한국어 이름표로 (화면 칩과 같은 이름. AI 가 그때그때 옮기면 "돈카쓰"처럼 어색해진다) */
     private static String genreOf(ScheduledStop stop) {
-        // 대표 장르 두 개까지 ("카레·인도 카레·태국 카레"처럼 셋을 다 주면 설명에 그대로 나열했다, 10-11 v12)
+        // 대표 장르 두 개까지 ("카레·인도 카레·태국 카레"처럼 셋을 다 주면 설명에 그대로 나열한다)
         List<String> labels = GenreLabels.of(stop.meal().chosen().restaurant().getGenre());
         return labels.isEmpty() ? "정보 없음" : String.join("·", labels.subList(0, Math.min(2, labels.size())));
     }
@@ -147,6 +151,7 @@ public final class NarrationInputBuilder {
         return cleaned.length() > MAX_CONSTRAINT_CHARS ? cleaned.substring(0, MAX_CONSTRAINT_CHARS) : cleaned;
     }
 
+    /** 여행 속도 → 한국어 */
     private static String paceLabel(TravelPace pace) {
         return switch (pace) {
             case RELAXED -> "여유롭게";
@@ -155,6 +160,7 @@ public final class NarrationInputBuilder {
         };
     }
 
+    /** 관심사 → 한국어 */
     private static String interestLabel(Interest interest) {
         return switch (interest) {
             case FOOD -> "현지 음식";
@@ -164,6 +170,7 @@ public final class NarrationInputBuilder {
         };
     }
 
+    /** 취향 조건 카테고리 → 한국어 */
     private static String categoryLabel(PreferenceConstraint c) {
         return switch (c.getCategory()) {
             case FOOD_PREFER -> "먹고 싶은 음식";

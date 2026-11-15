@@ -19,6 +19,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
 
+/**
+ * 가입과 로그인.
+ * - 가입: 이메일 정규화, 중복이면 409 (거의 동시에 가입해도 DB 유일 제약에서 409)
+ * - 로그인: 시도 제한(LoginAttemptLimiter) → 비밀번호 확인 → 접근 토큰. 없는 이메일과 틀린 비밀번호는 같은 문구, 같은 응답 시간
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -30,6 +35,7 @@ public class UserService {
     private final LoginAttemptLimiter loginAttempts;
 
 
+    /** 회원가입. 이메일을 정규화하고 비밀번호는 BCrypt 로 저장한다. 같은 이메일이면 409 */
     @Transactional
     public SignupResponseDto signup(SignupRequestDto request) {
         String email = normalizeEmail(request.getEmail());
@@ -60,10 +66,10 @@ public class UserService {
                 .build();
     }
 
-    /** 이메일이 없을 때도 비밀번호 확인을 한 번 해서, 응답 시간으로 가입 여부를 알 수 없게 한다 (11-15 보안 2-9) */
+    /** 이메일이 없을 때도 비밀번호 확인을 한 번 해서, 응답 시간으로 가입 여부를 알 수 없게 한다 */
     private static final String LOGIN_FAILED = "이메일 또는 비밀번호가 올바르지 않습니다.";
 
-    /** @param clientIp 로그인 시도 제한에 쓰는 요청 주소 (11-15 보안 1-1) */
+    /** @param clientIp 로그인 시도 제한에 쓰는 요청 주소 */
     public LoginResponseDto login(LoginRequestDto request, String clientIp) {
         String email = normalizeEmail(request.getEmail());
         loginAttempts.checkAllowed(email, clientIp);
@@ -79,12 +85,13 @@ public class UserService {
         return toLoginResponse(user);
     }
 
-    /** 갱신 토큰으로 새 접근 토큰 (11-15). 그사이 사용자가 없어졌으면 다시 로그인 */
+    /** 갱신 토큰으로 새 접근 토큰. 그사이 사용자가 없어졌으면 다시 로그인 */
     public LoginResponseDto issueAccess(Long userId) {
         return userRepository.findById(userId).map(this::toLoginResponse)
                 .orElseThrow(() -> new UnauthorizedException("다시 로그인해주세요."));
     }
 
+    /** 로그인·갱신 응답: 새 접근 토큰 + 사용자 id + 닉네임 */
     private LoginResponseDto toLoginResponse(User user) {
         return LoginResponseDto.builder()
                 .accessToken(jwtTokenProvider.createToken(user.getId()))
@@ -95,6 +102,7 @@ public class UserService {
 
     private volatile String dummyHash;
 
+    /** 없는 이메일로 로그인할 때 비교에 쓰는 가짜 해시 (처음 한 번만 만든다) */
     private String dummyHash() {
         if (dummyHash == null) dummyHash = passwordEncoder.encode("tabimate-no-such-user");
         return dummyHash;

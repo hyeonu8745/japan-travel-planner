@@ -9,6 +9,7 @@ public record BudgetRange(Integer min, Integer max) {
 
     public static final BudgetRange UNKNOWN = new BudgetRange(null, null);
 
+    /** 예산 정보가 아예 없는지 */
     public boolean isUnknown() {
         return min == null && max == null;
     }

@@ -11,12 +11,12 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 교통비 추정 (10-16). Google Routes는 일본 대중교통 경로·요금을 주지 않아서(10-02 확인) 이동 시간처럼 자체 추정한다.
+ * 교통비 추정. Google Routes는 일본 대중교통 경로·요금을 주지 않아서 이동 시간처럼 자체 추정한다.
  * 대중교통 구간 거리로 지하철 거리별 운임(IC 카드, 성인)을 찾는다. 같은 거리라도 도쿄 메트로가 싸고 도에이가 비싸서
  * 둘을 최소·최대로 쓴다. 갈아타기(메트로 ↔ 도에이 ↔ JR)는 기본요금이 다시 붙어 더 나올 수 있다 (화면 안내).
- * 값은 10-16 각 운영사 운임표 기준 (도쿄 메트로·도에이 지하철 공식 사이트).
+ * 값은 각 운영사 운임표 기준 (도쿄 메트로·도에이 지하철 공식 사이트).
  *
- * 11-08 리팩터링: 교통비 계산은 도시 운임({@link CityFare})을 받는다. 지금은 도쿄 값만 있고,
+ * 교통비 계산은 도시 운임({@link CityFare})을 받는다. 지금은 도쿄 값만 있고,
  * 11월 확장 때 도시별 운임표(교통비 조사 문서)를 여기에 더한다.
  */
 @Getter
@@ -56,9 +56,14 @@ public class FareProperties {
         private int maxKm;
         private int yen;
 
+        /** 설정 파일 바인딩용 빈 생성자 */
         public Band() {
         }
 
+        /**
+         * @param maxKm 이 거리(km)까지
+         * @param yen 운임(엔)
+         */
         public Band(int maxKm, int yen) {
             this.maxKm = maxKm;
             this.yen = yen;
