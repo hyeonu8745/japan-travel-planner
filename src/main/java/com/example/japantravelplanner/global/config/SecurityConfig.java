@@ -59,7 +59,8 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // 로그인 없이 접근 가능한 경로
-                        .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login",
+                                "/api/auth/refresh", "/api/auth/logout").permitAll()
                         // 관광지·식당 상세와 사진은 부를 때마다 Google 요금이 들어서 로그인한 사용자만 (아래 공개 규칙보다 먼저 와야 한다)
                         .requestMatchers(HttpMethod.GET, "/api/attractions/*/details", "/api/attractions/*/photo",
                                 "/api/restaurants/*/details", "/api/restaurants/*/photo").authenticated()
@@ -89,6 +90,8 @@ public class SecurityConfig {
                 .toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        // 11-15 갱신 토큰 쿠키를 주고받으려면 (프론트는 credentials: include / withCredentials)
+        config.setAllowCredentials(true);
         config.setMaxAge(3600L);   // 사전 확인 결과를 브라우저가 1시간 기억
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

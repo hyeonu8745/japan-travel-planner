@@ -50,6 +50,12 @@ app:
     login:                       # 11-15 같은 이메일 + 같은 IP 로 5번 틀리면 15분 막기 (429)
       max-failures: 5
       lock-minutes: 15
+    refresh:                     # 11-15 갱신 토큰 (HttpOnly 쿠키 refresh_token, Path=/api/auth)
+      ttl-days: 7
+      max-sessions: 5            # 한 계정 동시 로그인 브라우저 수 (넘으면 가장 오래 안 쓴 브라우저 로그아웃)
+      reuse-grace-seconds: 10
+      cookie-secure: false       # 로컬은 http 라서 false. 배포(HTTPS)에서는 반드시 true
+      cookie-same-site: Lax
 
   openai:
     api-key: ${OPENAI_API_KEY}

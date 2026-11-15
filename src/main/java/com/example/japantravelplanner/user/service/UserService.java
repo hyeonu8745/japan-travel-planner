@@ -2,6 +2,7 @@ package com.example.japantravelplanner.user.service;
 
 import com.example.japantravelplanner.global.exception.BadRequestException;
 import com.example.japantravelplanner.global.exception.ConflictException;
+import com.example.japantravelplanner.global.exception.UnauthorizedException;
 import com.example.japantravelplanner.global.security.JwtTokenProvider;
 import com.example.japantravelplanner.user.dto.LoginRequestDto;
 import com.example.japantravelplanner.user.dto.LoginResponseDto;
@@ -75,10 +76,18 @@ public class UserService {
         }
         loginAttempts.recordSuccess(email, clientIp);
 
-        String token = jwtTokenProvider.createToken(user.getId(), user.getEmail());
+        return toLoginResponse(user);
+    }
 
+    /** 갱신 토큰으로 새 접근 토큰 (11-15). 그사이 사용자가 없어졌으면 다시 로그인 */
+    public LoginResponseDto issueAccess(Long userId) {
+        return userRepository.findById(userId).map(this::toLoginResponse)
+                .orElseThrow(() -> new UnauthorizedException("다시 로그인해주세요."));
+    }
+
+    private LoginResponseDto toLoginResponse(User user) {
         return LoginResponseDto.builder()
-                .accessToken(token)
+                .accessToken(jwtTokenProvider.createToken(user.getId()))
                 .userId(user.getId())
                 .nickname(user.getNickname())
                 .build();

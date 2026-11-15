@@ -54,6 +54,12 @@ public class GlobalExceptionHandler {
                 "요청 본문 형식이 올바르지 않습니다. (JSON 문법, 날짜 형식, 선택 값을 확인해주세요)", null);
     }
 
+    // 갱신 토큰 없음·만료·폐기 → 401 (11-15)
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<Map<String, String>> handleUnauthorized(UnauthorizedException e) {
+        return error(HttpStatus.UNAUTHORIZED, e.getMessage(), "다시 로그인해주세요.");
+    }
+
     // 자원 없음 → 404
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<Map<String, String>> handleNotFound(NotFoundException e) {
