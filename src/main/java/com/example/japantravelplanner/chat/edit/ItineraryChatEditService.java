@@ -9,6 +9,7 @@ import com.example.japantravelplanner.chat.entity.ChatMessage;
 import com.example.japantravelplanner.chat.entity.ChatRole;
 import com.example.japantravelplanner.chat.repository.ChatMessageRepository;
 import com.example.japantravelplanner.global.exception.AiServiceException;
+import com.example.japantravelplanner.global.exception.BadRequestException;
 import com.example.japantravelplanner.global.exception.ConflictException;
 import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.itinerary.dictionary.FoodDictionary;
@@ -385,7 +386,7 @@ public class ItineraryChatEditService {
                         pending.version());
                 case PendingEdit.ADD -> stopEditService.addAttraction(userId, tripId, pending.day(), option.id(),
                         pending.position(), pending.version());
-                default -> throw new IllegalArgumentException("알 수 없는 변경이에요.");
+                default -> throw new BadRequestException("알 수 없는 변경이에요.");
             };
             ItineraryResponseDto named = koreanNames.fill(result);
             log.info("[ChatEdit] 적용 tripId={} {} → 버전 {}", tripId, pending.kind(), named.version());

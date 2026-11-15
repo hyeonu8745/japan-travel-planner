@@ -7,7 +7,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-
 import java.util.List;
 import java.util.Optional;
 
@@ -53,10 +52,6 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, Long>, R
 
     // 위경도(location)가 아직 없는 데이터 조회 (Geocoding 배치 처리용)
     List<Restaurant> findByLocationIsNull();
-    // 리뷰 분석 표본(개발용): Google에서 찾았거나 아직 확인 전인 식당을 리뷰 많은 순으로 (한국인 리뷰가 있을 가능성이 큼)
-    @Query("select r from Restaurant r where r.googleMatchStatus is null or r.googleMatchStatus = :matched order by r.reviewCnt desc nulls last")
-    List<Restaurant> findReviewSample(@Param("matched") com.example.japantravelplanner.restaurant.entity.GoogleMatchStatus matched,
-                                      org.springframework.data.domain.Pageable pageable);
 
 
     /** 한국어 이름 저장 (이미 있으면 덮어쓰지 않는다) */

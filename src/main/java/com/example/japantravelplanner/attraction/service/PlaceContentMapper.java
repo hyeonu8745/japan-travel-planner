@@ -3,6 +3,7 @@ package com.example.japantravelplanner.attraction.service;
 import com.example.japantravelplanner.attraction.dto.AttractionDetailResponseDto.AuthorDto;
 import com.example.japantravelplanner.attraction.dto.AttractionDetailResponseDto.PhotoDto;
 import com.example.japantravelplanner.attraction.dto.AttractionDetailResponseDto.ReviewDto;
+import com.example.japantravelplanner.global.exception.BadRequestException;
 import com.example.japantravelplanner.global.google.GooglePlacesClient.AuthorAttribution;
 import com.example.japantravelplanner.global.google.GooglePlacesClient.LocalizedText;
 import com.example.japantravelplanner.global.google.GooglePlacesClient.PlaceDetails;
@@ -58,7 +59,7 @@ public final class PlaceContentMapper {
     public static void requirePhotoOf(String placeId, String photoName) {
         if (photoName == null || !PHOTO_NAME.matcher(photoName).matches()
                 || !photoName.startsWith("places/" + placeId + "/photos/")) {
-            throw new IllegalArgumentException("이 장소의 사진이 아니에요.");
+            throw new BadRequestException("이 장소의 사진이 아니에요.");
         }
     }
 

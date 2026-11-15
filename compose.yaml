@@ -7,7 +7,8 @@ services:
       - 'POSTGRES_PASSWORD=${DB_PASSWORD}'
       - 'POSTGRES_USER=${DB_USERNAME}'
     ports:
-      - '5432:5432'
+      # 11-15 보안: 이 PC 에서만 접속 (같은 와이파이의 다른 기기에서 DB 에 붙지 못하게)
+      - '127.0.0.1:5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

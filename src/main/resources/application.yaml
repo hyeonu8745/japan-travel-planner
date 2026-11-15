@@ -18,6 +18,8 @@ spring:
     baseline-version: 1
 
   jpa:
+    # 11-15 보안·성능: 응답을 다 보낼 때까지 DB 연결을 붙잡지 않는다 (DB 작업은 서비스의 트랜잭션 안에서 끝낸다)
+    open-in-view: false
     hibernate:
       # Hibernate 는 엔티티와 DB 구조가 맞는지 확인만 한다 (예전 update 는 제약을 마음대로 만들고 지우지 않았다)
       ddl-auto: validate
@@ -43,6 +45,11 @@ jwt:
 app:
   cors:
     allowed-origins: http://localhost:5173
+
+  security:
+    login:                       # 11-15 같은 이메일 + 같은 IP 로 5번 틀리면 15분 막기 (429)
+      max-failures: 5
+      lock-minutes: 15
 
   openai:
     api-key: ${OPENAI_API_KEY}

@@ -2,6 +2,7 @@ package com.example.japantravelplanner.itinerary.service;
 
 import com.example.japantravelplanner.attraction.entity.Attraction;
 import com.example.japantravelplanner.attraction.repository.AttractionRepository;
+import com.example.japantravelplanner.global.exception.BadRequestException;
 import com.example.japantravelplanner.global.exception.ConflictException;
 import com.example.japantravelplanner.global.util.GeoUtils;
 import com.example.japantravelplanner.itinerary.candidate.AttractionScorer;
@@ -129,7 +130,7 @@ public class ItineraryStopEditService {
         ItineraryDay day = found.day();
         ItineraryStop stop = found.stop();
         if (day.getStops().size() <= 1) {
-            throw new IllegalArgumentException("하루에 일정이 하나는 있어야 해요. 다른 장소로 바꾸거나 새 장소를 넣은 뒤 지워주세요.");
+            throw new BadRequestException("하루에 일정이 하나는 있어야 해요. 다른 장소로 바꾸거나 새 장소를 넣은 뒤 지워주세요.");
         }
 
         List<Slot> slots = day.getStops().stream().filter(s -> s != stop).map(Slot::of).toList();
@@ -168,10 +169,10 @@ public class ItineraryStopEditService {
             if (stopIds.stream().anyMatch(id -> !byId.containsKey(id) && versions.isInOldVersion(tripId, latest, id))) {
                 throw new ConflictException("일정이 바뀌었어요. 화면을 새로고침해주세요.");
             }
-            throw new IllegalArgumentException("이 날의 항목을 빠짐없이 한 번씩 보내주세요.");
+            throw new BadRequestException("이 날의 항목을 빠짐없이 한 번씩 보내주세요.");
         }
         if (current.stream().map(ItineraryStop::getId).toList().equals(stopIds)) {
-            throw new IllegalArgumentException("이미 이 순서예요.");
+            throw new BadRequestException("이미 이 순서예요.");
         }
 
         List<Slot> slots = stopIds.stream().map(byId::get).map(Slot::of).toList();
@@ -243,7 +244,7 @@ public class ItineraryStopEditService {
                 .map(ScoredAttraction::attraction)
                 .filter(a -> Objects.equals(a.getId(), attractionId))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("이 자리에 넣을 수 없는 관광지예요. 후보 목록에서 골라주세요."));
+                .orElseThrow(() -> new BadRequestException("이 자리에 넣을 수 없는 관광지예요. 후보 목록에서 골라주세요."));
 
         List<Slot> slots = inserted(day.getStops().stream().map(Slot::of).toList(), position,
                 Slot.attraction(added, stayOf(added, trip)));
@@ -370,7 +371,7 @@ public class ItineraryStopEditService {
 
     private static void checkPosition(ItineraryDay day, int position) {
         if (position < 0 || position > day.getStops().size()) {
-            throw new IllegalArgumentException("넣을 자리가 올바르지 않습니다.");
+            throw new BadRequestException("넣을 자리가 올바르지 않습니다.");
         }
     }
 

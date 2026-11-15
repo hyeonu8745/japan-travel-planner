@@ -1,6 +1,7 @@
 package com.example.japantravelplanner.itinerary.service;
 
 import com.example.japantravelplanner.attraction.policy.SensitivePlaces;
+import com.example.japantravelplanner.global.exception.BadRequestException;
 import com.example.japantravelplanner.global.exception.ConflictException;
 import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.global.util.GeoUtils;
@@ -182,7 +183,7 @@ public class ItineraryEditService {
         Itinerary old = itineraryRepository.findByTripIdAndVersionNo(tripId, versionNo)
                 .orElseThrow(() -> new NotFoundException("해당 버전의 일정을 찾을 수 없습니다."));
         if (old.getVersionNo() == latest.getVersionNo()) {
-            throw new IllegalArgumentException("이미 현재 버전이에요.");
+            throw new BadRequestException("이미 현재 버전이에요.");
         }
         if (hasSensitivePlace(old)) {   // 민감 장소 필터(10-13) 전에 만든 버전이면 되돌리지 않는다
             throw new ConflictException("이 버전에는 지금은 추천하지 않는 장소가 있어 되돌릴 수 없어요. 일정을 다시 만들어 주세요.");
@@ -264,12 +265,12 @@ public class ItineraryEditService {
         ItineraryStop stop = target.stop();
 
         if (Objects.equals(stop.getRestaurant().getId(), restaurantId)) {
-            throw new IllegalArgumentException("이미 이 식당으로 정해져 있어요.");
+            throw new BadRequestException("이미 이 식당으로 정해져 있어요.");
         }
         // Google에서 찾지 못했거나 폐업으로 나온 식당은 후보였더라도(저장된 대안 포함) 넣지 않는다
         Restaurant requested = restaurantRepository.findById(restaurantId).orElse(null);
         if (requested != null && requested.isExcludedByGoogleMatch()) {
-            throw new IllegalArgumentException(CLOSED_RESTAURANT_MESSAGE);
+            throw new BadRequestException(CLOSED_RESTAURANT_MESSAGE);
         }
         RestaurantCandidate chosen = findChosen(target, restaurantId);
         Restaurant replacement = chosen.restaurant();
@@ -322,7 +323,7 @@ public class ItineraryEditService {
                 return new RestaurantCandidate(saved, 0, 0, false);
             }
         }
-        throw new IllegalArgumentException("이 자리에 넣을 수 없는 식당이에요. 후보 목록에서 골라주세요.");
+        throw new BadRequestException("이 자리에 넣을 수 없는 식당이에요. 후보 목록에서 골라주세요.");
     }
 
     /** 변경 이력에 보여줄 한 줄: "DAY2 점심: ザ・カリ → つじ田" */
@@ -537,10 +538,10 @@ public class ItineraryEditService {
         ItineraryDay day = found.day();
         ItineraryStop stop = found.stop();
         if (stop.getType() == StopType.ATTRACTION) {
-            throw new IllegalArgumentException("식당(점심·저녁) 항목만 바꿀 수 있어요.");
+            throw new BadRequestException("식당(점심·저녁) 항목만 바꿀 수 있어요.");
         }
         if (stop.getType() == StopType.CAFE) {
-            throw new IllegalArgumentException("쉬는 시간 카페는 바꿀 수 없어요. 필요 없으면 빼 주세요.");
+            throw new BadRequestException("쉬는 시간 카페는 바꿀 수 없어요. 필요 없으면 빼 주세요.");
         }
 
         TripPreference preference = preferenceRepository.findByTripId(tripId).orElse(null);
@@ -576,4 +577,4 @@ public class ItineraryEditService {
 
     private record Search(Meal meal, int maxYen, TravelPoint previous, List<RestaurantCandidate> found) {
     }
-}
+}

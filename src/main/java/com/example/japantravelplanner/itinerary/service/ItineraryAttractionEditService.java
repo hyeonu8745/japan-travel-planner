@@ -2,6 +2,7 @@ package com.example.japantravelplanner.itinerary.service;
 
 import com.example.japantravelplanner.attraction.entity.Attraction;
 import com.example.japantravelplanner.attraction.repository.AttractionRepository;
+import com.example.japantravelplanner.global.exception.BadRequestException;
 import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.global.util.GeoUtils;
 import com.example.japantravelplanner.itinerary.candidate.AttractionScorer;
@@ -170,13 +171,13 @@ public class ItineraryAttractionEditService {
         ItineraryStop stop = target.stop();
 
         if (Objects.equals(stop.getAttraction().getId(), attractionId)) {
-            throw new IllegalArgumentException("이미 이 관광지로 정해져 있어요.");
+            throw new BadRequestException("이미 이 관광지로 정해져 있어요.");
         }
         Attraction replacement = findCandidates(target).stream()
                 .map(ScoredAttraction::attraction)
                 .filter(a -> Objects.equals(a.getId(), attractionId))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("이 자리에 넣을 수 없는 관광지예요. 후보 목록에서 골라주세요."));
+                .orElseThrow(() -> new BadRequestException("이 자리에 넣을 수 없는 관광지예요. 후보 목록에서 골라주세요."));
         int stay = stayOf(replacement, target);
 
         Itinerary latest = target.latest();
@@ -285,7 +286,7 @@ public class ItineraryAttractionEditService {
             RainPlan plan = planRain(userId, tripId, dayNumber);
             ItineraryVersions.checkVersion(plan.latest(), version);
             if (plan.swaps().isEmpty()) {
-                throw new IllegalArgumentException("이 날은 실내로 바꿀 관광지가 없어요.");
+                throw new BadRequestException("이 날은 실내로 바꿀 관광지가 없어요.");
             }
             Itinerary latest = plan.latest();
             Itinerary next = ItineraryVersions.next(plan.trip(), latest, ItinerarySource.EDITED,
@@ -440,7 +441,7 @@ public class ItineraryAttractionEditService {
         ItineraryDay day = found.day();
         ItineraryStop stop = found.stop();
         if (stop.getType() != StopType.ATTRACTION) {
-            throw new IllegalArgumentException("관광지 항목만 바꿀 수 있어요. 식당은 식당 교체를 이용해주세요.");
+            throw new BadRequestException("관광지 항목만 바꿀 수 있어요. 식당은 식당 교체를 이용해주세요.");
         }
         return targetFor(trip, latest, day, stop);
     }
@@ -492,4 +493,4 @@ public class ItineraryAttractionEditService {
     private record RainPlan(Trip trip, Itinerary latest, ItineraryDay day, Target base, Map<ItineraryStop, Swap> swaps,
                             List<String> kept, int outdoor, Retimed retimed) {
     }
-}
+}

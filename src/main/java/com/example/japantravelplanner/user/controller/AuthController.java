@@ -5,11 +5,11 @@ import com.example.japantravelplanner.user.dto.LoginResponseDto;
 import com.example.japantravelplanner.user.dto.SignupRequestDto;
 import com.example.japantravelplanner.user.dto.SignupResponseDto;
 import com.example.japantravelplanner.user.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -25,8 +25,9 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponseDto> login(@Valid @RequestBody LoginRequestDto request) {
-        return ResponseEntity.ok(userService.login(request));
+    public ResponseEntity<LoginResponseDto> login(@Valid @RequestBody LoginRequestDto request,
+                                                  jakarta.servlet.http.HttpServletRequest http) {
+        return ResponseEntity.ok(userService.login(request, http.getRemoteAddr()));
     }
 
     // 테스트용: 토큰 인증 확인용 엔드포인트

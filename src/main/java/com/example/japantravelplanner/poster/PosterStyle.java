@@ -1,5 +1,7 @@
 package com.example.japantravelplanner.poster;
 
+import com.example.japantravelplanner.global.exception.BadRequestException;
+
 import java.util.Locale;
 
 /** 포스터 그림 스타일 (10-14). 모든 장에 같은 스타일을 쓴다. 안 고르면 수채화 */
@@ -33,7 +35,7 @@ public enum PosterStyle {
         try {
             return valueOf(value.strip().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("포스터 스타일은 WATERCOLOR, RETRO, MINIMAL, STICKER 중에서 골라 주세요.");
+            throw new BadRequestException("포스터 스타일은 WATERCOLOR, RETRO, MINIMAL, STICKER 중에서 골라 주세요.");
         }
     }
 }

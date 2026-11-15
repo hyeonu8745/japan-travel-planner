@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.restaurant.dto;
 
+import com.example.japantravelplanner.global.exception.BadRequestException;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -38,22 +39,22 @@ public class RestaurantSearchCondition {
     /** 조건 조합이 올바른지 검사한다. 잘못되면 IllegalArgumentException. */
     public void validate() {
         if (minReviews != null && minReviews < 0) {
-            throw new IllegalArgumentException("minReviews는 0 이상이어야 합니다.");
+            throw new BadRequestException("minReviews는 0 이상이어야 합니다.");
         }
         if ((lat == null) != (lng == null)) {
-            throw new IllegalArgumentException("lat과 lng는 함께 보내야 합니다.");
+            throw new BadRequestException("lat과 lng는 함께 보내야 합니다.");
         }
         if (hasLocation() && (radius == null || radius <= 0 || radius > MAX_RADIUS)) {
-            throw new IllegalArgumentException("radius는 0 초과 " + (int) MAX_RADIUS + " 이하여야 합니다.");
+            throw new BadRequestException("radius는 0 초과 " + (int) MAX_RADIUS + " 이하여야 합니다.");
         }
         if (sort == RestaurantSortType.DISTANCE && !hasLocation()) {
-            throw new IllegalArgumentException("거리순 정렬은 lat, lng가 필요합니다.");
+            throw new BadRequestException("거리순 정렬은 lat, lng가 필요합니다.");
         }
         if (page < 0) {
-            throw new IllegalArgumentException("page는 0 이상이어야 합니다.");
+            throw new BadRequestException("page는 0 이상이어야 합니다.");
         }
         if (size < 1 || size > MAX_SIZE) {
-            throw new IllegalArgumentException("size는 1 이상 " + MAX_SIZE + " 이하여야 합니다.");
+            throw new BadRequestException("size는 1 이상 " + MAX_SIZE + " 이하여야 합니다.");
         }
     }
 }

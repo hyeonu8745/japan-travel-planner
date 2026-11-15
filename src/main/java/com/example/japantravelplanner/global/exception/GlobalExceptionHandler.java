@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.global.exception;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -11,13 +12,21 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.util.Map;
 import java.util.Objects;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // 비즈니스 검증 실패 → 400
+    // 우리가 쓴 검증 문구 → 400 (문구 그대로)
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<Map<String, String>> handleBadRequest(BadRequestException e) {
+        return error(HttpStatus.BAD_REQUEST, e.getMessage(), "잘못된 요청입니다.");
+    }
+
+    // 그 밖의 IllegalArgumentException(라이브러리의 NumberFormatException 등) → 400, 내부 문구는 로그에만 (11-15 보안 1-4)
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException e) {
-        return error(HttpStatus.BAD_REQUEST, e.getMessage(), "잘못된 요청입니다.");
+        log.warn("잘못된 요청: {}", e.toString());
+        return error(HttpStatus.BAD_REQUEST, null, "잘못된 요청입니다.");
     }
 
     // 입력값 검증 실패(@Valid), 쿼리 파라미터 타입 변환 실패 → 400
@@ -79,5 +88,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ExternalApiException.class)
     public ResponseEntity<Map<String, String>> handleExternalApi(ExternalApiException e) {
         return error(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), "외부 서비스에 일시적인 문제가 있습니다.");
+    }
+
+    // 처리하지 않은 예외 → 500, 내부 문구·스택은 로그에만 (11-15 보안 1-4)
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, String>> handleUnexpected(Exception e) throws Exception {
+        // Spring 이 상태 코드를 정해 둔 예외(없는 주소 404, 허용 안 된 메서드 405 등)는 원래대로
+        if (e instanceof org.springframework.web.ErrorResponse
+                || e instanceof org.springframework.beans.TypeMismatchException   // ?sort=abc 같은 파라미터 타입 오류 400
+                || e instanceof org.springframework.security.access.AccessDeniedException
+                || e instanceof org.springframework.security.core.AuthenticationException) {
+            throw e;
+        }
+        log.error("처리하지 못한 오류", e);
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, null, "일시적인 문제가 발생했어요. 잠시 뒤에 다시 시도해주세요.");
     }
 }

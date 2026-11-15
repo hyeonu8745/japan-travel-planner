@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.itinerary.service;
 
+import com.example.japantravelplanner.global.exception.BadRequestException;
 import com.example.japantravelplanner.global.google.GoogleGeocodingClient;
 import com.example.japantravelplanner.global.google.GoogleGeocodingClient.GeocodeResult;
 import com.example.japantravelplanner.global.util.GeoUtils;
@@ -38,13 +39,13 @@ public class AccommodationLocator {
 
         GeocodeResult result = geocodingClient.geocode(trip.getAccommodationAddress())
                 .or(() -> geocodingClient.geocode(trip.getAccommodationName() + " 東京"))
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new BadRequestException(
                         "숙소 주소를 찾지 못했어요. 여행 조건에서 숙소 이름이나 주소를 확인해주세요."));
 
         double fromTokyoStation = GeoUtils.distanceMeters(
                 TOKYO_STATION_LAT, TOKYO_STATION_LNG, result.lat(), result.lng());
         if (fromTokyoStation > MAX_DISTANCE_FROM_TOKYO_M) {
-            throw new IllegalArgumentException(
+            throw new BadRequestException(
                     "숙소가 도쿄 서비스 범위에서 너무 멀어요. 주소를 확인해주세요. (찾은 주소: " + result.formattedAddress() + ")");
         }
 
