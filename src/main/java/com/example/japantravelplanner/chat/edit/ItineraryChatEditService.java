@@ -98,6 +98,10 @@ public class ItineraryChatEditService {
     private static final Pattern DO_IT = Pattern.compile(
             "^(네|넵|예|응|어|그래|좋아|좋아요|오케이|ok)?[\\s,.!~]*((거기|그곳|그거|그걸|이거|이걸|그쪽)(로|으로|에|에다)?\\s*)?"
                     + "(그렇게\\s*)?(넣어|바꿔|빼|옮겨|해)\\s*(줘|주세요|줄래|줄래요|요|봐|봐요)?[\\s.!~]*$");
+    /** 카페 바꾸기를 말했을 때의 안내 (%d = 일차) */
+    static final String CAFE_GUIDE = "쉬는 시간 카페는 아직 다른 곳으로 바꿀 수 없어요. "
+            + "필요 없으면 \"DAY%d 카페 빼줘\"라고 말해 주세요.";
+
     private static final Pattern NO = Pattern.compile(
             "^(아니(요|오)?|아뇨|취소|됐어(요)?|괜찮아(요)?|그대로(\\s*둬(요|주세요)?)?|하지\\s*마(세요)?)[\\s.!~]*$");
     /** "2번", "1번으로 바꿔줘", "3번 할게요" (AI 를 부르지 않고 서버가 알아듣는다. AI 는 "1번으로 바꿔줘"를 다른 요청으로 읽을 수 있다) */
@@ -157,8 +161,15 @@ public class ItineraryChatEditService {
         EditCommand command = quickCommand(content, snapshot.pending());
         if (command == null) command = askAi(snapshot, content);
 
-        Outcome outcome = execute(userId, tripId, snapshot, command);
-        return writeTransaction.execute(status -> save(tripId, content, outcome));
+        Outcome outcome;
+        try {
+            outcome = execute(userId, tripId, snapshot, command);
+        } catch (BadRequestException | NotFoundException | ConflictException e) {
+            // 후보를 찾다가 수정 서비스가 거절한 경우도 오류 응답이 아니라 채팅 답으로 (사용자 말도 기록에 남는다)
+            outcome = Outcome.reply(e.getMessage());
+        }
+        Outcome reply = outcome;
+        return writeTransaction.execute(status -> save(tripId, content, reply));
     }
 
     // ===================== ① 말 → 명령 =====================
@@ -253,6 +264,10 @@ public class ItineraryChatEditService {
         if (stop == null) return Outcome.reply("어느 항목을 바꿀지 찾지 못했어요. 몇 일차의 어떤 장소인지 알려주세요.");
         String target = blankToNull(command.target());
         String where = "DAY" + stop.day() + " " + stop.kindLabel();
+        if (stop.type() == StopType.CAFE) {
+            // 쉬는 시간 카페는 아직 다른 곳으로 바꿀 수 없다 (빼기·순서 옮기기만)
+            return Outcome.reply(CAFE_GUIDE.formatted(stop.day()));
+        }
 
         List<Scored> options = new ArrayList<>();
         String kind;

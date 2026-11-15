@@ -502,4 +502,33 @@ class ItineraryChatEditServiceTest {
         assertThat(service.handle(USER_ID, TRIP_ID, "1일차에 정원 넣어줘").assistantMessage().content())
                 .isEqualTo("DAY1에 넣을 곳: 영빈관 아카사카 이궁 (정원 · 차로 16분)\n여기에 넣을까요?");
     }
+
+    @Test
+    void 카페를_바꿔달라면_오류가_아니라_빼는_방법을_안내하고_대화로_남긴다() {
+        Itinerary withCafe = itinerary(3);
+        ItineraryDay day = withCafe.getDays().get(0);
+        day.addStop(stop(105, 5, StopType.CAFE, null, Restaurant.builder().id(13L).name("喫茶店").genre("喫茶店").build()));
+        when(itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(TRIP_ID)).thenReturn(Optional.of(withCafe));
+        aiSays(command("REPLACE", "D1-5", null, null, "디저트 카페"));
+
+        ChatReplyResponseDto reply = service.handle(USER_ID, TRIP_ID, "1일차 카페 다른 데로 바꿔줘");
+
+        assertThat(reply.assistantMessage().content()).isEqualTo(ItineraryChatEditService.CAFE_GUIDE.formatted(1));
+        assertThat(reply.awaitingConfirmation()).isFalse();
+        verify(editService, never()).candidates(any(), any(), any());
+        verify(chatMessageRepository, times(2)).save(any());
+    }
+
+    @Test
+    void 후보를_찾다가_수정_서비스가_거절하면_그_문구를_채팅_답으로_돌려준다() {
+        aiSays(command("REPLACE", "D1-4", null, null, null));
+        when(editService.candidates(USER_ID, TRIP_ID, 104L))
+                .thenThrow(new com.example.japantravelplanner.global.exception.BadRequestException("식당(점심·저녁) 항목만 바꿀 수 있어요."));
+
+        ChatReplyResponseDto reply = service.handle(USER_ID, TRIP_ID, "1일차 저녁 바꿔줘");
+
+        assertThat(reply.assistantMessage().content()).isEqualTo("식당(점심·저녁) 항목만 바꿀 수 있어요.");
+        assertThat(reply.userMessage().content()).isEqualTo("1일차 저녁 바꿔줘");
+        verify(chatMessageRepository, times(2)).save(any());
+    }
 }
