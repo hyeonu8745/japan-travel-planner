@@ -2,10 +2,12 @@ package com.example.japantravelplanner.global.schema;
 
 import com.example.japantravelplanner.attraction.entity.Attraction;
 import com.example.japantravelplanner.facility.entity.Facility;
+import com.example.japantravelplanner.restaurant.entity.ChainBrand;
 import com.example.japantravelplanner.restaurant.entity.Restaurant;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -44,6 +46,26 @@ class MigrationColumnsTest {
         assertColumnsExist(Facility.class, "facilities");
     }
 
+    @Test
+    void chainBrandColumnsExistInMigrations() throws IOException {
+        assertColumnsExist(ChainBrand.class, "chain_brands");
+    }
+
+    @Test
+    void droppedColumnIsReportedMissing() {
+        String sql = """
+                create table public.t (
+                    id bigint,
+                    old character varying(10)
+                );
+                alter table public.t drop column old;
+                alter table public.t add column fresh integer;
+                """;
+        assertThat(definedFor(sql, "t", "old")).isFalse();
+        assertThat(definedFor(sql, "t", "fresh")).isTrue();
+        assertThat(definedFor(sql, "t", "id")).isTrue();
+    }
+
     private void assertColumnsExist(Class<?> entity, String table) throws IOException {
         String sql = allSql();
         List<String> missing = new ArrayList<>();
@@ -61,19 +83,25 @@ class MigrationColumnsTest {
         }
     }
 
-    /** CREATE TABLE 안에 있거나, ALTER TABLE 표 ... ADD COLUMN 칸 으로 더해졌는지 */
-    private static boolean definedFor(String sql, String table, String column) {
+    /**
+     * CREATE TABLE 안에 있거나 ALTER TABLE ... ADD COLUMN 으로 더해졌고, 그 뒤에 DROP COLUMN 으로 지워지지 않았는지.
+     * 파일 순서(V1, V2, ...)대로 마지막에 한 일을 본다
+     */
+    static boolean definedFor(String sql, String table, String column) {
+        int added = -1;
         Pattern create = Pattern.compile("create table public\\." + table + " \\((.*?)\\n\\);", Pattern.DOTALL);
         var m = create.matcher(sql);
         while (m.find()) {
-            if (Pattern.compile("(^|\\n)\\s+" + column + "\\s").matcher(m.group(1)).find()) return true;
+            if (Pattern.compile("(^|\\n)\\s+" + column + "\\s").matcher(m.group(1)).find()) added = m.start();
         }
+        int dropped = -1;
         Pattern alter = Pattern.compile("alter table public\\." + table + "\\s(.*?);", Pattern.DOTALL);
         var a = alter.matcher(sql);
         while (a.find()) {
-            if (Pattern.compile("add column " + column + "\\s").matcher(a.group(1)).find()) return true;
+            if (Pattern.compile("add column " + column + "\\s").matcher(a.group(1)).find()) added = a.start();
+            if (Pattern.compile("drop column " + column + "\\b").matcher(a.group(1)).find()) dropped = a.start();
         }
-        return false;
+        return added >= 0 && added > dropped;
     }
 
     /** @Column 이름 (없으면 필드 이름을 snake_case 로), @Embedded 안쪽 칸까지 */
@@ -86,7 +114,10 @@ class MigrationColumnsTest {
                 continue;
             }
             Column c = f.getAnnotation(Column.class);
-            if (f.isAnnotationPresent(Id.class)) {
+            JoinColumn j = f.getAnnotation(JoinColumn.class);
+            if (j != null) {
+                names.add(j.name());
+            } else if (f.isAnnotationPresent(Id.class)) {
                 names.add("id");
             } else if (c != null && !c.name().isEmpty()) {
                 names.add(c.name());

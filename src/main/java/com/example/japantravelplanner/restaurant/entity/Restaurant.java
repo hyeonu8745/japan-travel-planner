@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 
 /**
  * 식당 ({@code restaurants}): 타베로그 데이터(이름·장르·평점·리뷰 수·예산 글자·휴일·주소·가까운 역)와 좌표.
- * 확장 데이터(V4)부터 도시·출처(캐글/타베로그/체인점)·휴일 정보·가게 특징, 체인점 브랜드 칸이 있다.
+ * 확장 데이터(V4)부터 도시·출처(캐글/타베로그/체인점)·휴일 정보·가게 특징, 체인점은 브랜드(ChainBrand)를 가리킨다.
  * 예산 글자는 숫자 범위(budgetDinnerMin·Max 등)로도 둔다. Google 과 맞춰 본 결과는 place ID 와 상태만 저장한다 (약관).
  */
 @Entity
@@ -116,10 +116,6 @@ public class Restaurant {
     @Column(name = "city", length = 20)
     private City city;
 
-    // 데이터를 받은 지역 이름들 (쉼표 구분, 예: kyoto_gion_higashiyama)
-    @Column(name = "areas", length = 200)
-    private String areas;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "source", length = 10)
     private RestaurantSource source;
@@ -176,20 +172,10 @@ public class Restaurant {
     @Column(name = "standing_bar")
     private Boolean standingBar;
 
-    // 체인점 브랜드 (source=CHAIN 일 때). 예: 吉野家 / 요시노야
-    @Column(name = "brand", length = 100)
-    private String brand;
-
-    @Column(name = "brand_ko", length = 100)
-    private String brandKo;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "chain_category", length = 10)
-    private ChainCategory chainCategory;
-
-    // 체인점 장르 한국어 (예: 규동)
-    @Column(name = "genre_ko", length = 50)
-    private String genreKo;
+    // 체인점 브랜드 (source=CHAIN 일 때만). 한국어 이름·종류·장르·예산은 브랜드 표에 (V5)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "brand_id")
+    private ChainBrand brand;
 
     // 체인점 영업시간 (OSM opening_hours 형식)
     @Column(name = "opening_hours", length = 200)

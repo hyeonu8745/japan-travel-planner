@@ -64,10 +64,6 @@ public class Attraction {
     @Column(name = "city", length = 20)
     private City city;
 
-    // 데이터를 받은 지역 이름들 (쉼표 구분)
-    @Column(name = "areas", length = 200)
-    private String areas;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "kind", length = 20)
     private AttractionKind kind;
