@@ -1,0 +1,4 @@
+# 확장 데이터 가져오기 전용 (ExpansionImportRunner). 웹 서버를 띄우지 않고, 가져오기가 끝나면 종료한다
+spring:
+  main:
+    web-application-type: none
