@@ -50,6 +50,13 @@ public class GooglePlacesClient {
     static final String SEARCH_FIELD_MASK = String.join(",",
             "places.id", "places.displayName", "places.location", "places.businessStatus");
 
+    /**
+     * 관광지 평점까지 받는 검색 필드. 평점·리뷰 수는 Text Search Enterprise 등급이다 (월 무료 1,000건).
+     * 꼭 가는 곳·인기도 높은 관광지 약 400곳만 이 등급으로 한 번 받는다 (11-16)
+     */
+    static final String SEARCH_RATING_FIELD_MASK = String.join(",", SEARCH_FIELD_MASK,
+            "places.rating", "places.userRatingCount");
+
     /** 매칭은 타베로그 일본어 이름과 비교하므로 일본어 이름으로 받는다 (상세 화면용 places-language와 별개) */
     static final String SEARCH_LANGUAGE = "ja";
 
@@ -149,6 +156,18 @@ public class GooglePlacesClient {
      * @param radiusMeters 이 원 안을 우선해달라는 뜻 (밖의 결과도 올 수 있다)
      */
     public List<SearchPlace> searchText(String query, double lat, double lng, double radiusMeters, int pageSize) {
+        return search(query, lat, lng, radiusMeters, pageSize, SEARCH_FIELD_MASK);
+    }
+
+    /** 글자로 장소 검색 + 평점·리뷰 수 (Text Search Enterprise 등급, 관광지 평점 받기용) */
+    public List<SearchPlace> searchTextWithRating(String query, double lat, double lng, double radiusMeters,
+                                                  int pageSize) {
+        return search(query, lat, lng, radiusMeters, pageSize, SEARCH_RATING_FIELD_MASK);
+    }
+
+    /** 검색 요청 (받을 필드에 따라 요금 등급이 다르다) */
+    private List<SearchPlace> search(String query, double lat, double lng, double radiusMeters, int pageSize,
+                                     String fieldMask) {
         Map<String, Object> body = Map.of(
                 "textQuery", query,
                 "languageCode", SEARCH_LANGUAGE,
@@ -162,7 +181,7 @@ public class GooglePlacesClient {
                     .uri("/places:searchText")
                     .contentType(MediaType.APPLICATION_JSON)
                     .header("X-Goog-Api-Key", properties.getApiKey())
-                    .header("X-Goog-FieldMask", SEARCH_FIELD_MASK)
+                    .header("X-Goog-FieldMask", fieldMask)
                     .body(body)
                     .retrieve()
                     .body(SearchResponse.class);
@@ -245,7 +264,8 @@ public class GooglePlacesClient {
 
     /** 검색 결과 한 곳. businessStatus: OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record SearchPlace(String id, LocalizedText displayName, LatLng location, String businessStatus) {
+    public record SearchPlace(String id, LocalizedText displayName, LatLng location, String businessStatus,
+                              Double rating, Integer userRatingCount) {
 
         /** 표시 이름 글자 (없으면 null) */
         public String nameText() {

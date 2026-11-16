@@ -49,7 +49,7 @@ class RestaurantMatchServiceTest {
     }
 
     private static SearchPlace place(String id, String name) {
-        return new SearchPlace(id, new LocalizedText(name, "ja"), new LatLng(35.70, 139.70), "OPERATIONAL");
+        return new SearchPlace(id, new LocalizedText(name, "ja"), new LatLng(35.70, 139.70), "OPERATIONAL", null, null);
     }
 
     @BeforeEach

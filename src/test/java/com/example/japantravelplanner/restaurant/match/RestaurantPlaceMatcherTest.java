@@ -21,7 +21,7 @@ class RestaurantPlaceMatcherTest {
     /** 우리 좌표에서 북쪽으로 meters 떨어진 검색 결과 */
     private static SearchPlace place(String id, String name, double meters, String businessStatus) {
         return new SearchPlace(id, new LocalizedText(name, "ja"),
-                new LatLng(LAT + meters / METERS_PER_DEGREE_LAT, LNG), businessStatus);
+                new LatLng(LAT + meters / METERS_PER_DEGREE_LAT, LNG), businessStatus, null, null);
     }
 
     private static SearchPlace place(String id, String name, double meters) {
@@ -133,8 +133,8 @@ class RestaurantPlaceMatcherTest {
 
     @Test
     void 좌표나_이름이_빠진_결과는_건너뛴다() {
-        SearchPlace noLocation = new SearchPlace("x", new LocalizedText("鮨いしかわ", "ja"), null, "OPERATIONAL");
-        SearchPlace noName = new SearchPlace("y", null, new LatLng(LAT, LNG), "OPERATIONAL");
+        SearchPlace noLocation = new SearchPlace("x", new LocalizedText("鮨いしかわ", "ja"), null, "OPERATIONAL", null, null);
+        SearchPlace noName = new SearchPlace("y", null, new LatLng(LAT, LNG), "OPERATIONAL", null, null);
 
         assertThat(decide("鮨いしかわ", noLocation, noName).status()).isEqualTo(GoogleMatchStatus.NOT_FOUND);
     }

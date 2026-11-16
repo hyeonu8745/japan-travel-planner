@@ -77,3 +77,6 @@ __pycache__/
 
 ### 포스터 그림 (10-12)
 storage/
+
+### DB 백업 (11-16, build/ 밖에 둬서 gradlew clean 에 지워지지 않게. 데이터·Google 평점이 들어 있어 올리지 않는다)
+db-backup/

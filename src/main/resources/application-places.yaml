@@ -1,0 +1,4 @@
+# 관광지 Google 장소 ID·평점 받기 전용 (PlaceLookupRunner). 웹 서버를 띄우지 않고, 끝나면 종료한다
+spring:
+  main:
+    web-application-type: none

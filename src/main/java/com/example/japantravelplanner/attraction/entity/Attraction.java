@@ -1,6 +1,7 @@
 package com.example.japantravelplanner.attraction.entity;
 
 import jakarta.persistence.*;
+import com.example.japantravelplanner.restaurant.entity.GoogleMatchStatus;
 import com.example.japantravelplanner.trip.region.City;
 import com.example.japantravelplanner.trip.region.RegionConverters;
 import lombok.*;
@@ -110,6 +111,14 @@ public class Attraction {
 
     @Embedded
     private AttractionPhoto photo;
+
+    // Google 장소 확인 결과 (V6). 새 관광지의 장소 ID·평점을 받을 때 기록한다. null = 아직 확인 안 함
+    @Enumerated(EnumType.STRING)
+    @Column(name = "google_match_status", length = 20)
+    private GoogleMatchStatus googleMatchStatus;
+
+    @Column(name = "google_checked_at")
+    private LocalDateTime googleCheckedAt;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
