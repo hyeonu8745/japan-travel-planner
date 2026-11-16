@@ -3,6 +3,8 @@ package com.example.japantravelplanner.restaurant.entity;
 import jakarta.persistence.*;
 import com.example.japantravelplanner.restaurant.util.BudgetParser;
 import com.example.japantravelplanner.restaurant.util.BudgetRange;
+import com.example.japantravelplanner.trip.region.City;
+import com.example.japantravelplanner.trip.region.RegionConverters;
 import lombok.*;
 import org.locationtech.jts.geom.Point;
 
@@ -10,6 +12,7 @@ import java.time.LocalDateTime;
 
 /**
  * 식당 ({@code restaurants}): 타베로그 데이터(이름·장르·평점·리뷰 수·예산 글자·휴일·주소·가까운 역)와 좌표.
+ * 확장 데이터(V4)부터 도시·출처(캐글/타베로그/체인점)·휴일 정보·가게 특징, 체인점 브랜드 칸이 있다.
  * 예산 글자는 숫자 범위(budgetDinnerMin·Max 등)로도 둔다. Google 과 맞춰 본 결과는 place ID 와 상태만 저장한다 (약관).
  */
 @Entity
@@ -105,6 +108,92 @@ public class Restaurant {
     // 한국어 이름 (일정에 처음 쓰일 때 AI로 한 번 만들어 저장). null = 아직 없음 → 화면은 원래 이름
     @Column(name = "name_ko", length = 200)
     private String nameKo;
+
+    // ---- 확장 데이터 (V4, 11-16). 도쿄 예전 행은 source=KAGGLE·city=TOKYO 만 있고 나머지는 비어 있다 ----
+
+    // 도시 (DB에는 TOKYO 같은 이름 문자열)
+    @Convert(converter = RegionConverters.CityConverter.class)
+    @Column(name = "city", length = 20)
+    private City city;
+
+    // 데이터를 받은 지역 이름들 (쉼표 구분, 예: kyoto_gion_higashiyama)
+    @Column(name = "areas", length = 200)
+    private String areas;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source", length = 10)
+    private RestaurantSource source;
+
+    // 영업시간 원문 (타베로그 글자 그대로)
+    @Column(name = "business_hours", columnDefinition = "text")
+    private String businessHours;
+
+    // 좌표 정확도: banchi(번지) / town(동네 중심). town 이면 거리 계산이 조금 어긋날 수 있다
+    @Column(name = "geo_level", length = 10)
+    private String geoLevel;
+
+    // 좌표가 주소와 맞지 않아 보이는 식당 (데이터 정리 때 표시)
+    @Column(name = "location_suspect")
+    private Boolean locationSuspect;
+
+    // 정기 휴일 요일 (쉼표 구분, 예: TUE,WED). holiday 글자를 정리한 값
+    @Column(name = "closed_days", length = 40)
+    private String closedDays;
+
+    // 부정기 휴일도 있음 (그날 쉬는지 확실하지 않음)
+    @Column(name = "closed_irregular")
+    private Boolean closedIrregular;
+
+    // 연중무휴
+    @Column(name = "no_regular_holiday")
+    private Boolean noRegularHoliday;
+
+    // 공휴일에 쉼
+    @Column(name = "closed_on_holidays")
+    private Boolean closedOnHolidays;
+
+    // 완전 예약제 (예약 없이 못 감)
+    @Column(name = "reservation_only")
+    private Boolean reservationOnly;
+
+    // 전석 흡연
+    @Column(name = "smoking_all_seats")
+    private Boolean smokingAllSeats;
+
+    // 한국어 메뉴 있음
+    @Column(name = "korean_menu")
+    private Boolean koreanMenu;
+
+    // 타베로그 백명점
+    @Column(name = "hyakumeiten")
+    private Boolean hyakumeiten;
+
+    // 타베로그 어워드 메달 (Gold/Silver/Bronze)
+    @Column(name = "award_medal", length = 10)
+    private String awardMedal;
+
+    // 서서 마시는 가게 (다치노미)
+    @Column(name = "standing_bar")
+    private Boolean standingBar;
+
+    // 체인점 브랜드 (source=CHAIN 일 때). 예: 吉野家 / 요시노야
+    @Column(name = "brand", length = 100)
+    private String brand;
+
+    @Column(name = "brand_ko", length = 100)
+    private String brandKo;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "chain_category", length = 10)
+    private ChainCategory chainCategory;
+
+    // 체인점 장르 한국어 (예: 규동)
+    @Column(name = "genre_ko", length = 50)
+    private String genreKo;
+
+    // 체인점 영업시간 (OSM opening_hours 형식)
+    @Column(name = "opening_hours", length = 200)
+    private String openingHours;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
