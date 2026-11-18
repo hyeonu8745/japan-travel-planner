@@ -17,32 +17,38 @@ import java.util.Locale;
 public enum ReviewTag {
 
     /** 한국인·외국인이라는 이유로 차별·무시·다른 대우를 받았다는 경험 */
-    DISCRIMINATION("차별·혐한 경험", Words.DISCRIMINATION_WORDS, List.of(
+    DISCRIMINATION("차별·혐한 경험", Words.DISCRIMINATION_WORDS, List.of(), List.of(
             Rule.of(Group.negatable(Words.DISCRIMINATION_WORDS)),
             Rule.of(Group.plain(Words.NATIONALITY), Group.negatable(Words.TREATMENT)))),
 
     /** 직원 태도가 불친절하거나 무례했다는 경험 */
-    UNFRIENDLY("불친절 경험", Words.UNFRIENDLY_WORDS, List.of(
+    UNFRIENDLY("불친절 경험", Words.UNFRIENDLY_WORDS, List.of(), List.of(
             Rule.of(Group.negatable(Words.UNFRIENDLY_WORDS)),
             Rule.of(Group.plain(Words.STAFF), Group.negatable(Words.NEGATIVE_ATTITUDE)))),
 
     /** 음식·식기·가게의 청결 문제 */
-    HYGIENE("위생 문제", List.of(), List.of(
+    HYGIENE("위생 문제", List.of(), List.of(), List.of(
             Rule.of(Group.negatable(Words.HYGIENE_WORDS)),
             Rule.of(Group.plain(Words.HYGIENE_SUBJECT), Group.negatable(Words.HYGIENE_DOUBT)))),
 
     /** 한국어 메뉴, 한국어 가능 직원, 한국인 손님에게 친절함, 혼밥 편함 등 한국인 여행자에게 좋은 점 */
-    KOREAN_FRIENDLY("한국인에게 좋은 점", List.of(), List.of(
+    KOREAN_FRIENDLY("한국인에게 좋은 점", List.of(), Words.KOREAN_NOT_SUPPORT, List.of(
             Rule.of(Group.negatable(Words.KOREAN_SUPPORT)),
             Rule.of(Group.plain(Words.KOREAN_GUEST), Group.negatable(Words.WELCOME))));
 
     private final String label;
     private final List<String> denial;
+    private final List<String> excludes;
     private final List<Rule> rules;
 
-    ReviewTag(String label, List<String> denial, List<Rule> rules) {
+    /**
+     * @param denial   뒤에 부정이 붙으면 이 종류를 버리는 말
+     * @param excludes 글에 있으면 이 종류가 아닌 말 (11-18: "한국어가 많이 들렸어요"는 좋은 점이 아니다)
+     */
+    ReviewTag(String label, List<String> denial, List<String> excludes, List<Rule> rules) {
         this.label = label;
         this.denial = denial;
+        this.excludes = excludes;
         this.rules = rules;
     }
 
@@ -64,6 +70,7 @@ public enum ReviewTag {
         if (text == null) return false;
         String target = squeeze(text);
         if (denial.stream().anyMatch(word -> hasNegated(target, squeeze(word)))) return false;
+        if (excludes.stream().anyMatch(word -> target.contains(squeeze(word)))) return false;
         return rules.stream().anyMatch(rule -> rule.matches(target));
     }
 
@@ -151,7 +158,9 @@ public enum ReviewTag {
         /** 국적·외국인을 가리키는 말 (맨 "한국"은 넣지 않는다: "한국어 메뉴", "한국인 입맛"이 걸린다) */
         static final List<String> NATIONALITY = List.of(
                 "한국인", "한국 사람", "한국분", "한국 손님", "한국어로", "한국말", "한국어를", "외국인", "외국 사람", "외국 손님", "외국분", "국적",
-                "관광객", "일본인", "일본 사람", "korean", "foreign", "tourist", "韓国人", "外国人", "観光客");
+                "관광객", "일본인", "일본 사람",
+                // 11-18: "한국어 메뉴 달라고 했더니 비웃으면서" (다르게 대한 말이 같이 있어야 차별)
+                "한국어 메뉴", "korean", "foreign", "tourist", "韓国人", "外国人", "観光客");
         /** 이것만 있어도 차별 이야기로 보는 말 */
         static final List<String> DISCRIMINATION_WORDS = List.of(
                 "차별", "혐한", "인종", "差別", "嫌韓", "discriminat", "racis");
@@ -192,6 +201,10 @@ public enum ReviewTag {
         static final List<String> KOREAN_SUPPORT = List.of(
                 "한국어", "한글", "한국말", "한국분", "한국인 직원", "한국인 사장", "한국인 알바", "한국인 점원", "혼밥", "혼자 가기", "혼자서도", "혼자 오기",
                 "혼자 먹기", "혼자 방문", "1인석", "1인 좌석", "1인 메뉴", "korean menu", "韓国語", "ハングル");
+        /** 한국어가 나오지만 이용에 도움이 된 이야기가 아닌 말 (손님 이야기) */
+        static final List<String> KOREAN_NOT_SUPPORT = List.of(
+                "한국어가 많이 들", "한국어가 들리", "한국어가 들렸", "한국어도 많이 들", "한국어도 들리", "한국어도 들렸",
+                "한국말이 많이 들", "한국말이 들리", "한국말이 들렸", "한국말도 들리", "한국말도 들렸");
         /** 한국인 손님을 대한 이야기임을 나타내는 말 */
         static final List<String> KOREAN_GUEST = List.of(
                 "한국인에게", "한국인한테", "한국인 손님", "한국 손님", "한국 사람에게", "한국 사람한테", "한국인이라고", "한국에서 왔", "한국인인 걸", "한국분들에게",
@@ -202,7 +215,9 @@ public enum ReviewTag {
 
         /** 이 글자 수 안에 아래 부정 말이 있으면 부정으로 본다 ("불친절하다느껴지진않"까지 닿게 8) */
         static final int NEGATION_WINDOW = 8;
-        static final List<String> NEGATIONS = List.of("지않", "진않", "지는않", "지도않", "건아니", "것은아니", "게아니", "은아니", "는아니", "도아니");
+        static final List<String> NEGATIONS = List.of("지않", "진않", "지는않", "지도않", "건아니", "것은아니", "게아니", "은아니", "는아니", "도아니",
+                // 11-18: "다르게 대하는 건 전혀 없었어요", "더러울 줄 알았는데 깔끔했어요"
+                "전혀없", "하나도없", "번도없", "건없", "일은없", "적은없", "줄알았");
 
         /** "없"·"못"은 흔해서 바로 뒤(5글자)만 본다 ("한글 메뉴는 없어요", "한국어를 못하는") */
         static final int NEAR_NEGATION_WINDOW = 5;

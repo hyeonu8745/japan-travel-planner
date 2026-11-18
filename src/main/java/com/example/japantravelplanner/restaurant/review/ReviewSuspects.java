@@ -51,6 +51,33 @@ final class ReviewSuspects {
     }
 
     /**
+     * 다시 물어볼 문장인지. 종류 규칙(ReviewTag.supportedBy)에 맞고, 아래가 아니어야 한다 (11-18 규칙 평가):
+     * 남의 후기·소문을 옮기거나 걱정만 한 문장("불친절하다는 후기가 많던데", "차별당할까 걱정했는데"),
+     * 그런 일이 없었다고 쓴 문장("전혀 그런 일 없었어요"), 차별 문장의 좋은 점("한국어로 주문하자마자 무시").
+     * 다시 묻기에서만 쓴다. AI가 1차에서 찾은 것을 확인할 때는 supportedBy 만 본다 (실제 경험을 버리지 않게)
+     */
+    static boolean suspicious(ReviewTag tag, String sentence) {
+        if (!tag.supportedBy(sentence)) return false;
+        String target = ReviewTag.squeeze(sentence);
+        if (tag.caution() && (containsAny(target, HEARSAY) || containsAny(target, DENIED))) return false;
+        // "한국어 메뉴는 있었지만 점원이 퉁명" 처럼 좋은 점과 나쁜 일을 나눠 쓴 문장은 둘 다 물어본다
+        boolean contrast = target.contains("지만") || target.contains("는데");
+        return !(tag == ReviewTag.KOREAN_FRIENDLY && !contrast && ReviewTag.DISCRIMINATION.supportedBy(sentence));
+    }
+
+    /** 남의 말을 옮기거나 걱정만 한 말 (띄어쓰기 없이) */
+    private static final List<String> HEARSAY = List.of(
+            "다는후기", "다는리뷰", "다는소문", "라는후기", "라는리뷰", "라는소문", "다는말이있", "라는말이있", "할까걱정", "할까봐걱정", "당할까");
+    /** 그런 일이 없었다는 말 (띄어쓰기 없이) */
+    private static final List<String> DENIED = List.of(
+            "그런일없", "그런일은없", "그런건없", "그런적없", "그런적은없", "느낌은하나도없", "느낌을못받", "전혀못느", "하나도못봤");
+
+    private static boolean containsAny(String target, List<String> words) {
+        for (String w : words) if (target.contains(w)) return true;
+        return false;
+    }
+
+    /**
      * 규칙에 걸리는데 1차 결과에 없는 (리뷰, 종류) 문장들. 한 리뷰·한 종류는 첫 문장 하나만, 모두 합쳐 MAX_SUSPECTS 개까지
      *
      * @param texts 분석 대상 리뷰 글 (한국인이 쓴 것만, 나머지는 빈 글)
@@ -63,7 +90,7 @@ final class ReviewSuspects {
             for (ReviewTag tag : ReviewTag.values()) {
                 if (found.contains(i + ":" + tag)) continue;
                 for (String sentence : sentences) {
-                    if (tag.supportedBy(sentence)) {
+                    if (suspicious(tag, sentence)) {
                         result.add(new Suspect(i, tag, sentence));
                         break;
                     }

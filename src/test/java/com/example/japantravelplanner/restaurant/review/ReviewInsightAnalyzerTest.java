@@ -13,6 +13,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -111,8 +112,71 @@ class ReviewInsightAnalyzerTest {
                   {"tag":"DISCRIMINATION","evidence":"외국인이라고 구석 자리로 안내했어요"},
                   {"tag":"UNFRIENDLY","evidence":"갑자기 태도가 바뀌고"}]}]}""", texts);
 
+        // 같은 문장의 불친절은 차별 하나로 보여 준다 (11-18)
         assertThat(result.findings()).extracting(ReviewInsightsDto.Finding::tag)
-                .containsExactly("DISCRIMINATION", "UNFRIENDLY");
+                .containsExactly("DISCRIMINATION");
+    }
+
+    // ── 11-18 실제 AI 평가에서 틀린 유형 ──
+
+    @Test
+    void 차별과_같은_문장의_불친절과_좋은_점은_빼고_다른_문장이면_둔다() {
+        List<String> texts = List.of(
+                "한국어 메뉴 달라고 했더니 비웃으면서 일본어 메뉴만 줬어요.",
+                "한국어 메뉴는 있었어요. 그런데 한국인이라고 구석 자리로 안내하고 직원이 퉁명스러웠어요.");
+        ReviewInsightsDto result = ReviewInsightAnalyzer.parse(MAPPER, """
+                {"reviews":[
+                  {"index":0,"findings":[
+                    {"tag":"DISCRIMINATION","evidence":"한국어 메뉴 달라고 했더니 비웃으면서"},
+                    {"tag":"KOREAN_FRIENDLY","evidence":"한국어 메뉴 달라고"}]},
+                  {"index":1,"findings":[
+                    {"tag":"DISCRIMINATION","evidence":"한국인이라고 구석 자리로 안내하고"},
+                    {"tag":"UNFRIENDLY","evidence":"직원이 퉁명스러웠어요"},
+                    {"tag":"KOREAN_FRIENDLY","evidence":"한국어 메뉴는 있었어요"}]}]}""", texts);
+
+        assertThat(result.findings()).extracting(f -> f.reviewIndex() + ":" + f.tag())
+                .containsExactly("0:DISCRIMINATION", "1:DISCRIMINATION", "1:KOREAN_FRIENDLY");
+        assertThat(result.counts()).extracting(ReviewInsightsDto.TagCount::tag, ReviewInsightsDto.TagCount::count)
+                .containsExactly(tuple("DISCRIMINATION", 2), tuple("KOREAN_FRIENDLY", 1));
+    }
+
+    @Test
+    void 근거_끝에_마침표가_있어도_같은_문장으로_보고_불친절을_뺀다() {
+        List<String> texts = List.of("외국인이라 무시하는 태도가 너무 노골적이었어요.");
+        ReviewInsightsDto result = ReviewInsightAnalyzer.parse(MAPPER, """
+                {"reviews":[{"index":0,"findings":[
+                  {"tag":"DISCRIMINATION","evidence":"외국인이라 무시하는 태도가 너무 노골적이었어요."},
+                  {"tag":"UNFRIENDLY","evidence":"무시하는 태도가 너무 노골적이었어요."}]}]}""", texts);
+
+        assertThat(result.findings()).extracting(ReviewInsightsDto.Finding::tag).containsExactly("DISCRIMINATION");
+    }
+
+    @Test
+    void 그런_일이_없었다고_쓴_문장은_규칙에서_걸러진다() {
+        assertThat(ReviewTag.DISCRIMINATION.supportedBy("한국인이라고 다르게 대하는 건 전혀 없었어요")).isFalse();
+        assertThat(ReviewTag.DISCRIMINATION.supportedBy("외국인이라고 무시당한 적은 없었어요")).isFalse();
+        assertThat(ReviewTag.HYGIENE.supportedBy("더러울 줄 알았는데 생각보다 깔끔했어요")).isFalse();
+        assertThat(ReviewTag.UNFRIENDLY.supportedBy("직원이 무뚝뚝할 줄 알았는데 다정했어요")).isFalse();
+        assertThat(ReviewTag.HYGIENE.supportedBy("테이블에 기름때가 껴 있었어요")).isTrue();
+    }
+
+    @Test
+    void 남의_후기를_옮기거나_그런_일이_없었다는_문장과_차별_문장의_좋은_점은_다시_묻지_않는다() {
+        assertThat(ReviewSuspects.suspicious(ReviewTag.UNFRIENDLY, "불친절하다는 후기가 많던데 저희한테는 친절했어요")).isFalse();
+        assertThat(ReviewSuspects.suspicious(ReviewTag.DISCRIMINATION, "혐한 가게라는 소문이 있어서 걱정했는데 전혀 그런 일 없었어요")).isFalse();
+        assertThat(ReviewSuspects.suspicious(ReviewTag.KOREAN_FRIENDLY, "한국말 하니까 주문을 안 받아 줬습니다")).isFalse();
+        assertThat(ReviewSuspects.suspicious(ReviewTag.DISCRIMINATION, "한국말 하니까 주문을 안 받아 줬습니다")).isTrue();
+        assertThat(ReviewSuspects.suspicious(ReviewTag.UNFRIENDLY, "직원이 무뚝뚝하고 퉁명스러웠어요")).isTrue();
+        // 1차 확인(supportedBy)은 그대로: 남의 후기를 옮겨도 AI가 실제 경험으로 찾았으면 버리지 않는다
+        assertThat(ReviewTag.UNFRIENDLY.supportedBy("불친절하다는 후기가 많던데 정말 불친절했어요")).isTrue();
+    }
+
+    @Test
+    void 한국어가_들렸다는_손님_이야기는_좋은_점이_아니고_한국어_메뉴를_비웃은_것은_차별이다() {
+        assertThat(ReviewTag.KOREAN_FRIENDLY.supportedBy("한국 여행객 사이에서 유명해서 한국어가 많이 들렸어요")).isFalse();
+        assertThat(ReviewTag.KOREAN_FRIENDLY.supportedBy("한국어 메뉴는 있었지만 점원이 너무 퉁명스러웠어요")).isTrue();
+        assertThat(ReviewTag.DISCRIMINATION.supportedBy("한국어 메뉴 달라고 했더니 비웃으면서 일본어 메뉴만 줬어요")).isTrue();
+        assertThat(ReviewTag.DISCRIMINATION.supportedBy("한국어 메뉴가 있어서 편했어요")).isFalse();
     }
 
     @Test

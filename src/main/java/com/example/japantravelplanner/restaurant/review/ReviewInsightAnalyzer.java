@@ -212,7 +212,6 @@ public class ReviewInsightAnalyzer {
     /** 후보(1차 + 다시 묻기) → 화면용. 근거가 리뷰에 있는지, 근거 앞뒤가 종류 규칙에 맞는지 서버가 확인한다 */
     static ReviewInsightsDto build(List<Item> items, List<String> texts) {
         List<Finding> findings = new ArrayList<>();
-        Map<ReviewTag, Set<Integer>> reviewsByTag = new EnumMap<>(ReviewTag.class);
         Set<String> seen = new HashSet<>();
         // 버린 이유별 개수 (튜닝용 로그. 리뷰 글은 Google 내용이라 로그에도 남기지 않는다)
         Map<String, Integer> dropped = new java.util.LinkedHashMap<>();
@@ -249,8 +248,14 @@ public class ReviewInsightAnalyzer {
                 if (!seen.add(item.index() + ":" + tag)) continue;
 
                 findings.add(new Finding(item.index(), tag.name(), tag.label(), tag.caution(), evidence));
-                reviewsByTag.computeIfAbsent(tag, t -> new HashSet<>()).add(item.index());
             }
+        }
+        int beforeOverlap = findings.size();
+        findings = dropCoveredByDiscrimination(findings, texts);
+        if (findings.size() < beforeOverlap) dropped.merge("차별과 같은 문장", beforeOverlap - findings.size(), Integer::sum);
+        Map<ReviewTag, Set<Integer>> reviewsByTag = new EnumMap<>(ReviewTag.class);
+        for (Finding f : findings) {
+            reviewsByTag.computeIfAbsent(ReviewTag.valueOf(f.tag()), t -> new HashSet<>()).add(f.reviewIndex());
         }
         findings.sort((a, b) -> a.reviewIndex() != b.reviewIndex()
                 ? Integer.compare(a.reviewIndex(), b.reviewIndex())
@@ -266,6 +271,40 @@ public class ReviewInsightAnalyzer {
         }
         int analyzed = (int) texts.stream().filter(t -> t != null && !t.isBlank()).count();
         return new ReviewInsightsDto(List.copyOf(findings), List.copyOf(counts), NOTICE.formatted(analyzed), analyzed);
+    }
+
+    /**
+     * 차별로 찾은 문장과 같은 문장에 붙은 불친절·좋은 점은 뺀다 (11-18 실제 AI 평가).
+     * "외국인이라 무시하는 태도"는 차별 하나로 보여 주면 되고, "한국어 메뉴 달라고 했더니 비웃으면서"는 좋은 점이 아니다.
+     * 다른 문장이면 둘 다 둔다 ("한국어 메뉴는 있었다. 그런데 한국인이라고 구석 자리로").
+     */
+    static List<Finding> dropCoveredByDiscrimination(List<Finding> findings, List<String> texts) {
+        Set<String> discriminationSentences = new HashSet<>();
+        for (Finding f : findings) {
+            if (!ReviewTag.DISCRIMINATION.name().equals(f.tag())) continue;
+            int sentence = sentenceOf(texts.get(f.reviewIndex()), f.evidence());
+            if (sentence >= 0) discriminationSentences.add(f.reviewIndex() + ":" + sentence);
+        }
+        if (discriminationSentences.isEmpty()) return findings;
+        List<Finding> kept = new ArrayList<>();
+        for (Finding f : findings) {
+            boolean covered = (ReviewTag.UNFRIENDLY.name().equals(f.tag()) || ReviewTag.KOREAN_FRIENDLY.name().equals(f.tag()))
+                    && discriminationSentences.contains(f.reviewIndex() + ":" + sentenceOf(texts.get(f.reviewIndex()), f.evidence()));
+            if (!covered) kept.add(f);
+        }
+        return kept;
+    }
+
+    /** 근거가 들어 있는 문장 번호 (ReviewSuspects 의 문장 나누기 기준). 여러 문장에 걸치면 -1 */
+    private static int sentenceOf(String text, String evidence) {
+        List<String> sentences = ReviewSuspects.sentences(text);
+        // 문장 나누기가 끝의 마침표를 떼므로 근거 앞뒤의 문장부호도 뗀다 ("…노골적이었어요." → 11-18 2차 평가에서 빠지지 않던 원인)
+        String target = squeeze(evidence).replaceAll("^[.!?。！？~^ㅠㅜ]+|[.!?。！？~^ㅠㅜ]+$", "");
+        if (target.isEmpty()) return -1;
+        for (int i = 0; i < sentences.size(); i++) {
+            if (squeeze(sentences.get(i)).contains(target)) return i;
+        }
+        return -1;
     }
 
     /** 띄어쓰기·줄바꿈 차이는 무시하고 비교 */

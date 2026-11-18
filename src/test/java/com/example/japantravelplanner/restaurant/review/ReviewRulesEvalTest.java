@@ -24,7 +24,7 @@ class ReviewRulesEvalTest {
         for (ReviewTag tag : ReviewTag.values()) {
             int positives = 0, flagged = 0, negatives = 0, wrong = 0;
             for (ReviewEvalSet.Case c : cases) {
-                boolean hit = tag.supportedBy(c.sentence());
+                boolean hit = ReviewSuspects.suspicious(tag, c.sentence());
                 if (c.expected().contains(tag)) {
                     positives++;
                     if (hit) flagged++; else missed.add(tag + " 놓침: " + c.sentence());
@@ -55,7 +55,7 @@ class ReviewRulesEvalTest {
     void 해당_없음_문장은_종류_하나에_잘못_걸려도_서버가_대부분_막는다() {
         List<ReviewEvalSet.Case> none = ReviewEvalSet.load().stream().filter(c -> c.expected().isEmpty()).toList();
         long leaked = none.stream()
-                .filter(c -> java.util.Arrays.stream(ReviewTag.values()).anyMatch(t -> t.supportedBy(c.sentence())))
+                .filter(c -> java.util.Arrays.stream(ReviewTag.values()).anyMatch(t -> ReviewSuspects.suspicious(t, c.sentence())))
                 .count();
         // 규칙에 걸리는 "해당 없음" 문장은 AI(1차·다시 묻기)가 판단한다. 그 양이 너무 많아지면 규칙이 넓어진 것
         assertThat((double) leaked / none.size()).isLessThanOrEqualTo(0.4);
