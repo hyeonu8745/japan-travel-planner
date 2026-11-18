@@ -216,7 +216,7 @@ public class ItineraryStopEditService {
                 int stay = stayOf(a, trip);
                 Retimed retimed = retime(ctx, inserted(currentSlots, position, Slot.attraction(a, stay)));
                 TravelLeg leg = matrix.get(0, i + 1);
-                candidates.add(new CandidateDto(a.getId(), a.getName(), typeLabels.toVisibleLabels(a.getTypes()),
+                candidates.add(new CandidateDto(a.getId(), a.getName(), typeLabels.toVisibleLabels(a.typesOrKind()),
                         a.getRating(), a.getReviewCnt(), a.getAddress(), a.getWard(), a.getPlaceId(),
                         GeoUtils.lat(a.getLocation()), GeoUtils.lng(a.getLocation()), stay,
                         new ItineraryResponseDto.TravelDto(leg.mode(), leg.minutes(), leg.distanceMeters(), leg.estimated()),
@@ -410,7 +410,7 @@ public class ItineraryStopEditService {
 
     /** 관광지 체류 시간 (종류별 기본 × 여행 속도 배율) */
     private static int stayOf(Attraction attraction, Trip trip) {
-        return StayTimes.scaled(StayTimes.baseOf(attraction.getTypes()), trip.getTravelPace().getStayMultiplier());
+        return StayTimes.scaled(StayTimes.baseOf(attraction.typesOrKind()), trip.getTravelPace().getStayMultiplier());
     }
 
     /** 마지막 항목을 떠나는 시각(하루 분) */

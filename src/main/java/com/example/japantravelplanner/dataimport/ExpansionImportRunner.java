@@ -31,8 +31,12 @@ public class ExpansionImportRunner implements CommandLineRunner {
                             + "Google 장소 ID {} · 예전 도쿄 관광지 추가 {} · 관광지 백업 이름 {}",
                     r.brands(), r.restaurants(), r.chains(), r.attractions(), r.facilities(),
                     r.restaurantKeeps(), r.attractionPlaceIds(), r.oldTokyoAdded(), r.attractionKeeps());
+            // IntelliJ 터미널에서 한글이 많은 마지막 줄이 안 보여서(11-16) 영어·숫자로 한 줄 더
+            log.info("[Import] DONE brands={} restaurants={} chains={} attractions={} facilities={}",
+                    r.brands(), r.restaurants(), r.chains(), r.attractions(), r.facilities());
         } catch (RuntimeException e) {
             log.error("[Import] 실패 — 아무것도 바뀌지 않았다", e);
+            log.error("[Import] FAILED (nothing changed)");
             code = 1;
         }
         int exit = code;

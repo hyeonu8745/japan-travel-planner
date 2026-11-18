@@ -31,4 +31,6 @@ public class MealProperties {
     private double repeatGroupPenalty = 0.15;
     // 반경 안에 후보가 이만큼 안 되면 더 넓은 반경까지 찾아서 고른다 (후보가 1곳뿐이면 선택지 없이 정해져 버림)
     private int minCandidates = 3;
-}
+    // 체인점(평점 없음) 점수 = 주변 타베로그 평균 − 이 값. 타베로그 식당이 예산 안에 모자랄 때·싼 점심에 들어온다
+    private double chainPenalty = 0.3;
+}

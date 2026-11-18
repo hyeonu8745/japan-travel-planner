@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * 관광지 후보 고르기 설정 ({@code app.candidate.*}): 평점 보정, 관심사 가산점, 최소 리뷰 수, 같은 종류·가까운 곳 감점, 하루 이동 범위, 짝 지역 고르기.
+ * 관광지 후보 고르기 설정 ({@code app.candidate.*}): 평점 보정, 기본 점수(인기도·리뷰 수·꼭 가는 곳), 관심사 가산점, 후보 기준, 같은 종류·가까운 곳 감점, 하루 이동 범위, 짝 지역 고르기.
  */
 @Getter
 @Setter
@@ -19,8 +19,17 @@ public class CandidateProperties {
     private int extraCandidates = 2;
     // 이 거리(미터) 안의 관광지는 같은 장소(하위 명소)로 보고 점수 높은 하나만 남긴다
     private double sameSpotMeters = 150;
-    // 리뷰가 이 수보다 적은 관광지는 일정 후보에서 뺀다 (비석·작은 골목·언덕 같은 곳이라 일정에 넣을 만하지 않음)
+    // 일정 후보: 리뷰가 이 수 이상이거나, 위키 인기도가 minPopularity 이상이거나, 꼭 가는 곳 (11-18 확장 데이터)
+    // (리뷰만 보던 때는 비석·작은 골목·언덕 같은 곳을 이 기준으로 뺐다)
     private int minReviews = 100;
+    private int minPopularity = 1;
+
+    // 기본 점수 (AttractionScorer.baseScore): 기준값 + 평점 보정 + 유명함 + 종류 보정 + 꼭 가는 곳 가산.
+    // 기준값은 예전 보정 평점과 비슷한 크기(4점대)로 둬서 아래 감점·가산 값들의 크기를 그대로 쓴다
+    private double baseScore = 4.0;
+    private double popularityWeight = 0.4;     // × log10(1 + 위키 언어 수): 10 → 0.42, 30 → 0.6, 70 → 0.74
+    private double reviewFameWeight = 0.3;     // × log10(1 + 리뷰 수 / 100): 1천 → 0.31, 1만 → 0.6, 10만 → 0.9
+    private double mustSeeBonus = 0.5;
 
     // 하루 관광지를 고를 때 지역 안에서 섞기 (점수순으로만 고르면 한 공원 안 명소처럼 주변만 돌았다)
     // 같은 종류(PlaceKind)를 이미 고른 수만큼 감점. 종류가 OTHER면 감점하지 않는다 (교차로·동상·거리처럼 서로 다르다)

@@ -42,8 +42,8 @@ public final class InterestTypes {
     public static boolean matches(Interest interest, Attraction attraction) {
         if (attraction == null) return false;
         if (interest == Interest.NIGHT_VIEW) return NightSpots.isRepresentative(attraction);
-        if (attraction.getTypes() == null) return false;
-        Set<String> types = Arrays.stream(attraction.getTypes().split(","))
+        if (attraction.typesOrKind() == null) return false;
+        Set<String> types = Arrays.stream(attraction.typesOrKind().split(","))
                 .map(String::trim).collect(Collectors.toSet());
         if (interest == Interest.FOOD && !isFoodMarket(attraction, types)) return false;
         return of(interest).stream().anyMatch(types::contains);

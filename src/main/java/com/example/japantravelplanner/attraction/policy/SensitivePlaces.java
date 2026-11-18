@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.attraction.policy;
 
+import java.text.Normalizer;
 import java.util.regex.Pattern;
 
 /**
@@ -42,8 +43,12 @@ public final class SensitivePlaces {
     private SensitivePlaces() {
     }
 
-    /** 이름이 추천하지 않는 장소 목록에 걸리는지 */
+    /**
+     * 이름이 추천하지 않는 장소 목록에 걸리는지.
+     * 이름을 NFKC 로 맞춘 뒤 비교한다: 데이터의 「靖國神社」 첫 글자가 호환용 한자(U+FA1C)라 겉보기엔 같아도 걸리지 않았다 (11-18)
+     */
     public static boolean isExcluded(String name) {
-        return name != null && EXCLUDE.matcher(name).find();
+        if (name == null) return false;
+        return EXCLUDE.matcher(name).find() || EXCLUDE.matcher(Normalizer.normalize(name, Normalizer.Form.NFKC)).find();
     }
 }

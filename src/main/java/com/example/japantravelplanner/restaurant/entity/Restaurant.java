@@ -172,8 +172,9 @@ public class Restaurant {
     @Column(name = "standing_bar")
     private Boolean standingBar;
 
-    // 체인점 브랜드 (source=CHAIN 일 때만). 한국어 이름·종류·장르·예산은 브랜드 표에 (V5)
-    @ManyToOne(fetch = FetchType.LAZY)
+    // 체인점 브랜드 (source=CHAIN 일 때만). 한국어 이름·종류·장르·예산은 브랜드 표에 (V5).
+    // 바로 읽는다(EAGER): 식당 후보를 고르는 계산이 트랜잭션 밖에서도 장르·예산을 봐야 한다 (브랜드는 86개뿐)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "brand_id")
     private ChainBrand brand;
 
@@ -195,6 +196,37 @@ public class Restaurant {
         this.budgetDinnerMax = dinner.max();
         this.budgetLunchMin = lunch.min();
         this.budgetLunchMax = lunch.max();
+    }
+
+    /** 체인점인지 (브랜드가 붙은 지점) */
+    public boolean isChain() {
+        return brand != null;
+    }
+
+    /** 장르 (콤마 구분). 타베로그 장르가 없는 체인점은 브랜드 장르를 같은 이름표로 (ChainGenres) */
+    public String genreOrBrand() {
+        if (genre != null && !genre.isBlank()) return genre;
+        return brand == null ? genre : brand.tabelogGenre();
+    }
+
+    /** 점심 1인 예산 하한 (체인점은 브랜드 예산) */
+    public Integer lunchMin() {
+        return budgetLunchMin != null || brand == null ? budgetLunchMin : brand.getBudgetMin();
+    }
+
+    /** 점심 1인 예산 상한 (체인점은 브랜드 예산) */
+    public Integer lunchMax() {
+        return budgetLunchMax != null || brand == null ? budgetLunchMax : brand.getBudgetMax();
+    }
+
+    /** 저녁 1인 예산 하한 (체인점은 브랜드 예산) */
+    public Integer dinnerMin() {
+        return budgetDinnerMin != null || brand == null ? budgetDinnerMin : brand.getBudgetMin();
+    }
+
+    /** 저녁 1인 예산 상한 (체인점은 브랜드 예산) */
+    public Integer dinnerMax() {
+        return budgetDinnerMax != null || brand == null ? budgetDinnerMax : brand.getBudgetMax();
     }
 
     /** Google에서 찾지 못했거나 폐업이라 끼니 후보에서 빼야 하는 식당 (아직 확인 안 한 식당은 통과) */
@@ -221,4 +253,4 @@ public class Restaurant {
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
-}
+}

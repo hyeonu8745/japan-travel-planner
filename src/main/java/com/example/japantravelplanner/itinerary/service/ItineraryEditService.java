@@ -241,13 +241,13 @@ public class ItineraryEditService {
             RestaurantCandidate c = search.found().get(i);
             Restaurant r = c.restaurant();
             TravelLeg leg = matrix.get(0, i + 1);
-            candidates.add(new CandidateDto(r.getId(), r.getName(), r.getGenre(), r.getRatingVal(), r.getReviewCnt(),
+            candidates.add(new CandidateDto(r.getId(), r.getName(), r.genreOrBrand(), r.getRatingVal(), r.getReviewCnt(),
                     budgetOf(r, search.meal()), r.getAddress(), r.getNearestStation(),
                     GeoUtils.lat(r.getLocation()), GeoUtils.lng(r.getLocation()), c.distanceMeters(),
                     new ItineraryResponseDto.TravelDto(leg.mode(), leg.minutes(), leg.distanceMeters(), leg.estimated()),
-                    overlaps(previousMeal, r.getGenre()), c.budgetRelaxed(),
+                    overlaps(previousMeal, r.genreOrBrand()), c.budgetRelaxed(),
                     r.getHoliday(), RegularHoliday.isClosedOn(r.getHoliday(), visitDate),
-                    r.getNameKo(), GenreLabels.of(r.getGenre())));
+                    r.getNameKo(), GenreLabels.of(r.genreOrBrand())));
         }
         return new StopCandidatesResponseDto(target.stop().getId(), target.stop().getType(),
                 search.maxYen(), candidates);
@@ -318,7 +318,7 @@ public class ItineraryEditService {
         // 원하는 장르로 넓혀 찾은 후보(채팅 수정)도 같은 규칙으로 다시 찾아서 인정한다
         Restaurant requested = restaurantRepository.findById(restaurantId).orElse(null);
         if (requested != null) {
-            RestaurantCandidate wanted = searchOne(target, RestaurantFinder.genresOf(requested.getGenre()), restaurantId);
+            RestaurantCandidate wanted = searchOne(target, RestaurantFinder.genresOf(requested.genreOrBrand()), restaurantId);
             if (wanted != null) {
                 return wanted;
             }
@@ -529,7 +529,7 @@ public class ItineraryEditService {
                     return last;
                 }
                 if (s.getRestaurant() != null) {
-                    last = RestaurantFinder.mainGenres(s.getRestaurant().getGenre());
+                    last = RestaurantFinder.mainGenres(s.getRestaurant().genreOrBrand());
                 }
             }
         }

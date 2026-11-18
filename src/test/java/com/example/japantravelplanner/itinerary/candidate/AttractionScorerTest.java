@@ -1,6 +1,7 @@
 package com.example.japantravelplanner.itinerary.candidate;
 
 import com.example.japantravelplanner.attraction.entity.Attraction;
+import com.example.japantravelplanner.attraction.entity.AttractionKind;
 import com.example.japantravelplanner.itinerary.zone.ZoneAssigner;
 import com.example.japantravelplanner.trip.entity.Interest;
 import org.junit.jupiter.api.Test;
@@ -186,6 +187,83 @@ class AttractionScorerTest {
     void 야스쿠니_신사는_평점이_높아도_후보에_넣지_않는다() {
         List<String> kept = keptNames(List.of(
                 place(1, "靖国神社社殿", 35.6941, 139.7436, 4.5),
+                place(2, "皇居外苑", 35.6800, 139.7570, 4.4)));
+        assertThat(kept).containsExactly("皇居外苑");
+    }
+
+    // ── 11-18 확장 데이터: 위키 인기도·꼭 가는 곳·종류로 점수 ──
+
+    private static Attraction osm(long id, String name, AttractionKind kind, Integer popularity, boolean mustSee) {
+        return Attraction.builder().id(id).name(name).kind(kind).popularity(popularity).mustSee(mustSee)
+                .location(GF.createPoint(new Coordinate(139.7040 + id * 0.01, 35.6890))).build();
+    }
+
+    private static double base(Attraction a) {
+        return AttractionScorer.baseScore(a, MEAN, new CandidateProperties());
+    }
+
+    @Test
+    void 평점이_없어도_인기도_1_이상이거나_꼭_가는_곳이면_후보다() {
+        List<String> kept = keptNames(List.of(
+                osm(1, "上野公園", AttractionKind.PARK, 36, true),
+                osm(2, "小さな寺", AttractionKind.TEMPLE, 2, false),
+                osm(3, "名もない碑", AttractionKind.HISTORIC, 0, false),
+                osm(4, "東京都庁展望室 北", AttractionKind.VIEW, 0, true)));
+
+        assertThat(kept).containsExactlyInAnyOrder("上野公園", "小さな寺", "東京都庁展望室 北");
+    }
+
+    @Test
+    void 꼭_가는_곳과_유명한_곳이_작은_절보다_위에_온다() {
+        double ueno = base(osm(1, "上野公園", AttractionKind.PARK, 36, true));
+        double famousMuseum = base(osm(2, "国立西洋美術館", AttractionKind.MUSEUM, 35, false));
+        double smallTemple = base(osm(3, "小さな寺", AttractionKind.TEMPLE, 2, false));
+
+        assertThat(ueno).isGreaterThan(famousMuseum);
+        assertThat(famousMuseum).isGreaterThan(smallTemple);
+    }
+
+    @Test
+    void 능_묘_비석은_인기도가_높아도_낮춘다() {
+        // 실제 사례: 교토 인기도 2위권에 天智天皇陵(43)
+        double tomb = base(osm(1, "天智天皇陵", AttractionKind.HISTORIC, 43, false));
+        double museum = base(osm(2, "京都国立博物館", AttractionKind.MUSEUM, 20, false));
+
+        assertThat(museum).isGreaterThan(tomb);
+    }
+
+    @Test
+    void 리뷰가_아주_많은_곳은_인기도가_낮아도_유명함을_리뷰_수로_본다() {
+        // 小網神社: 인기도 2, 리뷰 1만 → 리뷰 쪽 유명함(0.3 × log10(101) ≈ 0.6)
+        Attraction koami = Attraction.builder().id(1L).name("小網神社").kind(AttractionKind.SHRINE).popularity(2)
+                .rating(4.5).reviewCnt(10_720).build();
+        Attraction quiet = Attraction.builder().id(2L).name("静かな神社").kind(AttractionKind.SHRINE).popularity(2).build();
+
+        assertThat(base(koami) - base(quiet)).isGreaterThan(0.4);
+    }
+
+    @Test
+    void Google에서_폐업으로_확인한_곳은_빠진다() {
+        Attraction closed = osm(1, "閉館した美術館", AttractionKind.MUSEUM, 20, false);
+        closed.setGoogleMatchStatus(com.example.japantravelplanner.restaurant.entity.GoogleMatchStatus.CLOSED);
+
+        assertThat(keptNames(List.of(closed, osm(2, "国立科学博物館", AttractionKind.MUSEUM, 25, false))))
+                .containsExactly("国立科学博物館");
+    }
+
+    @Test
+    void 공원_이름의_恩賜_都立은_빼고_같은_곳인지_본다() {
+        // 예전 도쿄 데이터(上野恩賜公園)와 확장 데이터(上野公園)가 같은 공원
+        assertThat(AttractionScorer.isNearDuplicate(
+                "上野恩賜公園", 35.7156, 139.7745, "上野公園", 35.7146, 139.7732)).isTrue();
+        assertThat(AttractionScorer.normalize("都立日比谷公園")).isEqualTo("日比谷公園");
+    }
+
+    @Test
+    void 야스쿠니는_호환용_한자로_적혀_있어도_빠진다() {
+        // 데이터의 「靖國神社」 첫 글자가 U+FA1C (겉보기엔 같다)
+        List<String> kept = keptNames(List.of(
+                place(1, "\uFA1C國神社", 35.6941, 139.7436, 4.4),
                 place(2, "皇居外苑", 35.6800, 139.7570, 4.4)));
         assertThat(kept).containsExactly("皇居外苑");
     }

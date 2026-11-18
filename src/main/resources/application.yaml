@@ -110,7 +110,12 @@ app:
     interest-bonus: 0.3       # 관심사와 맞는 type이면 가산
     extra-candidates: 2       # 하루 방문 수보다 더 뽑아두는 예비 후보
     same-spot-meters: 150     # 이 거리 안의 관광지는 같은 장소로 보고 점수 높은 하나만 남김
-    min-reviews: 100          # 리뷰가 이보다 적은 관광지는 일정 후보에서 제외
+    min-reviews: 100          # 후보 기준 (셋 중 하나): 리뷰 이 수 이상
+    min-popularity: 1         #   또는 위키 인기도(언어 수) 이 값 이상, 또는 꼭 가는 곳
+    base-score: 4.0           # 기본 점수 = 기준값 + 평점 보정 + 유명함 + 종류 보정 + 꼭 가는 곳 가산
+    popularity-weight: 0.4    # 유명함 = max(이 값 × log10(1 + 인기도),
+    review-fame-weight: 0.3   #              이 값 × log10(1 + 리뷰 수 / 100))
+    must-see-bonus: 0.5       # 그 도시에서 꼭 가는 곳 가산
     same-kind-penalty: 0.15   # 하루 안에서 같은 종류(정원·절·박물관 등)를 또 고르면 감점 (가까운 곳 위주 여행은 적용 안 함)
     near-meters: 500          # 이미 고른 곳에서 이 거리 안이면
     near-penalty: 0.2         # 이만큼 감점 (한 동네에 몰리지 않게)
@@ -199,7 +204,8 @@ app:
     wanted-extra-radii: 2000,3000 # 채팅에서 원하는 음식을 말했는데 위 반경에 없으면 여기까지 더 넓혀서
     budget-relax-steps: 1.2,1.4  # 그래도 없으면 예산을 이만큼 올려서
     repeat-group-penalty: 0.15   # 같은 묶음(라멘류 등)이 이미 나왔으면 나온 횟수 × 이만큼 감점
-    min-candidates: 3            # 반경 안에 후보가 이만큼 안 되면 더 넓게 (1곳뿐이면 선택지가 없음)
+    min-candidates: 3            # 반경 안에 후보가 이만큼 안 되면 더 넓게 (1곳뿐이면 선택지가 없음, 체인점은 세지 않음)
+    chain-penalty: 0.3           # 체인점(평점 없음) 점수 = 주변 평균 − 이 값 (타베로그가 모자랄 때·싼 점심용)
 
   itinerary:
     daily-generation-limit: 5    # 여행당 24시간 동안 AI 일정 생성 횟수 (수정·되돌리기는 세지 않음)

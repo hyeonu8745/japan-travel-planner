@@ -387,7 +387,7 @@ public class DayScheduler {
     private static Item attractionItem(ScoredAttraction a, List<TravelPoint> points, double multiplier) {
         int index = points.size();
         points.add(new TravelPoint(a.attraction().getName(), a.lat(), a.lng()));
-        int stay = StayTimes.scaled(StayTimes.baseOf(a.attraction().getTypes()), multiplier);
+        int stay = StayTimes.scaled(StayTimes.baseOf(a.attraction().typesOrKind()), multiplier);
         return new Item(StopType.ATTRACTION, a, null, index, stay, a.score());
     }
 
@@ -395,7 +395,7 @@ public class DayScheduler {
     private static Item nightItem(ScoredAttraction a, List<TravelPoint> points, double multiplier) {
         int index = points.size();
         points.add(new TravelPoint(a.attraction().getName(), a.lat(), a.lng()));
-        int stay = StayTimes.scaled(StayTimes.nightBaseOf(a.attraction().getTypes()), multiplier);
+        int stay = StayTimes.scaled(StayTimes.nightBaseOf(a.attraction().typesOrKind()), multiplier);
         return new Item(StopType.ATTRACTION, a, null, index, stay, a.score());
     }
 

@@ -47,7 +47,7 @@ public class AttractionResponseDto {
                 .name(attraction.getName())
                 .distanceMeters(distanceMeters)
                 .ward(attraction.getWard())
-                .types(splitTypes(attraction.getTypes()))
+                .types(splitTypes(attraction.typesOrKind()))
                 .rating(attraction.getRating())
                 .reviewCnt(attraction.getReviewCnt())
                 .address(attraction.getAddress())

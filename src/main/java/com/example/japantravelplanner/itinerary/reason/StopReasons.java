@@ -77,7 +77,7 @@ public final class StopReasons {
     public static boolean matchesPreferredFood(Restaurant restaurant, ReasonContext context) {
         if (restaurant == null) return false;
         Set<String> prefer = ReasonContext.orNone(context).food().preferGenres();
-        return !prefer.isEmpty() && !Collections.disjoint(RestaurantFinder.genresOf(restaurant.getGenre()), prefer);
+        return !prefer.isEmpty() && !Collections.disjoint(RestaurantFinder.genresOf(restaurant.genreOrBrand()), prefer);
     }
 
     /** 관심사 → 한국어 이름 */
@@ -90,7 +90,7 @@ public final class StopReasons {
         };
     }
 
-    /** 관광지 이유: 맞는 관심사, 대화 취향, 높은 평점, 아주 많은 리뷰 */
+    /** 관광지 이유: 맞는 관심사, 대화 취향, 꼭 가는 대표 명소, 높은 평점, 아주 많은 리뷰 */
     private static void addAttractionReasons(List<StopReason> reasons, Attraction a, ReasonContext ctx) {
         if (a == null) return;
         for (Interest interest : matchedInterests(a, ctx)) {
@@ -98,6 +98,9 @@ public final class StopReasons {
         }
         for (Wish wish : matchedWishes(a, ctx)) {
             reasons.add(new StopReason(ReasonCode.WISH, "말씀하신 취향: " + wish.label()));
+        }
+        if (a.isMustSee()) {
+            reasons.add(new StopReason(ReasonCode.MUST_SEE, "대표 명소"));
         }
         if (a.getRating() != null && a.getRating() >= HIGH_GOOGLE_RATING) {
             reasons.add(new StopReason(ReasonCode.HIGH_RATING,

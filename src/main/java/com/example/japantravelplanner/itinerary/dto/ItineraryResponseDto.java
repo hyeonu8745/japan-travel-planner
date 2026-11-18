@@ -131,8 +131,39 @@ public record ItineraryResponseDto(
     public record TravelDto(LegMode mode, int minutes, int distanceMeters, boolean estimated) {
     }
 
+    /**
+     * @param rating      Google 평점. 확장 데이터 관광지는 없을 수 있다 (null)
+     * @param mustSee     그 도시에서 꼭 가는 대표 관광지 (11-18 추가)
+     * @param photo       위키미디어 대표 사진 (없으면 null → 화면은 Google 사진). 작가·라이선스를 사진과 함께 표시해야 한다 (11-18 추가)
+     * @param historyNote 역사 배경 안내 한 줄 (민감하지만 대표 관광지라 빼지 않은 곳, 없으면 null, 11-18 추가)
+     */
     public record AttractionDto(Long id, List<String> labels, Double rating, Integer reviewCount, String address,
-                                String ward, String placeId) {
+                                String ward, String placeId, boolean mustSee, PhotoDto photo, String historyNote) {
+
+        /** 예전 필드만 (사진·꼭 가는 곳 없이) */
+        public AttractionDto(Long id, List<String> labels, Double rating, Integer reviewCount, String address,
+                             String ward, String placeId) {
+            this(id, labels, rating, reviewCount, address, ward, placeId, false, null, null);
+        }
+    }
+
+    /**
+     * 관광지 대표 사진 (위키미디어 공용).
+     * @param url        썸네일 주소
+     * @param artist     작가 (HTML 이 섞여 있을 수 있어 글자만 보여 줄 것)
+     * @param license    라이선스 이름 (예: CC BY-SA 4.0)
+     * @param licenseUrl 라이선스 주소
+     * @param credit     출처 표시 문구
+     */
+    public record PhotoDto(String url, Integer width, Integer height, String artist, String license,
+                           String licenseUrl, String credit) {
+
+        /** 엔티티 사진 → 응답 (주소가 없으면 null) */
+        static PhotoDto of(com.example.japantravelplanner.attraction.entity.AttractionPhoto photo) {
+            if (photo == null || photo.getThumb() == null || photo.getThumb().isBlank()) return null;
+            return new PhotoDto(photo.getThumb(), photo.getWidth(), photo.getHeight(), photo.getArtist(),
+                    photo.getLicense(), photo.getLicenseUrl(), photo.getCredit());
+        }
     }
 
     /**
@@ -266,8 +297,9 @@ public record ItineraryResponseDto(
             return new StopDto(stop.getId(), stop.getStopOrder(), stop.getType(), a.getName(),
                     stop.getArrivalTime(), stop.getDepartureTime(), stop.getStayMinutes(), stop.getWaitMinutes(),
                     travel, GeoUtils.lat(a.getLocation()), GeoUtils.lng(a.getLocation()),
-                    new AttractionDto(a.getId(), typeLabels.apply(a.getTypes()), a.getRating(), a.getReviewCnt(),
-                            a.getAddress(), a.getWard(), a.getPlaceId()),
+                    new AttractionDto(a.getId(), typeLabels.apply(a.typesOrKind()), a.getRating(), a.getReviewCnt(),
+                            a.getAddress(), a.getWard(), a.getPlaceId(), a.isMustSee(), PhotoDto.of(a.getPhoto()),
+                            a.getHistoryNote()),
                     null, List.of(), StopReasons.of(stop, reasons), a.getNameKo());
         }
 
@@ -276,10 +308,10 @@ public record ItineraryResponseDto(
                 stop.getArrivalTime(), stop.getDepartureTime(), stop.getStayMinutes(), stop.getWaitMinutes(),
                 travel, GeoUtils.lat(r.getLocation()), GeoUtils.lng(r.getLocation()),
                 null,
-                new RestaurantDto(r.getId(), r.getGenre(), r.getRatingVal(), budgetOf(r, stop.getType()), r.getAddress(),
+                new RestaurantDto(r.getId(), r.genreOrBrand(), r.getRatingVal(), budgetOf(r, stop.getType()), r.getAddress(),
                         stop.isBudgetRelaxed(), stop.isGenreRepeated(),
                         r.getReviewCnt(), r.getNearestStation(), r.getNearestDistance(), r.getHoliday(),
-                        RegularHoliday.isClosedOn(r.getHoliday(), date), GenreLabels.of(r.getGenre())),
+                        RegularHoliday.isClosedOn(r.getHoliday(), date), GenreLabels.of(r.genreOrBrand())),
                 toAlternatives(stop, date, alternatives), StopReasons.of(stop, reasons), r.getNameKo());
     }
 
@@ -288,15 +320,22 @@ public record ItineraryResponseDto(
         return stop.getAlternativeRestaurantIds().stream()
                 .map(alternatives::get)
                 .filter(java.util.Objects::nonNull)
-                .map(r -> new AlternativeDto(r.getId(), r.getName(), r.getGenre(), r.getRatingVal(),
+                .map(r -> new AlternativeDto(r.getId(), r.getName(), r.genreOrBrand(), r.getRatingVal(),
                         budgetOf(r, stop.getType()), r.getAddress(), GeoUtils.lat(r.getLocation()), GeoUtils.lng(r.getLocation()),
                         r.getHoliday(), RegularHoliday.isClosedOn(r.getHoliday(), date),
-                        r.getNameKo(), GenreLabels.of(r.getGenre())))
+                        r.getNameKo(), GenreLabels.of(r.genreOrBrand())))
                 .toList();
     }
 
-    // 점심이면 점심 예산, 저녁이면 저녁 예산, 쉬는 시간 카페는 낮 예산 → 없으면 저녁 예산
+    // 점심이면 점심 예산, 저녁이면 저녁 예산, 쉬는 시간 카페는 낮 예산 → 없으면 저녁 예산.
+    // 체인점은 예산 글자가 없어서 브랜드 예산을 같은 모양으로 ("￥500～￥1,000")
     private static String budgetOf(Restaurant r, StopType type) {
+        if (r.isChain() && r.getBudgetLunch() == null && r.getBudgetDinner() == null) {
+            Integer min = r.getBrand().getBudgetMin();
+            Integer max = r.getBrand().getBudgetMax();
+            if (min == null || max == null) return null;
+            return String.format(java.util.Locale.ROOT, "￥%,d～￥%,d", min, max);
+        }
         if (type == StopType.CAFE) {
             return r.getBudgetLunch() != null && !r.getBudgetLunch().isBlank() && !"-".equals(r.getBudgetLunch().strip())
                     ? r.getBudgetLunch() : r.getBudgetDinner();
@@ -309,4 +348,4 @@ public record ItineraryResponseDto(
         return new DroppedDto(dropped.getName(), dropped.getReason(), dropped.getReason().label());
     }
 
-}
+}

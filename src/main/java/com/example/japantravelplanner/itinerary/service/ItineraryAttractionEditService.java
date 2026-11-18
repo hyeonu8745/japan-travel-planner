@@ -152,7 +152,7 @@ public class ItineraryAttractionEditService {
             int stay = stayOf(a, target);
             Retimed retimed = retimeDay(target, a, stay);
             TravelLeg leg = matrix.get(0, i + 1);
-            candidates.add(new CandidateDto(a.getId(), a.getName(), typeLabels.toVisibleLabels(a.getTypes()),
+            candidates.add(new CandidateDto(a.getId(), a.getName(), typeLabels.toVisibleLabels(a.typesOrKind()),
                     a.getRating(), a.getReviewCnt(), a.getAddress(), a.getWard(), a.getPlaceId(),
                     GeoUtils.lat(a.getLocation()), GeoUtils.lng(a.getLocation()), stay,
                     new ItineraryResponseDto.TravelDto(leg.mode(), leg.minutes(), leg.distanceMeters(), leg.estimated()),
@@ -386,7 +386,7 @@ public class ItineraryAttractionEditService {
 
     /** 관광지 → 미리보기의 장소 한 칸 */
     private RainPlanDto.PlaceDto place(Attraction a, int stay) {
-        return new RainPlanDto.PlaceDto(a.getId(), a.getName(), a.getNameKo(), typeLabels.toVisibleLabels(a.getTypes()),
+        return new RainPlanDto.PlaceDto(a.getId(), a.getName(), a.getNameKo(), typeLabels.toVisibleLabels(a.typesOrKind()),
                 GeoUtils.lat(a.getLocation()), GeoUtils.lng(a.getLocation()), stay);
     }
 
@@ -485,7 +485,7 @@ public class ItineraryAttractionEditService {
 
     // 야경 자리는 일정을 만들 때와 같은 야경 체류 시간 (전망대가 아닌 곳은 짧게)
     private static int stayOf(Attraction attraction, Target target) {
-        int base = target.night() ? StayTimes.nightBaseOf(attraction.getTypes()) : StayTimes.baseOf(attraction.getTypes());
+        int base = target.night() ? StayTimes.nightBaseOf(attraction.typesOrKind()) : StayTimes.baseOf(attraction.typesOrKind());
         return StayTimes.scaled(base, target.trip().getTravelPace().getStayMultiplier());
     }
 

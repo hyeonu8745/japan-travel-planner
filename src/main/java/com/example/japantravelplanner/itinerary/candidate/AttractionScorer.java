@@ -3,6 +3,8 @@ package com.example.japantravelplanner.itinerary.candidate;
 import com.example.japantravelplanner.attraction.policy.SensitivePlaces;
 
 import com.example.japantravelplanner.attraction.entity.Attraction;
+import com.example.japantravelplanner.attraction.entity.AttractionKind;
+import com.example.japantravelplanner.restaurant.entity.GoogleMatchStatus;
 import com.example.japantravelplanner.global.util.GeoUtils;
 import com.example.japantravelplanner.itinerary.zone.ZoneAssigner;
 import com.example.japantravelplanner.trip.entity.Interest;
@@ -14,12 +16,20 @@ import java.util.*;
 
 /**
  * 관광지마다 점수를 매기고 지역을 배정한다.
- * 점수 = 보정 평점 + 관심사 보너스 (관심사 하나당, 최대 2개까지) + 대화에서 말한 취향(Wish) 보너스 (한 번)
+ * 점수 = 기본 점수 (11-18 확장 데이터, {@link #baseScore})
+ *       + 관심사 보너스 (관심사 하나당, 최대 2개까지) + 대화에서 말한 취향(Wish) 보너스 (한 번)
+ *  - 기본 점수 = 기준값 + 평점 보정(보정 평점 - 평균, Google 평점이 있을 때만) + 유명함 + 종류 보정 + 꼭 가는 곳 가산
+ *  - 유명함 = max(인기도 가중치 × log10(1 + 위키 언어 수), 리뷰 가중치 × log10(1 + 리뷰 수 / 100))
+ *    위키 인기도는 82%가 5 미만이라 구분력이 낮고 "유명함"이지 "가볼 만함"이 아니어서(天智天皇陵), 리뷰 수와 큰 쪽을 쓰고
+ *    능·묘·비석은 낮춘다. Google 평점이 있는 곳은 예전처럼 보정 평점이 반영된다
+ * 후보 = 위키 인기도 1 이상 또는 꼭 가는 곳 또는 리뷰 minReviews(100개) 이상 또는 대표 야경 명소
+ *  (예전 "리뷰 100개 미만 제외"는 Google 평점이 있는 도쿄 데이터 기준이었다). Google 에서 폐업으로 확인한 곳은 뺀다
  * 어느 지역에도 속하지 않는 관광지(중심에서 3km 초과)는 제외
  * 같은 장소가 여러 개로 수집된 경우 점수 높은 하나만 남긴다
  *  - 이름이 겹치고 800m 이내 (東京都庁 + 東京都庁第一本庁舎 北展望室)
  *  - 이름과 상관없이 sameSpotMeters(150m) 이내 (愛宕山 + 出世の石段 43m, スクランブル交差点 + ハチ公像 48m)
- * 리뷰가 minReviews(100개) 미만인 관광지도 제외 (なだれ坂 36개처럼 일정에 넣기엔 너무 작은 곳)
+ *  - 이름의 恩賜·都立 같은 말은 빼고 비교 (上野恩賜公園 + 上野公園)
+ *  - 대표 야경 명소끼리도 같은 장소면 하나만 (東京都庁第一本庁舎 北展望室 + 東京都庁展望室 北)
  * 야경 관심사면 대표 야경 명소(NightSpots)는 같은 장소 합치기에서 빼지 않는다
  *  - 歌舞伎町一番街アーチ가 137m 옆 新宿東口の猫에 합쳐져 사라져서 신주쿠 날 야경이 비는 것을 막는다
  */
@@ -51,16 +61,12 @@ public class AttractionScorer {
 
         List<ScoredAttraction> result = new ArrayList<>();
         for (Attraction a : attractions) {
-            if (a.getLocation() == null || a.getRating() == null) continue;
-            if (SensitivePlaces.isExcluded(a.getName())) continue;   // 야스쿠니 등 민감 장소는 추천하지 않는다
-
-            int reviews = a.getReviewCnt() == null ? 0 : a.getReviewCnt();
-            if (reviews < props.getMinReviews()) continue;
+            if (!isCandidate(a)) continue;
 
             double lat = a.getLocation().getY();
             double lng = a.getLocation().getX();
             zoneAssigner.assign(lat, lng).ifPresent(zone -> {
-                double score = bayesian(a.getRating(), reviews, mean, props.getPriorReviews())
+                double score = baseScore(a, mean, props)
                         + interestBonus(a, interests) + wishBonus(a, wishes);
                 result.add(new ScoredAttraction(a, zone, score));
             });
@@ -68,6 +74,44 @@ public class AttractionScorer {
         result.sort(Comparator.comparingDouble(ScoredAttraction::score).reversed());
         boolean keepNightSpots = interests != null && interests.contains(Interest.NIGHT_VIEW);
         return removeNearDuplicates(result, keepNightSpots);
+    }
+
+    /** 일정 후보가 될 수 있는 관광지인지 (좌표, 민감 장소·폐업 제외, 인기도·꼭 가는 곳·리뷰 수·야경 명소 중 하나) */
+    boolean isCandidate(Attraction a) {
+        if (a.getLocation() == null) return false;
+        if (SensitivePlaces.isExcluded(a.getName())) return false;   // 야스쿠니 등 민감 장소는 추천하지 않는다
+        if (a.getGoogleMatchStatus() == GoogleMatchStatus.CLOSED) return false;
+        int popularity = a.getPopularity() == null ? 0 : a.getPopularity();
+        int reviews = a.getReviewCnt() == null ? 0 : a.getReviewCnt();
+        return popularity >= props.getMinPopularity() || a.isMustSee()
+                || reviews >= props.getMinReviews() || NightSpots.isRepresentative(a);
+    }
+
+    /** 기본 점수 (관심사·취향 가산 전). 클래스 설명 참고 */
+    static double baseScore(Attraction a, double meanRating, CandidateProperties props) {
+        int reviews = a.getReviewCnt() == null ? 0 : a.getReviewCnt();
+        int popularity = a.getPopularity() == null ? 0 : a.getPopularity();
+        double quality = a.getRating() == null ? 0
+                : bayesian(a.getRating(), reviews, meanRating, props.getPriorReviews()) - meanRating;
+        double fame = Math.max(props.getPopularityWeight() * Math.log10(1 + popularity),
+                props.getReviewFameWeight() * Math.log10(1 + reviews / 100.0));
+        double mustSee = a.isMustSee() ? props.getMustSeeBonus() : 0;
+        return props.getBaseScore() + quality + fame + kindAdjust(a) + mustSee;
+    }
+
+    /** 이름에 이 말이 있으면 능·묘·비석 같은 곳이라 낮춘다 (위키 인기도가 높아도 일정에 넣을 만하지 않다) */
+    private static final List<String> MINOR_NAME_WORDS = List.of("陵", "墓", "碑", "塚", "供養", "跡");
+
+    /** 종류 보정: 성·궁궐은 조금 올리고, 작은 절·신사·사적은 조금 낮춘다 (도쿄에만 절이 748곳) */
+    static double kindAdjust(Attraction a) {
+        double adjust = 0;
+        AttractionKind kind = a.getKind();
+        if (kind == AttractionKind.CASTLE) adjust += 0.1;
+        if (kind == AttractionKind.TEMPLE || kind == AttractionKind.SHRINE) adjust -= 0.1;
+        if (kind == AttractionKind.HISTORIC || kind == AttractionKind.WORSHIP) adjust -= 0.2;
+        String name = a.getName() == null ? "" : a.getName();
+        if (MINOR_NAME_WORDS.stream().anyMatch(name::contains)) adjust -= 0.3;
+        return adjust;
     }
 
     /** 보정 평점: 리뷰가 적을수록 전체 평균 쪽으로 끌어당김 */
@@ -98,6 +142,15 @@ public class AttractionScorer {
         List<ScoredAttraction> kept = new ArrayList<>();
         for (ScoredAttraction candidate : sorted) {
             if (keepNightSpots && NightSpots.isRepresentative(candidate.attraction())) {
+                // 같은 야경 명소가 두 이름으로 들어 있으면(예전 도쿄 데이터 + 확장 데이터) 점수 높은 하나만
+                boolean sameNightSpot = kept.stream().anyMatch(k -> NightSpots.isRepresentative(k.attraction())
+                        && (isSameSpot(k.lat(), k.lng(), candidate.lat(), candidate.lng(), props.getSameSpotMeters())
+                        || isNearDuplicate(k.attraction().getName(), k.lat(), k.lng(),
+                        candidate.attraction().getName(), candidate.lat(), candidate.lng())));
+                if (sameNightSpot) {
+                    log.debug("[Scorer] 같은 야경 명소 제외: {}", candidate.attraction().getName());
+                    continue;
+                }
                 // 밤에 따로 가는 장소라 낮 명소와 가까워도 남긴다. 먼저 남은 같은 이름의 하위 장소는 이쪽으로 합친다
                 kept.removeIf(k -> !NightSpots.isRepresentative(k.attraction()) && isNearDuplicate(
                         k.attraction().getName(), k.lat(), k.lng(),
@@ -143,8 +196,9 @@ public class AttractionScorer {
         return shorter.length() >= 3 && longer.contains(shorter);
     }
 
-    /** 공백과 괄호 안 내용을 지워서 비교 ("さくら坂 (渋谷)" → "さくら坂") */
-    private static String normalize(String name) {
-        return name.replaceAll("\\(.*?\\)|（.*?）", "").replaceAll("\\s", "");
+    /** 공백과 괄호 안 내용, 공원 이름 앞의 恩賜·都立 같은 말을 지워서 비교 ("さくら坂 (渋谷)" → "さくら坂", "上野恩賜公園" → "上野公園") */
+    static String normalize(String name) {
+        return name.replaceAll("\\(.*?\\)|（.*?）", "").replaceAll("\\s", "")
+                .replaceAll("恩賜|都立|道立|府立|県立|市立|区立|国営", "");
     }
-}
+}

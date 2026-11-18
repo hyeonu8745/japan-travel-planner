@@ -32,8 +32,13 @@ public class PlaceLookupRunner implements CommandLineRunner {
                     r.checked(), r.matched(), r.closed(), r.notFound(), r.duplicates(), r.ratings(),
                     r.copiedRatings(), r.proCalls(), r.enterpriseCalls(),
                     r.stoppedAtLimit() ? " · 상한에 닿아 멈춤 (다시 실행하면 이어서)" : "");
+            // IntelliJ 터미널에서 한글이 많은 마지막 줄이 안 보여서(11-16) 영어·숫자로 한 줄 더
+            log.info("[Places] DONE checked={} matched={} closed={} notFound={} ratings={} pro={} enterprise={}{}",
+                    r.checked(), r.matched(), r.closed(), r.notFound(), r.ratings(), r.proCalls(), r.enterpriseCalls(),
+                    r.stoppedAtLimit() ? " STOPPED_AT_LIMIT" : "");
         } catch (RuntimeException e) {
             log.error("[Places] 중간에 멈춤 — 확인한 곳까지는 저장됐다. 다시 실행하면 이어서 한다", e);
+            log.error("[Places] FAILED (saved so far is kept, run again to continue)");
             code = 1;
         }
         int exit = code;

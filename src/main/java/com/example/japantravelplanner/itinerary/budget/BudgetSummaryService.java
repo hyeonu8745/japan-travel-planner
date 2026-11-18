@@ -73,9 +73,9 @@ public class BudgetSummaryService {
                 Restaurant r = stop.getRestaurant();
                 // 쉬는 시간 카페는 점심 예산(낮 가격), 없으면 저녁 예산으로
                 boolean lunch = stop.getType() == StopType.LUNCH
-                        || (stop.getType() == StopType.CAFE && (r.getBudgetLunchMin() != null || r.getBudgetLunchMax() != null));
-                Integer[] range = range(lunch ? r.getBudgetLunchMin() : r.getBudgetDinnerMin(),
-                        lunch ? r.getBudgetLunchMax() : r.getBudgetDinnerMax());
+                        || (stop.getType() == StopType.CAFE && (r.lunchMin() != null || r.lunchMax() != null));
+                Integer[] range = range(lunch ? r.lunchMin() : r.dinnerMin(),
+                        lunch ? r.lunchMax() : r.dinnerMax());
                 meals++;
                 if (range == null) {
                     unknown++;

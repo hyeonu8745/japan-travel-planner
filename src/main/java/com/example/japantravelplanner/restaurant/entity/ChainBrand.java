@@ -41,4 +41,14 @@ public class ChainBrand {
 
     @Column(name = "budget_max")
     private Integer budgetMax;
+
+    /** 타베로그식 일본어 장르 (콤마 구분, 한국어 장르로 정함). 모르는 장르면 null */
+    public String tabelogGenre() {
+        return ChainGenres.of(genreKo);
+    }
+
+    /** 끼니(식사) 브랜드인지 (카페·디저트가 아님) */
+    public boolean isMeal() {
+        return category == ChainCategory.MEAL;
+    }
 }

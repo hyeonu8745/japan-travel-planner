@@ -71,7 +71,7 @@ public class MealPlanner {
     static List<RestaurantCandidate> rerank(List<RestaurantCandidate> ranked, MealHistory history, double penalty) {
         List<RestaurantCandidate> sorted = new ArrayList<>(ranked);
         sorted.sort(Comparator.comparingDouble((RestaurantCandidate c) ->
-                        c.score() - penalty * history.repeatCount(RestaurantFinder.genresOf(c.restaurant().getGenre())))
+                        c.score() - penalty * history.repeatCount(RestaurantFinder.genresOf(c.restaurant().genreOrBrand())))
                 .reversed());
         return sorted;
     }
@@ -84,7 +84,7 @@ public class MealPlanner {
                                             List<RestaurantCandidate> ranked, Set<String> lastGenres) {
         int chosenIndex = -1;
         for (int i = 0; i < ranked.size(); i++) {
-            Set<String> genres = RestaurantFinder.mainGenres(ranked.get(i).restaurant().getGenre());
+            Set<String> genres = RestaurantFinder.mainGenres(ranked.get(i).restaurant().genreOrBrand());
             if (Collections.disjoint(genres, lastGenres)) {
                 chosenIndex = i;
                 break;
@@ -141,7 +141,7 @@ public class MealPlanner {
     private static String label(PlannedMeal meal) {
         if (meal == null) return "-";
         if (!meal.found()) return "후보 없음";
-        return meal.chosen().restaurant().getName() + "(" + meal.chosen().restaurant().getGenre() + ")"
+        return meal.chosen().restaurant().getName() + "(" + meal.chosen().restaurant().genreOrBrand() + ")"
                 + (meal.genreRepeated() ? " 장르 중복" : "");
     }
 }

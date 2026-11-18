@@ -87,7 +87,7 @@ public class CafePlanner {
                     s.stayMinutes(), t.waitMinutes(), t.travelIn()));
         }
         log.info("[Cafe] DAY{} {} {}({})", day.dayNumber(), result.get(insertAt).arrival(),
-                chosen.restaurant().getName(), chosen.restaurant().getGenre());
+                chosen.restaurant().getName(), chosen.restaurant().genreOrBrand());
         return new ScheduledDay(day.dayNumber(), day.date(), day.zone(), List.copyOf(result), day.dropped(), day.warnings());
     }
 

@@ -32,8 +32,8 @@ public enum Shelter {
 
     /** 관광지가 실내·실외인지 Google 종류로 판단 (실내 종류가 있어도 주로 실외인 종류(공원 등)가 있으면 실외, 모르면 UNKNOWN) */
     public static Shelter of(Attraction attraction) {
-        if (attraction == null || attraction.getTypes() == null) return UNKNOWN;
-        Set<String> types = Arrays.stream(attraction.getTypes().split(","))
+        if (attraction == null || attraction.typesOrKind() == null) return UNKNOWN;
+        Set<String> types = Arrays.stream(attraction.typesOrKind().split(","))
                 .map(String::trim).collect(Collectors.toSet());
         boolean indoor = types.stream().anyMatch(INDOOR_TYPES::contains);
         boolean outdoor = types.stream().anyMatch(OUTDOOR_TYPES::contains);

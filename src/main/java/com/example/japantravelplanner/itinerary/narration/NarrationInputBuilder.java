@@ -122,7 +122,7 @@ public final class NarrationInputBuilder {
             case DINNER -> "저녁 식당 " + nameOf(stop) + " (장르: " + genreOf(stop) + ")";
             case CAFE -> "오후 쉬는 시간 카페 " + nameOf(stop) + " (장르: " + genreOf(stop) + ")";
             case ATTRACTION -> {
-                String labels = String.join(", ", typeLabels.apply(stop.attraction().attraction().getTypes()));
+                String labels = String.join(", ", typeLabels.apply(stop.attraction().attraction().typesOrKind()));
                 String kind = dayPart.isEmpty() ? "관광지" : dayPart + " 관광지";
                 yield labels.isBlank() ? kind + " " + nameOf(stop) : kind + " " + nameOf(stop) + " (" + labels + ")";
             }
@@ -140,7 +140,7 @@ public final class NarrationInputBuilder {
     /** 장르는 서버의 한국어 이름표로 (화면 칩과 같은 이름. AI 가 그때그때 옮기면 "돈카쓰"처럼 어색해진다) */
     private static String genreOf(ScheduledStop stop) {
         // 대표 장르 두 개까지 ("카레·인도 카레·태국 카레"처럼 셋을 다 주면 설명에 그대로 나열한다)
-        List<String> labels = GenreLabels.of(stop.meal().chosen().restaurant().getGenre());
+        List<String> labels = GenreLabels.of(stop.meal().chosen().restaurant().genreOrBrand());
         return labels.isEmpty() ? "정보 없음" : String.join("·", labels.subList(0, Math.min(2, labels.size())));
     }
 

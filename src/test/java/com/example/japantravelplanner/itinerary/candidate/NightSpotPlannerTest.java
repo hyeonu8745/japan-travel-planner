@@ -104,4 +104,29 @@ class NightSpotPlannerTest {
         assertThat(NightSpots.isNightCandidate(skyView.attraction())).isTrue(); // 직접 바꿀 때는 전망대도 후보
         assertThat(NightSpots.isNightCandidate(spot("公園", "park", TripZone.SHINJUKU, 4.0).attraction())).isFalse();
     }
+
+    @Test
+    void 확장_데이터의_새_이름도_대표_야경_명소다() {
+        // 11-18: SHIBUYA SKY → Shibuya Sky, 浅草寺 → 金龍山 浅草寺
+        assertThat(NightSpots.kindOf(spot("Shibuya Sky", null, TripZone.SHIBUYA_HARAJUKU, 4.5).attraction()))
+                .isEqualTo(NightSpots.Kind.OBSERVATORY);
+        assertThat(NightSpots.kindOf(spot("金龍山 浅草寺", null, TripZone.ASAKUSA_UENO, 4.5).attraction()))
+                .isEqualTo(NightSpots.Kind.LIGHT_UP);
+    }
+
+    @Test
+    void 확장_데이터에서_야경_명소로_표시된_곳은_종류_글자로_종류를_정한다() {
+        com.example.japantravelplanner.attraction.entity.Attraction skytree = spot("東京スカイツリー", null,
+                TripZone.ASAKUSA_UENO, 4.5).attraction();
+        skytree.setNightView(true);
+        skytree.setNightInfo(com.example.japantravelplanner.attraction.entity.NightInfo.builder().kind("전망대").build());
+        com.example.japantravelplanner.attraction.entity.Attraction street = spot("道頓堀", null,
+                TripZone.ASAKUSA_UENO, 4.5).attraction();
+        street.setNightView(true);
+        street.setNightInfo(com.example.japantravelplanner.attraction.entity.NightInfo.builder().kind("거리 야경").build());
+
+        assertThat(NightSpots.isRepresentative(skytree)).isTrue();
+        assertThat(NightSpots.kindOf(skytree)).isEqualTo(NightSpots.Kind.OBSERVATORY);
+        assertThat(NightSpots.kindOf(street)).isEqualTo(NightSpots.Kind.CITY_LIGHTS);
+    }
 }

@@ -99,7 +99,7 @@ public final class DayCopies {
                 if (r == null) {
                     continue;
                 }
-                Set<String> main = RestaurantFinder.mainGenres(r.getGenre());
+                Set<String> main = RestaurantFinder.mainGenres(r.genreOrBrand());
                 flags.put(key, !Collections.disjoint(main, previous));
                 previous = main;
             }

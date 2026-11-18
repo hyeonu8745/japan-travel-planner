@@ -500,10 +500,10 @@ public class ItineraryChatEditService {
         if (stop.getType() == StopType.ATTRACTION) {
             var a = stop.getAttraction();
             return new StopRef(ref, stop.getId(), dayNumber, index, stop.getType(), display(a.getNameKo(), a.getName()),
-                    String.join(", ", typeLabels.toVisibleLabels(a.getTypes())));
+                    String.join(", ", typeLabels.toVisibleLabels(a.typesOrKind())));
         }
         var r = stop.getRestaurant();
-        String genre = GenreLabels.joined(r.getGenre());
+        String genre = GenreLabels.joined(r.genreOrBrand());
         return new StopRef(ref, stop.getId(), dayNumber, index, stop.getType(), display(r.getNameKo(), r.getName()),
                 genre == null ? "" : genre);
     }

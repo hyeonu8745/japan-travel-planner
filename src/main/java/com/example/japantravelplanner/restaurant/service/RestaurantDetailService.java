@@ -74,7 +74,7 @@ public class RestaurantDetailService {
                 PlaceContentMapper.photos(place), reviews,
                 RestaurantFeatures.from(restaurantPlace),
                 reviewInsightAnalyzer.analyze(reviews));   // 저장하지 않고 볼 때마다 분석, 실패하면 null
-        return new RestaurantDetailResponseDto(restaurant.getId(), restaurant.getName(), restaurant.getGenre(),
+        return new RestaurantDetailResponseDto(restaurant.getId(), restaurant.getName(), restaurant.genreOrBrand(),
                 restaurant.getAddress(), tabelog(restaurant), GoogleStatus.MATCHED, null, google,
                 PlaceContentMapper.ATTRIBUTION, PlaceContentMapper.REVIEW_NOTICE);
     }
@@ -101,7 +101,7 @@ public class RestaurantDetailService {
 
     /** Google 정보 없이 타베로그 정보와 안내만 */
     private static RestaurantDetailResponseDto withoutGoogle(Restaurant r, GoogleStatus status, String message) {
-        return new RestaurantDetailResponseDto(r.getId(), r.getName(), r.getGenre(), r.getAddress(), tabelog(r),
+        return new RestaurantDetailResponseDto(r.getId(), r.getName(), r.genreOrBrand(), r.getAddress(), tabelog(r),
                 status, message, null, null, null);
     }
 

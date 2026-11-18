@@ -30,7 +30,7 @@ public class ExcludedRestaurantService {
     public List<ExcludedRestaurantDto> list(Long userId, Long tripId) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         return restaurantRepository.findAllById(trip.excludedRestaurants()).stream()
-                .map(r -> new ExcludedRestaurantDto(r.getId(), r.getName(), r.getNameKo(), GenreLabels.of(r.getGenre())))
+                .map(r -> new ExcludedRestaurantDto(r.getId(), r.getName(), r.getNameKo(), GenreLabels.of(r.genreOrBrand())))
                 .toList();
     }
 

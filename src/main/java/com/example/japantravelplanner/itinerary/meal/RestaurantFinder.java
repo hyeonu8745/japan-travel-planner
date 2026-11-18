@@ -43,7 +43,8 @@ public class RestaurantFinder {
 
             nearest = found;
             nearestRadius = radius;
-            if (found.size() >= props.getMinCandidates()) break;
+            // 체인점은 어디에나 많아서 세지 않는다 (체인점 3곳으로 500m 에서 멈추면 1km 안의 타베로그 식당을 못 본다)
+            if (found.stream().filter(c -> !isChainCandidate(c)).count() >= props.getMinCandidates()) break;
         }
         if (!nearest.isEmpty()) {
             log.info("[Meal] {} 반경 {}m, 상한 {}엔 → {}곳", meal, nearestRadius, maxYen, nearest.size());
@@ -117,7 +118,7 @@ public class RestaurantFinder {
             for (int radius : radii) {
                 List<RestaurantCandidate> found = search(lat, lng, radius, meal, (int) (maxYen * factor), filter,
                         excludeIds, null, factor > 1.0).stream()
-                        .filter(c -> !Collections.disjoint(genresOf(c.restaurant().getGenre()), wanted))
+                        .filter(c -> !Collections.disjoint(genresOf(c.restaurant().genreOrBrand()), wanted))
                         .filter(only)
                         .limit(limit).toList();
                 if (!found.isEmpty()) {
@@ -130,7 +131,10 @@ public class RestaurantFinder {
         return List.of();
     }
 
-    /** 반경 안의 식당을 조건(예산·음식·흡연·휴일·이미 고른 곳)으로 걸러 점수(보정 평점 − 거리 감점 + 좋아하는 음식) 순으로 */
+    /**
+     * 반경 안의 식당을 조건(예산·음식·흡연·휴일·이미 고른 곳)으로 걸러 점수(보정 평점 − 거리 감점 + 좋아하는 음식) 순으로.
+     * 체인점(식사 브랜드)도 넣는다: 장르·예산은 브랜드 값, 점수는 주변 평균 − chainPenalty (11-18 확장)
+     */
     private List<RestaurantCandidate> search(double lat, double lng, int radius, Meal meal, int maxYen,
                                              FoodFilter filter, Set<Long> excludeIds, LocalDate visitDate,
                                              boolean relaxed) {
@@ -143,23 +147,29 @@ public class RestaurantFinder {
 
         List<RestaurantCandidate> result = new ArrayList<>();
         for (Restaurant r : nearby) {
-            if (excludeIds.contains(r.getId()) || r.getRatingVal() == null || r.getLocation() == null) continue;
+            if (excludeIds.contains(r.getId()) || r.getLocation() == null) continue;
+            boolean chain = r.getRatingVal() == null && r.isChain();
+            if (r.getRatingVal() == null && !chain) continue;
+            if (chain && !r.getBrand().isMeal()) continue;   // 카페·디저트 체인은 끼니 후보가 아니다
             if (r.isExcludedByGoogleMatch()) continue;   // Google에서 찾지 못함·폐업 (폐업했을 가능성이 큼)
             if (RegularHoliday.isClosedOn(r.getHoliday(), visitDate)) continue;   // 방문하는 날이 정기 휴일
 
-            Integer budgetMax = meal == Meal.LUNCH ? r.getBudgetLunchMax() : r.getBudgetDinnerMax();
+            Integer budgetMax = meal == Meal.LUNCH ? r.lunchMax() : r.dinnerMax();
             if (budgetMax == null || budgetMax > maxYen) continue;   // 예산 정보 없음(점심 "-" 등)도 제외
 
-            Set<String> genres = genresOf(r.getGenre());
+            Set<String> genres = genresOf(r.genreOrBrand());
             if (isSnackOnly(genres)) continue;
-            if (meal == Meal.DINNER && isSnackLed(r.getGenre())) continue;   // 저녁은 간식이 대표인 곳 제외
-            if (isDrinkLed(r.getGenre())) continue;   // 술이 중심인 바는 끼니 후보가 아니다
+            if (meal == Meal.DINNER && isSnackLed(r.genreOrBrand())) continue;   // 저녁은 간식이 대표인 곳 제외
+            if (isDrinkLed(r.genreOrBrand())) continue;   // 술이 중심인 바는 끼니 후보가 아니다
             if (filter.excludes(genres)) continue;   // 피할 음식·알레르기 장르, 담배
 
             int distance = (int) GeoUtils.distanceMeters(lat, lng,
                     r.getLocation().getY(), r.getLocation().getX());
             int reviews = r.getReviewCnt() == null ? 0 : r.getReviewCnt();
-            double score = bayesian(r.getRatingVal(), reviews, mean, props.getPriorReviews())
+            // 체인점은 평점이 없어서 주변 평균보다 chainPenalty 낮게 본다 → 타베로그 식당이 모자랄 때·싼 점심에 들어온다
+            double base = chain ? mean - props.getChainPenalty()
+                    : bayesian(r.getRatingVal(), reviews, mean, props.getPriorReviews());
+            double score = base
                     + (Collections.disjoint(genres, filter.preferGenres()) ? 0 : props.getPreferBonus())
                     - distance / 1000.0 * props.getDistancePenaltyPerKm();
 
@@ -167,6 +177,11 @@ public class RestaurantFinder {
         }
         result.sort(Comparator.comparingDouble(RestaurantCandidate::score).reversed());
         return result;
+    }
+
+    /** 평점 없이 브랜드로 들어온 체인점 후보인지 */
+    static boolean isChainCandidate(RestaurantCandidate c) {
+        return c.restaurant().getRatingVal() == null && c.restaurant().isChain();
     }
 
     /** 보정 평점: 리뷰가 적으면 주변 평균 쪽으로 끌어당긴다 (베이즈 평균) */
@@ -222,9 +237,9 @@ public class RestaurantFinder {
                 if (excludeIds.contains(r.getId()) || r.getRatingVal() == null || r.getLocation() == null) continue;
                 if (r.isExcludedByGoogleMatch()) continue;
                 if (RegularHoliday.isClosedOn(r.getHoliday(), visitDate)) continue;
-                if (!isCafeLed(r.getGenre()) || isDrinkLed(r.getGenre())) continue;
-                if (filter != null && filter.excludes(genresOf(r.getGenre()))) continue;   // 디저트·카페를 피하거나 밀가루 알레르기 등
-                Integer budget = r.getBudgetLunchMax() != null ? r.getBudgetLunchMax() : r.getBudgetDinnerMax();
+                if (!isCafeLed(r.genreOrBrand()) || isDrinkLed(r.genreOrBrand())) continue;
+                if (filter != null && filter.excludes(genresOf(r.genreOrBrand()))) continue;   // 디저트·카페를 피하거나 밀가루 알레르기 등
+                Integer budget = r.lunchMax() != null ? r.lunchMax() : r.dinnerMax();
                 if (budget != null && budget > maxYen) continue;
                 double km = GeoUtils.distanceMeters(lat, lng, r.getLocation().getY(), r.getLocation().getX()) / 1000.0;
                 found.add(new RestaurantCandidate(r, (int) Math.round(km * 1000), r.getRatingVal() - km * distancePenalty, false));
@@ -303,4 +318,4 @@ public class RestaurantFinder {
         }
         return result;
     }
-}
+}

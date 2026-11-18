@@ -55,8 +55,8 @@ public enum Wish {
 
     /** 관광지 종류가 이 취향과 맞는지 */
     public boolean matches(Attraction attraction) {
-        if (attraction == null || attraction.getTypes() == null) return false;
-        Set<String> attractionTypes = Arrays.stream(attraction.getTypes().split(","))
+        if (attraction == null || attraction.typesOrKind() == null) return false;
+        Set<String> attractionTypes = Arrays.stream(attraction.typesOrKind().split(","))
                 .map(String::trim).collect(Collectors.toSet());
         return types.stream().anyMatch(attractionTypes::contains);
     }

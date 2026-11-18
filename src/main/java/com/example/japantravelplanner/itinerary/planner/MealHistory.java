@@ -38,9 +38,9 @@ public class MealHistory {
 
     public void record(RestaurantCandidate chosen) {
         usedIds.add(chosen.restaurant().getId());
-        lastGenres = RestaurantFinder.mainGenres(chosen.restaurant().getGenre());
+        lastGenres = RestaurantFinder.mainGenres(chosen.restaurant().genreOrBrand());
         // 묶음(라멘류 등)은 뒤쪽 장르까지 전체로 센다
-        for (String group : GenreGroups.groupsOf(RestaurantFinder.genresOf(chosen.restaurant().getGenre()))) {
+        for (String group : GenreGroups.groupsOf(RestaurantFinder.genresOf(chosen.restaurant().genreOrBrand()))) {
             groupCounts.merge(group, 1, Integer::sum);
         }
     }

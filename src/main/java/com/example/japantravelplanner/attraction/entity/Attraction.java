@@ -138,4 +138,23 @@ public class Attraction {
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
+
+    /**
+     * 종류 글자 (콤마 구분). Google types 가 있으면(도쿄 예전 데이터) 그대로, 없으면 확장 데이터의 kind 를 같은 이름표로.
+     * 체류 시간·종류 섞기·관심사·실내외·이름표는 모두 이 값을 읽는다. 둘 다 없으면 null
+     */
+    public String typesOrKind() {
+        if (types != null && !types.isBlank()) return types;
+        return kind == null ? null : kind.toTypes(name);
+    }
+
+    /** 그 도시에서 꼭 가는 관광지인지 (null = 아님) */
+    public boolean isMustSee() {
+        return Boolean.TRUE.equals(mustSee);
+    }
+
+    /** 확장 데이터의 야경 명소인지 (null = 아님) */
+    public boolean isNightView() {
+        return Boolean.TRUE.equals(nightView);
+    }
 }
