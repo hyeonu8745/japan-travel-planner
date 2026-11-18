@@ -7,6 +7,7 @@ import com.example.japantravelplanner.attraction.dto.AttractionDetailResponseDto
 import com.example.japantravelplanner.global.exception.AiServiceException;
 import com.example.japantravelplanner.restaurant.dto.ReviewInsightsDto;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.util.List;
@@ -241,8 +242,8 @@ class ReviewInsightAnalyzerTest {
         ReviewInsightsDto result = analyzer.analyze(reviews());
 
         assertThat(result.findings()).hasSize(1);
-        verify(client, times(1)).generateJson(eq(AiModelTier.BASIC), anyString(), anyString(), anyMap(), anyInt(),
-                eq(ReviewInsightAnalyzer.TEMPERATURE));   // 같은 리뷰면 같은 결과가 나오게
+        verify(client, times(1)).generateJson(eq(AiModelTier.BASIC), eq(ReviewInsightPrompt.INSTRUCTIONS), anyString(),
+                anyMap(), anyInt(), eq(ReviewInsightAnalyzer.TEMPERATURE));   // 같은 리뷰면 같은 결과가 나오게
     }
 
     @Test
@@ -323,5 +324,76 @@ class ReviewInsightAnalyzerTest {
         assertThat(ReviewInsightAnalyzer.isKoreanOriginal(
                 new ReviewDto(null, 5, "Delicious", false, null, null, null, null, null))).isFalse();
         assertThat(ReviewInsightAnalyzer.isKoreanOriginal(null)).isFalse();
+    }
+
+    // ── 11-18: 규칙으로 훑어 AI가 놓친 문장만 다시 묻기 ──
+
+    private void firstPass(String json) {
+        when(client.generateJson(any(), eq(ReviewInsightPrompt.INSTRUCTIONS), anyString(), anyMap(), anyInt(), anyDouble()))
+                .thenReturn(ai(json));
+    }
+
+    private void recheckReturns(String json) {
+        when(client.generateJson(any(), eq(ReviewRecheckPrompt.INSTRUCTIONS), anyString(), anyMap(), anyInt(), anyDouble()))
+                .thenReturn(ai(json));
+    }
+
+    @Test
+    void 일차가_놓친_의심_문장만_다시_묻고_확인되면_더한다() {
+        // 1차는 2번 리뷰의 불친절만 찾고, 0번 리뷰의 「한국어 메뉴」를 놓쳤다
+        firstPass("""
+                {"reviews":[{"index":2,"findings":[{"tag":"UNFRIENDLY","evidence":"점원들의 태도는"}]}]}""");
+        recheckReturns("""
+                {"items":[{"id":0,"confirmed":true,"evidence":"한국어 메뉴도 있어서 주문하기 편했어요"}]}""");
+
+        ReviewInsightsDto result = analyzer.analyze(reviews());
+
+        assertThat(result.findings()).extracting(ReviewInsightsDto.Finding::tag)
+                .containsExactly("KOREAN_FRIENDLY", "UNFRIENDLY");
+        ArgumentCaptor<String> input = ArgumentCaptor.forClass(String.class);
+        verify(client).generateJson(any(), eq(ReviewRecheckPrompt.INSTRUCTIONS), input.capture(), anyMap(), anyInt(), anyDouble());
+        assertThat(input.getValue()).contains("tag=\"KOREAN_FRIENDLY\"").contains("한국어 메뉴도 있어서")
+                .doesNotContain("tag=\"UNFRIENDLY\"");   // 1차에서 이미 찾은 것은 다시 묻지 않는다
+    }
+
+    @Test
+    void 다시_물어도_아니라고_하면_더하지_않는다() {
+        firstPass("""
+                {"reviews":[{"index":2,"findings":[{"tag":"UNFRIENDLY","evidence":"점원들의 태도는"}]}]}""");
+        recheckReturns("""
+                {"items":[{"id":0,"confirmed":false,"evidence":""}]}""");
+
+        assertThat(analyzer.analyze(reviews()).findings()).extracting(ReviewInsightsDto.Finding::tag)
+                .containsExactly("UNFRIENDLY");
+    }
+
+    @Test
+    void 다시_묻기의_근거도_리뷰에_없으면_버린다() {
+        firstPass("{\"reviews\":[]}");
+        recheckReturns("""
+                {"items":[{"id":0,"confirmed":true,"evidence":"한국어 직원이 아주 친절했어요"}]}""");
+
+        assertThat(analyzer.analyze(reviews()).findings()).isEmpty();
+    }
+
+    @Test
+    void 다시_묻기가_실패하면_일차_결과만_돌려준다() {
+        firstPass("""
+                {"reviews":[{"index":2,"findings":[{"tag":"UNFRIENDLY","evidence":"점원들의 태도는"}]}]}""");
+        when(client.generateJson(any(), eq(ReviewRecheckPrompt.INSTRUCTIONS), anyString(), anyMap(), anyInt(), anyDouble()))
+                .thenThrow(new AiServiceException("AI 응답을 받지 못했습니다.", null));
+
+        assertThat(analyzer.analyze(reviews()).findings()).extracting(ReviewInsightsDto.Finding::tag)
+                .containsExactly("UNFRIENDLY");
+    }
+
+    @Test
+    void 의심_문장이_없으면_다시_묻지_않는다() {
+        firstPass("{\"reviews\":[]}");
+        ReviewDto plain = review("맛있어요. 다음에 또 올게요.", 5);
+
+        analyzer.analyze(List.of(plain));
+
+        verify(client, times(0)).generateJson(any(), eq(ReviewRecheckPrompt.INSTRUCTIONS), anyString(), anyMap(), anyInt(), anyDouble());
     }
 }

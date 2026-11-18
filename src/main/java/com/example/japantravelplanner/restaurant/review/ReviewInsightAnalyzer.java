@@ -33,6 +33,8 @@ import java.util.concurrent.TimeUnit;
  * - AI가 지어내지 못하게: 근거(evidence)가 실제 리뷰 글에 그대로 있는 것만 남긴다
  * - AI가 잘못 붙이지 못하게: 근거 주변 글이 종류별 규칙(ReviewTag.supportedBy)을 만족해야 한다
  *   (차별은 국적 말 + 다르게 대한 말, 불친절은 직원 말 + 나쁜 태도 말, 부정된 말은 세지 않음)
+ * - AI가 놓친 것 다시 찾기 (11-18): 같은 규칙으로 문장을 훑어 1차에 없는 의심 문장(ReviewSuspects)만 AI에 다시 묻고,
+ *   확인된 것도 같은 검사를 거친다. 1차와 합쳐 timeoutSeconds 안에서 끝나고, 시간이 모자라면 1차 결과만
  * - 실패해도 상세는 정상: AI 오류·형식 오류·시간 초과면 null (분석만 빠진다)
  */
 @Slf4j
@@ -43,6 +45,10 @@ public class ReviewInsightAnalyzer {
     static final int MAX_EVIDENCE_LENGTH = 60;   // 프롬프트는 40자, 여유를 둔다
     /** 같은 리뷰면 같은 결과 (같은 리뷰를 두 번 불렀더니 한 번은 불친절을 찾고 한 번은 못 찾았다) */
     static final double TEMPERATURE = 0.0;
+    /** 다시 묻기 응답 길이 (문장 8개 × 짧은 답) */
+    static final int RECHECK_OUTPUT_TOKENS = 600;
+    /** 1차가 끝나고 남은 시간이 이보다 적으면 다시 묻지 않는다 */
+    static final long MIN_RECHECK_MILLIS = 1_500;
     /** 핵심 말은 근거 구절과 그 앞뒤 이만큼(띄어쓰기 뺀 글자 수)에서 찾는다 */
     static final int KEYWORD_WINDOW = 30;
     static final String NOTICE = "AI가 한국인이 쓴 Google 리뷰 %d개를 읽고 찾은 참고 정보예요. 리뷰 몇 개로 가게 전체를 판단할 수는 없어요.";
@@ -69,21 +75,39 @@ public class ReviewInsightAnalyzer {
      *         리뷰는 있지만 한국인이 쓴 리뷰가 없으면 AI를 부르지 않고 analyzedReviewCount 0인 결과
      */
     public ReviewInsightsDto analyze(List<ReviewDto> reviews) {
+        Steps steps = analyzeSteps(reviews);
+        return steps == null ? null : steps.result();
+    }
+
+    /**
+     * 1차 결과와 다시 묻기까지 합친 결과 (정확도 평가용: ReviewInsightLiveEval 이 둘을 비교한다)
+     * @param first  1차 AI + 서버 확인만
+     * @param result 다시 묻기까지 (화면에 주는 것)
+     */
+    record Steps(ReviewInsightsDto first, ReviewInsightsDto result) {
+    }
+
+    /** analyze 와 같고, 1차 결과도 같이 돌려준다 */
+    Steps analyzeSteps(List<ReviewDto> reviews) {
         if (!props.isEnabled() || reviews == null || reviews.isEmpty()) return null;
         // 분석 대상이 아닌 리뷰는 빈 글로 둔다 (번호는 google.reviews 위치 그대로 유지, 빈 글에는 근거가 맞을 수 없다)
         List<String> texts = reviews.stream().map(r -> isKoreanOriginal(r) ? r.text() : "").toList();
         if (texts.stream().allMatch(String::isBlank)) {
-            return new ReviewInsightsDto(List.of(), List.of(), NO_KOREAN_NOTICE, 0);
+            ReviewInsightsDto none = new ReviewInsightsDto(List.of(), List.of(), NO_KOREAN_NOTICE, 0);
+            return new Steps(none, none);
         }
 
         String input = buildInput(reviews);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(props.getTimeoutSeconds());
         Future<AiResult> future = EXECUTOR.submit(() -> openAiClient.generateJson(AiModelTier.BASIC,
                 ReviewInsightPrompt.INSTRUCTIONS, input, ReviewInsightPrompt.format(), MAX_OUTPUT_TOKENS, TEMPERATURE));
         try {
             AiResult ai = future.get(props.getTimeoutSeconds(), TimeUnit.SECONDS);
-            ReviewInsightsDto result = parse(jsonMapper, ai.text(), texts);
+            List<Item> items = new ArrayList<>(readItems(jsonMapper, ai.text()));
+            ReviewInsightsDto first = build(items, texts);
+            ReviewInsightsDto result = recheck(first, items, texts, deadline);
             log.info("[ReviewInsight] 한국어 리뷰 {}개 분석 → 표시 {}건", result.analyzedReviewCount(), result.findings().size());
-            return result;
+            return new Steps(first, result);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             future.cancel(true);
@@ -120,9 +144,73 @@ public class ReviewInsightAnalyzer {
         return sb.toString();
     }
 
+    /**
+     * 2단계: 서버 규칙에 걸리는데 1차에 없는 문장(ReviewSuspects)만 AI에 다시 묻고, 확인된 것도 1차와 같은 검사를 거쳐 더한다.
+     * 의심 문장이 없거나, 남은 시간이 모자라거나, 다시 묻기가 실패하면 1차 결과 그대로 (상세가 느려지지 않게)
+     */
+    private ReviewInsightsDto recheck(ReviewInsightsDto first, List<Item> items, List<String> texts, long deadline) {
+        Set<String> found = new HashSet<>();
+        first.findings().forEach(f -> found.add(f.reviewIndex() + ":" + f.tag()));
+        List<ReviewSuspects.Suspect> suspects = ReviewSuspects.scan(texts, found);
+        if (suspects.isEmpty()) return first;
+        long remainingMs = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
+        if (remainingMs < MIN_RECHECK_MILLIS) {
+            log.info("[ReviewInsight] 의심 문장 {}개, 남은 시간이 모자라 다시 묻지 않음", suspects.size());
+            return first;
+        }
+        Future<AiResult> future = EXECUTOR.submit(() -> openAiClient.generateJson(AiModelTier.BASIC,
+                ReviewRecheckPrompt.INSTRUCTIONS, ReviewRecheckPrompt.input(suspects), ReviewRecheckPrompt.format(),
+                RECHECK_OUTPUT_TOKENS, TEMPERATURE));
+        try {
+            AiResult ai = future.get(remainingMs, TimeUnit.MILLISECONDS);
+            List<Item> confirmed = recheckItems(jsonMapper, ai.text(), suspects);
+            if (confirmed.isEmpty()) {
+                log.info("[ReviewInsight] 의심 문장 {}개 → 확인 0건", suspects.size());
+                return first;
+            }
+            List<Item> all = new ArrayList<>(items);
+            all.addAll(confirmed);
+            ReviewInsightsDto merged = build(all, texts);
+            log.info("[ReviewInsight] 의심 문장 {}개 → AI 확인 {}건 → 더함 {}건", suspects.size(), confirmed.size(),
+                    merged.findings().size() - first.findings().size());
+            return merged;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            future.cancel(true);
+            return first;
+        } catch (Exception e) {
+            future.cancel(true);
+            log.info("[ReviewInsight] 다시 묻기 실패, 1차 결과만 씁니다: {}", e.getClass().getSimpleName());
+            return first;
+        }
+    }
+
+    /** 다시 묻기 응답 → 1차와 같은 모양(리뷰 번호 + 종류 + 근거). 확인(confirmed)된 것만, 없는 id 는 버린다 */
+    static List<Item> recheckItems(JsonMapper mapper, String json, List<ReviewSuspects.Suspect> suspects) {
+        RecheckResult result = mapper.readValue(json, RecheckResult.class);
+        List<Item> items = new ArrayList<>();
+        if (result == null || result.items() == null) return items;
+        for (RecheckItem r : result.items()) {
+            if (r == null || !r.confirmed() || r.id() < 0 || r.id() >= suspects.size()) continue;
+            ReviewSuspects.Suspect s = suspects.get(r.id());
+            items.add(new Item(s.index(), List.of(new RawFinding(s.tag().name(), r.evidence()))));
+        }
+        return items;
+    }
+
     /** AI 응답 → 화면용. 없는 리뷰 번호, 모르는 종류, 리뷰에 없는 근거, 같은 리뷰의 같은 종류 중복은 버린다 */
     static ReviewInsightsDto parse(JsonMapper mapper, String json, List<String> texts) {
+        return build(readItems(mapper, json), texts);
+    }
+
+    /** 1차 응답 JSON → 리뷰별 후보 */
+    static List<Item> readItems(JsonMapper mapper, String json) {
         Result result = mapper.readValue(json, Result.class);
+        return result == null || result.reviews() == null ? List.of() : result.reviews();
+    }
+
+    /** 후보(1차 + 다시 묻기) → 화면용. 근거가 리뷰에 있는지, 근거 앞뒤가 종류 규칙에 맞는지 서버가 확인한다 */
+    static ReviewInsightsDto build(List<Item> items, List<String> texts) {
         List<Finding> findings = new ArrayList<>();
         Map<ReviewTag, Set<Integer>> reviewsByTag = new EnumMap<>(ReviewTag.class);
         Set<String> seen = new HashSet<>();
@@ -130,40 +218,38 @@ public class ReviewInsightAnalyzer {
         Map<String, Integer> dropped = new java.util.LinkedHashMap<>();
         int proposed = 0;
 
-        if (result != null && result.reviews() != null) {
-            for (Item item : result.reviews()) {
-                if (item == null || item.findings() == null) continue;
-                if (item.index() < 0 || item.index() >= texts.size()) {
-                    dropped.merge("없는 리뷰 번호", item.findings().size(), Integer::sum);
+        for (Item item : items) {
+            if (item == null || item.findings() == null) continue;
+            if (item.index() < 0 || item.index() >= texts.size()) {
+                dropped.merge("없는 리뷰 번호", item.findings().size(), Integer::sum);
+                continue;
+            }
+            String review = squeeze(texts.get(item.index()));
+            for (RawFinding raw : item.findings()) {
+                proposed++;
+                ReviewTag tag = raw == null ? null : ReviewTag.from(raw.tag());
+                String evidence = raw == null || raw.evidence() == null ? "" : raw.evidence().strip();
+                if (tag == null || evidence.isEmpty() || evidence.length() > MAX_EVIDENCE_LENGTH) {
+                    dropped.merge("형식", 1, Integer::sum);
                     continue;
                 }
-                String review = squeeze(texts.get(item.index()));
-                for (RawFinding raw : item.findings()) {
-                    proposed++;
-                    ReviewTag tag = raw == null ? null : ReviewTag.from(raw.tag());
-                    String evidence = raw == null || raw.evidence() == null ? "" : raw.evidence().strip();
-                    if (tag == null || evidence.isEmpty() || evidence.length() > MAX_EVIDENCE_LENGTH) {
-                        dropped.merge("형식", 1, Integer::sum);
-                        continue;
-                    }
-                    int at = review.indexOf(squeeze(evidence));
-                    if (at < 0) {   // 리뷰에 없는 말 = 지어낸 것
-                        dropped.merge(tag.name() + ":근거가 리뷰에 없음", 1, Integer::sum);
-                        continue;
-                    }
-                    // 근거와 그 앞뒤에 그 종류의 핵심 말이 없음 = 잘못 붙인 것
-                    // (AI가 "친절한 편은 아니라"만 잘라 와도 바로 앞의 "점원들의 태도는"으로 인정)
-                    String around = review.substring(Math.max(0, at - KEYWORD_WINDOW),
-                            Math.min(review.length(), at + squeeze(evidence).length() + KEYWORD_WINDOW));
-                    if (!tag.supportedBy(around)) {
-                        dropped.merge(tag.name() + ":핵심 말 없음", 1, Integer::sum);
-                        continue;
-                    }
-                    if (!seen.add(item.index() + ":" + tag)) continue;
-
-                    findings.add(new Finding(item.index(), tag.name(), tag.label(), tag.caution(), evidence));
-                    reviewsByTag.computeIfAbsent(tag, t -> new HashSet<>()).add(item.index());
+                int at = review.indexOf(squeeze(evidence));
+                if (at < 0) {   // 리뷰에 없는 말 = 지어낸 것
+                    dropped.merge(tag.name() + ":근거가 리뷰에 없음", 1, Integer::sum);
+                    continue;
                 }
+                // 근거와 그 앞뒤에 그 종류의 핵심 말이 없음 = 잘못 붙인 것
+                // (AI가 "친절한 편은 아니라"만 잘라 와도 바로 앞의 "점원들의 태도는"으로 인정)
+                String around = review.substring(Math.max(0, at - KEYWORD_WINDOW),
+                        Math.min(review.length(), at + squeeze(evidence).length() + KEYWORD_WINDOW));
+                if (!tag.supportedBy(around)) {
+                    dropped.merge(tag.name() + ":핵심 말 없음", 1, Integer::sum);
+                    continue;
+                }
+                if (!seen.add(item.index() + ":" + tag)) continue;
+
+                findings.add(new Finding(item.index(), tag.name(), tag.label(), tag.caution(), evidence));
+                reviewsByTag.computeIfAbsent(tag, t -> new HashSet<>()).add(item.index());
             }
         }
         findings.sort((a, b) -> a.reviewIndex() != b.reviewIndex()
@@ -197,5 +283,13 @@ public class ReviewInsightAnalyzer {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record RawFinding(String tag, String evidence) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record RecheckResult(List<RecheckItem> items) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record RecheckItem(int id, boolean confirmed, String evidence) {
     }
 }
