@@ -23,6 +23,7 @@ import com.example.japantravelplanner.trip.dto.TripUpdateResponseDto.Result;
 import com.example.japantravelplanner.trip.entity.Airport;
 import com.example.japantravelplanner.trip.entity.Trip;
 import com.example.japantravelplanner.trip.entity.TripStatus;
+import com.example.japantravelplanner.trip.region.City;
 import com.example.japantravelplanner.trip.repository.TripPreferenceRepository;
 import com.example.japantravelplanner.trip.repository.TripRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -115,11 +116,16 @@ public class TripEditService {
         boolean hasItinerary = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId).isPresent();
         boolean wasAwaiting = trip.isAwaitingConfirmation();   // 완성 전이었는지 (시각만 다시 계산하면 그대로 둔다)
 
-        if (change.changed("startDate") || change.changed("endDate")) {
-            trip.setTitle(TripService.defaultTitle(request.getStartDate(), request.getEndDate()));
-        }
         if (change.changed("accommodationAddress")) {
             trip.setAccommodationLocation(null);   // 새 주소로 다시 찾게 한다
+            // 새 주소에 도시 이름이 있으면 그 도시로 (없으면 일정을 다시 만들 때 좌표로)
+            City.guess(request.getAccommodationName(), request.getAccommodationAddress()).ifPresent(city -> {
+                trip.setBaseCity(city);
+                trip.setRegion(city.region());
+            });
+        }
+        if (change.changed("startDate") || change.changed("endDate")) {
+            trip.setTitle(TripService.defaultTitle(request.getStartDate(), request.getEndDate(), trip.getBaseCity()));
         }
         trip.setStartDate(request.getStartDate());
         trip.setEndDate(request.getEndDate());

@@ -12,7 +12,7 @@ final class KoreanNamePrompt {
     }
 
     static final String INSTRUCTIONS = """
-            너는 도쿄의 관광지와 식당 이름을 한국인 여행자가 읽기 쉬운 한국어 이름으로 바꾸는 담당이다.
+            너는 일본의 관광지와 식당 이름을 한국인 여행자가 읽기 쉬운 한국어 이름으로 바꾸는 담당이다.
             입력의 <place> 하나마다 같은 id로 name_ko 하나를 돌려준다.
 
             [바꾸는 법]

@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.itinerary.planner;
 
+import com.example.japantravelplanner.global.util.GeoUtils;
 import com.example.japantravelplanner.itinerary.candidate.ScoredAttraction;
 import com.example.japantravelplanner.itinerary.meal.*;
 import com.example.japantravelplanner.itinerary.travel.TravelPoint;
@@ -44,10 +45,20 @@ public class MealPlanner {
         PlannedMeal dinner = window.dinner()
                 ? pick(Meal.DINNER, dinnerAnchor(route, hotel), budget, filter, history, date)
                 : null;
+        // 저녁 위치 근처(3km 안)에 식당이 없으면 숙소 근처에서 (11-18: 고베 마야산 전망대에서 끝난 날).
+        // 저녁 위치가 숙소에서 3km 안이면 숙소 근처도 이미 찾아본 셈이라 다시 찾지 않는다
+        if (dinner != null && !dinner.found() && hotel != null
+                && GeoUtils.distanceMeters(dinner.anchor().lat(), dinner.anchor().lng(), hotel.lat(), hotel.lng()) > HOTEL_FALLBACK_METERS) {
+            PlannedMeal nearHotel = pick(Meal.DINNER, hotel, budget, filter, history, date);
+            if (nearHotel.found()) dinner = nearHotel;
+        }
 
         log.info("[Meal] DAY{} 점심 {} / 저녁 {}", route.day().dayNumber(), label(lunch), label(dinner));
         return new DayMeals(lunch, dinner);
     }
+
+    /** 저녁 위치가 숙소에서 이보다 멀 때만 숙소 근처에서 다시 찾는다 (식당 검색의 가장 넓은 반경) */
+    static final double HOTEL_FALLBACK_METERS = 3000;
 
     /** 한 끼 고르기: 후보를 찾아 같은 음식 묶음 반복을 감점해 다시 순위를 매기고, 앞 끼니와 같은 장르는 피해서 고른다 (다음 후보는 대안으로, 고른 곳은 기록) */
     private PlannedMeal pick(Meal meal, TravelPoint anchor, MealBudget budget,

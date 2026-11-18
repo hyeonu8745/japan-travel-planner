@@ -19,7 +19,7 @@ class ChatOpeningTest {
 
         String greeting = ChatGreeting.of(trip);
 
-        assertThat(greeting).startsWith("안녕하세요! TabiMate예요. 6박 7일 도쿄 여행")
+        assertThat(greeting).startsWith("안녕하세요! TabiMate예요. 6박 7일 여행")
                 .contains("관심사(현지 음식, 야경)")
                 .endsWith(ChatGreeting.FIRST_QUESTION);
     }
@@ -62,5 +62,18 @@ class ChatOpeningTest {
         // 10-11 여행 9: "라멘은 너무 짜서 빼주세요"가 FOOD_AVOID "너무 짠 음식"으로만 저장돼 라멘이 점심으로 나왔다
         assertThat(com.example.japantravelplanner.chat.ai.PreferencePrompt.INSTRUCTIONS)
                 .contains("FOOD_AVOID \"라멘 (너무 짜서)\"");
+    }
+
+    @Test
+    void 숙소_주소로_도시를_알면_첫_인사에_도시_이름을_넣는다() {
+        com.example.japantravelplanner.trip.entity.Trip osaka = com.example.japantravelplanner.trip.entity.Trip.builder()
+                .startDate(java.time.LocalDate.of(2026, 12, 1)).endDate(java.time.LocalDate.of(2026, 12, 4))
+                .accommodationName("호텔").accommodationAddress("大阪府大阪市北区梅田").build();
+        com.example.japantravelplanner.trip.entity.Trip unknown = com.example.japantravelplanner.trip.entity.Trip.builder()
+                .startDate(java.time.LocalDate.of(2026, 12, 1)).endDate(java.time.LocalDate.of(2026, 12, 4))
+                .accommodationName("Hotel Gracery").build();
+
+        assertThat(ChatGreeting.of(osaka)).contains("3박 4일 오사카 여행 일정");
+        assertThat(ChatGreeting.of(unknown)).contains("3박 4일 여행 일정").doesNotContain("도쿄");
     }
 }

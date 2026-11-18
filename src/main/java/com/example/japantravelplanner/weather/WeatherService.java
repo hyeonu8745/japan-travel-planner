@@ -30,7 +30,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class WeatherService {
 
     static final ZoneId JST = ZoneId.of("Asia/Tokyo");
-    static final double TOKYO_LAT = 35.6812, TOKYO_LNG = 139.7671;
 
     private final TripRepository tripRepository;
     private final WeatherClient client;
@@ -46,12 +45,12 @@ public class WeatherService {
         this.clock = clock.withZone(JST);
     }
 
-    /** 여행 날짜별 날씨. 숙소 좌표가 없으면 도쿄 중심 기준 */
+    /** 여행 날짜별 날씨. 숙소 좌표가 없으면 기준 도시 중심 */
     public WeatherResponseDto get(Long userId, Long tripId) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         Point hotel = trip.getAccommodationLocation();
-        double lat = hotel == null ? TOKYO_LAT : hotel.getY();
-        double lng = hotel == null ? TOKYO_LNG : hotel.getX();
+        double lat = hotel == null ? trip.getBaseCity().centerLat() : hotel.getY();
+        double lng = hotel == null ? trip.getBaseCity().centerLng() : hotel.getX();
         return build(tripId, trip.getStartDate(), trip.getEndDate(), lat, lng);
     }
 

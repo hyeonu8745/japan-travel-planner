@@ -105,7 +105,7 @@ class ItineraryAttractionEditServiceTest {
         when(typeLabels.toVisibleLabels(any())).thenReturn(List.of("관광명소"));
         when(itineraryRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         // 일부러 점수 순서를 섞어서 준다 (서비스가 점수 높은 순으로 정렬해야 한다)
-        when(scorer.score(any(), any())).thenReturn(List.of(
+        when(scorer.score(any(), any(), any(), any())).thenReturn(List.of(
                 scored(lowScore, TripZone.SHINJUKU, 4.2),
                 scored(nearPark, TripZone.SHINJUKU, 4.6),
                 scored(farMuseum, TripZone.SHINJUKU, 4.5),

@@ -2,6 +2,7 @@ package com.example.japantravelplanner.chat.service;
 
 import com.example.japantravelplanner.itinerary.reason.StopReasons;
 import com.example.japantravelplanner.trip.entity.Trip;
+import com.example.japantravelplanner.trip.region.City;
 
 import java.time.temporal.ChronoUnit;
 import java.util.stream.Collectors;
@@ -18,14 +19,25 @@ final class ChatGreeting {
     private ChatGreeting() {
     }
 
+    /**
+     * 여행 도시를 알 때만 (숙소 이름·주소에 도시 이름이 있거나, 이미 숙소 좌표로 정했을 때).
+     * 모르면 도시 이름 없이 인사한다 (예전처럼 무조건 "도쿄"라고 하지 않게)
+     */
+    static java.util.Optional<City> cityOf(Trip trip) {
+        java.util.Optional<City> guessed = City.guess(trip.getAccommodationName(), trip.getAccommodationAddress());
+        if (guessed.isPresent()) return guessed;
+        return trip.getAccommodationLocation() != null ? java.util.Optional.of(trip.getBaseCity()) : java.util.Optional.empty();
+    }
+
     /** 여행 기간을 넣은 첫 인사와 첫 질문(음식) */
     static String of(Trip trip) {
         StringBuilder sb = new StringBuilder("안녕하세요! TabiMate예요. ");
+        String place = cityOf(trip).map(c -> c.label() + " ").orElse("");
         if (trip.getStartDate() != null && trip.getEndDate() != null) {
             long nights = ChronoUnit.DAYS.between(trip.getStartDate(), trip.getEndDate());
-            sb.append(nights).append("박 ").append(nights + 1).append("일 도쿄 여행 일정을 함께 준비해 드릴게요.\n\n");
+            sb.append(nights).append("박 ").append(nights + 1).append("일 ").append(place).append("여행 일정을 함께 준비해 드릴게요.\n\n");
         } else {
-            sb.append("도쿄 여행 일정을 함께 준비해 드릴게요.\n\n");
+            sb.append(place).append("여행 일정을 함께 준비해 드릴게요.\n\n");
         }
 
         if (trip.getInterests() != null && !trip.getInterests().isEmpty()) {

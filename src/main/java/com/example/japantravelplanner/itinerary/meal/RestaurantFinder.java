@@ -12,7 +12,7 @@ import java.util.*;
 
 /**
  * 한 지점 근처에서 끼니에 맞는 식당 후보를 찾는다.
- * 반경을 넓혀가며 → 그래도 없으면 예산을 올려가며
+ * 반경을 넓혀가며 → 그래도 없으면 예산을 올려가며 → 그래도 없으면 2·3km 까지 (식당 데이터가 거의 없는 곳)
  */
 @Slf4j
 @Component
@@ -59,6 +59,27 @@ public class RestaurantFinder {
             if (!found.isEmpty()) {
                 log.info("[Meal] {} 예산 상향 {}엔 → {}곳", meal, relaxed, found.size());
                 return found.stream().limit(limit).toList();
+            }
+        }
+
+        // ③ 그래도 없으면 더 넓은 반경(2·3km)에서 예산 안 → 예산을 올려서.
+        //    산 위 전망대(摩耶山)·호수(芦ノ湖)·주택가 미술관 근처처럼 식당 데이터가 거의 없는 곳 (11-18 확장 도시)
+        for (int radius : props.getWantedExtraRadii()) {
+            List<RestaurantCandidate> found = search(lat, lng, radius, meal, maxYen, filter, excludeIds, visitDate, false);
+            if (!found.isEmpty()) {
+                log.info("[Meal] {} 넓은 반경 {}m, 상한 {}엔 → {}곳", meal, radius, maxYen, found.size());
+                return found.stream().limit(limit).toList();
+            }
+        }
+        if (!props.getWantedExtraRadii().isEmpty()) {
+            int farthest = props.getWantedExtraRadii().get(props.getWantedExtraRadii().size() - 1);
+            for (double step : props.getBudgetRelaxSteps()) {
+                int relaxed = (int) (maxYen * step);
+                List<RestaurantCandidate> found = search(lat, lng, farthest, meal, relaxed, filter, excludeIds, visitDate, true);
+                if (!found.isEmpty()) {
+                    log.info("[Meal] {} 넓은 반경 {}m, 예산 상향 {}엔 → {}곳", meal, farthest, relaxed, found.size());
+                    return found.stream().limit(limit).toList();
+                }
             }
         }
 
@@ -153,6 +174,8 @@ public class RestaurantFinder {
             if (chain && !r.getBrand().isMeal()) continue;   // 카페·디저트 체인은 끼니 후보가 아니다
             if (r.isExcludedByGoogleMatch()) continue;   // Google에서 찾지 못함·폐업 (폐업했을 가능성이 큼)
             if (RegularHoliday.isClosedOn(r.getHoliday(), visitDate)) continue;   // 방문하는 날이 정기 휴일
+            // 서서 마시는 가게·완전 예약제는 끼니로 넣지 않는다 (확장 데이터 표시, 11-18: 히로시마 저녁에 「立ち飲み」 맥줏집)
+            if (Boolean.TRUE.equals(r.getStandingBar()) || Boolean.TRUE.equals(r.getReservationOnly())) continue;
 
             Integer budgetMax = meal == Meal.LUNCH ? r.lunchMax() : r.dinnerMax();
             if (budgetMax == null || budgetMax > maxYen) continue;   // 예산 정보 없음(점심 "-" 등)도 제외
@@ -258,7 +281,7 @@ public class RestaurantFinder {
             "菓子", "スイーツ", "ケーキ", "パン", "カフェ", "喫茶", "かき氷", "パフェ", "甘味",
             "フルーツパーラー", "チョコレート", "アイス", "ジェラート", "どら焼き", "大福", "たい焼き",
             "クレープ", "ドーナツ", "マカロン", "プリン", "紅茶", "ジュース", "コーヒー", "団子", "せんべい",
-            "ベーグル", "ベーカリー", "ラウンジ");
+            "ベーグル", "ベーカリー", "ラウンジ", "焼き芋", "大学芋");
 
     /** 간식 장르인지 (끼니로 고르지 않는다) */
     static boolean isSnackGenre(String genre) {
@@ -297,7 +320,7 @@ public class RestaurantFinder {
     static boolean isBarGenre(String genre) {
         if (genre.contains("ジュース")) return false;
         return genre.endsWith("バー") || genre.startsWith("バー・") || genre.contains("パブ")
-                || genre.contains("ビアホール") || genre.contains("ビアガーデン");
+                || genre.contains("ビアホール") || genre.contains("ビアガーデン") || genre.contains("立ち飲み");
     }
 
     /** 장르가 모두 간식·디저트면 식사 후보가 아니다 (カフェ,パスタ처럼 식사가 섞이면 후보) */

@@ -15,7 +15,13 @@ public final class BrandKey {
     static final Set<String> AREA_WORDS = Set.of(
             "ginza", "shinjuku", "shibuya", "asakusa", "harajuku", "akihabara", "ueno", "roppongi", "odaiba",
             "ikebukuro", "omotesando", "tokyo", "銀座", "新宿", "渋谷", "浅草", "原宿", "秋葉原", "上野", "六本木",
-            "お台場", "池袋", "表参道", "東京");
+            "お台場", "池袋", "表参道", "東京",
+            // 확장 도시 (11-18): 지점 이름에 자주 붙는 곳
+            "namba", "umeda", "shinsaibashi", "dotonbori", "osaka", "kyoto", "gion", "arashiyama", "kobe", "sannomiya",
+            "hakata", "tenjin", "sapporo", "susukino", "nagoya", "sakae", "yokohama", "kanazawa", "hiroshima", "naha",
+            "難波", "なんば", "梅田", "心斎橋", "道頓堀", "大阪", "京都", "河原町", "祇園", "嵐山", "神戸", "三宮", "元町",
+            "博多", "天神", "中洲", "札幌", "すすきの", "名古屋", "栄", "大須", "横浜", "金沢", "広島", "那覇", "国際通り",
+            "小樽", "鎌倉", "奈良");
 
     /** 정적 메서드만 쓴다 */
     private BrandKey() {

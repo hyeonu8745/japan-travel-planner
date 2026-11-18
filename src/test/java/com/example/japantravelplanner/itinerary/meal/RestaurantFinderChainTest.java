@@ -96,4 +96,37 @@ class RestaurantFinderChainTest {
 
         assertThat(lunch(2000, NO_FILTER)).startsWith("A", "B", "C");
     }
+
+    // ── 11-18: 식당 데이터가 거의 없는 곳, 서서 마시는 가게 ──
+
+    @Test
+    void 일점오킬로_안에_없으면_예산을_올려보고_그래도_없으면_삼킬로까지_넓힌다() {
+        // 산 위 전망대 근처: 1.5km 안에는 없고 2km 에 있다
+        when(repository.findWithinRadius(anyDouble(), anyDouble(), anyDouble())).thenReturn(List.of());
+        when(repository.findWithinRadius(anyDouble(), anyDouble(), eq(2000.0)))
+                .thenReturn(List.of(tabelog(1, "山の下の食堂", 3.6, 1500, 0.018)));
+
+        List<RestaurantCandidate> found = finder.find(35.69, 139.70, Meal.LUNCH, 2000, NO_FILTER, Set.of(), 10);
+
+        assertThat(found).extracting(c -> c.restaurant().getName()).containsExactly("山の下の食堂");
+        assertThat(found.get(0).budgetRelaxed()).isFalse();
+    }
+
+    @Test
+    void 서서_마시는_가게와_완전_예약제는_끼니_후보가_아니다() {
+        Restaurant standing = tabelog(1, "ビールスタンド", 3.9, 1500, 0.0001);
+        standing.setStandingBar(true);
+        Restaurant reserved = tabelog(2, "予約のみ", 4.2, 1500, 0.0002);
+        reserved.setReservationOnly(true);
+        when(repository.findWithinRadius(anyDouble(), anyDouble(), anyDouble()))
+                .thenReturn(List.of(standing, reserved, tabelog(3, "洋食屋", 3.5, 1500, 0.0003)));
+
+        assertThat(lunch(2000, NO_FILTER)).containsExactly("洋食屋");
+    }
+
+    @Test
+    void 立ち飲み가_붙은_맥줏집과_군고구마_가게는_저녁이_아니다() {
+        assertThat(RestaurantFinder.isDrinkLed("ビアバー,立ち飲み,ビアホール")).isTrue();
+        assertThat(RestaurantFinder.isSnackGenre("焼き芋・大学芋")).isTrue();
+    }
 }

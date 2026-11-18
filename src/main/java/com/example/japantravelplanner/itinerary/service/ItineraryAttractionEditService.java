@@ -411,7 +411,8 @@ public class ItineraryAttractionEditService {
     private List<ScoredAttraction> findCandidates(Target target) {
         Set<Long> used = usedAttractionIds(target.latest());
         List<ScoredAttraction> eligible = attractionScorer
-                .score(attractionRepository.findAll(), ItineraryPlanner.interestsOf(target.trip()))
+                .score(attractionRepository.findAll(), ItineraryPlanner.interestsOf(target.trip()), java.util.Set.of(),
+                        target.trip().getBaseCity())
                 .stream()
                 .filter(c -> !used.contains(c.attraction().getId()))
                 .filter(c -> !target.night() || NightSpots.isNightCandidate(c.attraction()))
@@ -485,8 +486,8 @@ public class ItineraryAttractionEditService {
 
     // 야경 자리는 일정을 만들 때와 같은 야경 체류 시간 (전망대가 아닌 곳은 짧게)
     private static int stayOf(Attraction attraction, Target target) {
-        int base = target.night() ? StayTimes.nightBaseOf(attraction.typesOrKind()) : StayTimes.baseOf(attraction.typesOrKind());
-        return StayTimes.scaled(base, target.trip().getTravelPace().getStayMultiplier());
+        if (!target.night()) return StayTimes.of(attraction, target.trip().getTravelPace().getStayMultiplier());
+        return StayTimes.scaled(StayTimes.nightBaseOf(attraction.typesOrKind()), target.trip().getTravelPace().getStayMultiplier());
     }
 
     // ===================== 내부 자료 =====================

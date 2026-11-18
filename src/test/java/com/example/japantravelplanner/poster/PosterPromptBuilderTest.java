@@ -96,4 +96,14 @@ class PosterPromptBuilderTest {
         String free = PosterPromptBuilder.build(itinerary(1), "t", LocalDate.of(2026, 1, 1), props).get(0).prompt();
         assertThat(free).contains("up to you").doesNotContain("user description");
     }
+
+    @Test
+    void 지도_포스터는_숙소_도시를_그린다() {
+        String osaka = PosterPromptBuilder.build(itinerary(1), "오사카 1박 2일", LocalDate.of(2026, 10, 25), props,
+                PosterOptions.DEFAULT, com.example.japantravelplanner.trip.region.City.OSAKA).get(0).prompt();
+        String tokyo = PosterPromptBuilder.build(itinerary(1), "도쿄 1박 2일", LocalDate.of(2026, 10, 25), props).get(0).prompt();
+
+        assertThat(osaka).contains("travel map poster of Osaka, Japan");
+        assertThat(tokyo).contains("travel map poster of Tokyo, Japan");
+    }
 }

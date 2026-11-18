@@ -100,7 +100,7 @@ class ItineraryStopEditServiceTest {
         when(typeLabels.toVisibleLabels(any())).thenReturn(List.of("관광명소"));
         when(itineraryRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         // 점수 순서를 섞어서 준다 (서비스가 점수 높은 순으로 정렬해야 한다)
-        when(scorer.score(any(), any())).thenReturn(List.of(
+        when(scorer.score(any(), any(), any(), any())).thenReturn(List.of(
                 new ScoredAttraction(lowScore, TripZone.SHINJUKU, 4.2),
                 new ScoredAttraction(nearPark, TripZone.SHINJUKU, 4.6),
                 new ScoredAttraction(farMuseum, TripZone.SHINJUKU, 4.5),
@@ -355,7 +355,7 @@ class ItineraryStopEditServiceTest {
 
     @Test
     void 같은_지역_후보가_적으면_넣을_자리_근처_3km_안의_다른_지역도_준다() {
-        when(scorer.score(any(), any())).thenReturn(List.of(
+        when(scorer.score(any(), any(), any(), any())).thenReturn(List.of(
                 new ScoredAttraction(nearPark, TripZone.SHINJUKU, 4.6),
                 new ScoredAttraction(otherZone, TripZone.ASAKUSA_UENO, 4.9)));
 

@@ -278,7 +278,8 @@ public class ItineraryStopEditService {
                 .map(s -> s.getAttraction().getId())
                 .collect(Collectors.toSet());
         List<ScoredAttraction> eligible = attractionScorer
-                .score(attractionRepository.findAll(), ItineraryPlanner.interestsOf(ctx.trip()))
+                .score(attractionRepository.findAll(), ItineraryPlanner.interestsOf(ctx.trip()), java.util.Set.of(),
+                        ctx.trip().getBaseCity())
                 .stream()
                 .filter(c -> !used.contains(c.attraction().getId()))
                 .sorted(Comparator.comparingDouble(ScoredAttraction::score).reversed())
@@ -410,7 +411,7 @@ public class ItineraryStopEditService {
 
     /** 관광지 체류 시간 (종류별 기본 × 여행 속도 배율) */
     private static int stayOf(Attraction attraction, Trip trip) {
-        return StayTimes.scaled(StayTimes.baseOf(attraction.typesOrKind()), trip.getTravelPace().getStayMultiplier());
+        return StayTimes.of(attraction, trip.getTravelPace().getStayMultiplier());
     }
 
     /** 마지막 항목을 떠나는 시각(하루 분) */

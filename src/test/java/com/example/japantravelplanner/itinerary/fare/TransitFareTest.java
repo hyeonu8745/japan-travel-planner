@@ -25,7 +25,7 @@ class TransitFareTest {
     void 사흘_내내_많이_타면_72시간권() {
         TransitFare.PassPlan plan = TransitFare.bestPasses(List.of(700, 1200, 900), props);
 
-        assertThat(plan.passes()).containsExactly(new TransitFare.Pass(1, 3, 72, 2000));
+        assertThat(plan.passes()).containsExactly(new TransitFare.Pass(1, 3, 72, 2000, "Tokyo Subway Ticket"));
         assertThat(plan.cost()).isEqualTo(2000);
         assertThat(plan.payAsYouGo()).isEqualTo(2800);
         assertThat(plan.savings()).isEqualTo(800);
@@ -37,7 +37,7 @@ class TransitFareTest {
 
         // 첫날·셋째 날만 많이 타면 24시간권 두 장 (가운데 날은 렌터카·도보만)
         TransitFare.PassPlan plan = TransitFare.bestPasses(List.of(1100, 0, 1100), props);
-        assertThat(plan.passes()).containsExactly(new TransitFare.Pass(1, 1, 24, 1000), new TransitFare.Pass(3, 3, 24, 1000));
+        assertThat(plan.passes()).containsExactly(new TransitFare.Pass(1, 1, 24, 1000, "Tokyo Subway Ticket"), new TransitFare.Pass(3, 3, 24, 1000, "Tokyo Subway Ticket"));
         assertThat(plan.cost()).isEqualTo(2000);
     }
 
@@ -45,7 +45,7 @@ class TransitFareTest {
     void 이틀_많이_타고_하루_조금이면_48시간권과_그날_요금() {
         TransitFare.PassPlan plan = TransitFare.bestPasses(List.of(900, 900, 300), props);
 
-        assertThat(plan.passes()).containsExactly(new TransitFare.Pass(1, 2, 48, 1500));
+        assertThat(plan.passes()).containsExactly(new TransitFare.Pass(1, 2, 48, 1500, "Tokyo Subway Ticket"));
         assertThat(plan.cost()).isEqualTo(1800);
     }
 

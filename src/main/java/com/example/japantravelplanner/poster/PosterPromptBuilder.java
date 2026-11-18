@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.poster;
 
+import com.example.japantravelplanner.trip.region.City;
 import com.example.japantravelplanner.itinerary.dto.ItineraryResponseDto;
 import com.example.japantravelplanner.itinerary.dto.ItineraryResponseDto.DayDto;
 import com.example.japantravelplanner.itinerary.dto.ItineraryResponseDto.StopDto;
@@ -35,9 +36,16 @@ public final class PosterPromptBuilder {
         return build(itinerary, title, startDate, props, PosterOptions.DEFAULT);
     }
 
-    /** 모든 장을 A4 비율 한 크기로 (인쇄 여백 없게), 스타일·캐릭터는 모든 장에 같게 */
+    /** 도쿄 여행 포스터 (도시를 모를 때) */
     public static List<PageSpec> build(ItineraryResponseDto itinerary, String title, LocalDate startDate,
                                        PosterProperties props, PosterOptions options) {
+        return build(itinerary, title, startDate, props, options, City.TOKYO);
+    }
+
+    /** 모든 장을 A4 비율 한 크기로 (인쇄 여백 없게), 스타일·캐릭터는 모든 장에 같게. 지도는 숙소 도시 */
+    public static List<PageSpec> build(ItineraryResponseDto itinerary, String title, LocalDate startDate,
+                                       PosterProperties props, PosterOptions options, City city) {
+        String place = (city == null ? City.TOKYO : city).englishName();
         PosterOptions opt = options == null ? PosterOptions.DEFAULT : options;
         List<DayDto> days = itinerary.days().stream().filter(d -> !d.stops().isEmpty()).toList();
         List<List<DayDto>> covers = chunks(days, props.getCoverDaysPerPage());
@@ -49,7 +57,7 @@ public final class PosterPromptBuilder {
         for (int i = 0; i < covers.size(); i++) {
             List<DayDto> chunk = covers.get(i);
             String heading = covers.size() == 1 ? title + " 여행 지도" : title + " 여행 지도 (" + (i + 1) + "/" + covers.size() + ")";
-            pages.add(new PageSpec(pageNo, PosterPageKind.COVER, props.getPageSize(), cover(chunk, heading, season, pageNo, props, opt)));
+            pages.add(new PageSpec(pageNo, PosterPageKind.COVER, props.getPageSize(), cover(chunk, heading, season, pageNo, props, opt, place)));
             pageNo++;
         }
         for (int i = 0; i < details.size(); i++) {
@@ -76,8 +84,14 @@ public final class PosterPromptBuilder {
     /** 지도 포스터 한 장의 그림 지시: 스타일, 제목, 날마다 지역·장소 이름, 계절 분위기, 지켜야 할 규칙 */
     static String cover(List<DayDto> days, String heading, String season, int pageNo, PosterProperties props,
                         PosterOptions opt) {
+        return cover(days, heading, season, pageNo, props, opt, "Tokyo");
+    }
+
+    /** @param place 도시 영어 이름 (Tokyo, Osaka …) */
+    static String cover(List<DayDto> days, String heading, String season, int pageNo, PosterProperties props,
+                        PosterOptions opt, String place) {
         StringBuilder sb = new StringBuilder();
-        sb.append("A vertical A4 illustrated travel map poster of Tokyo, Japan, in this style: ").append(opt.style().prompt()).append(".\n");
+        sb.append("A vertical A4 illustrated travel map poster of ").append(place).append(", Japan, in this style: ").append(opt.style().prompt()).append(".\n");
         sb.append("Fill the whole page edge to edge with the design (no empty margins or blank bands at the top or bottom).\n");
         sb.append("Season and mood: ").append(season).append(".\n");
         sb.append("A winding path runs from top to bottom through the poster, connecting one illustrated section per day. ");

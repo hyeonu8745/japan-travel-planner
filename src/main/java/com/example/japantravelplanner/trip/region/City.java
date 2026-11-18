@@ -10,7 +10,7 @@ import java.util.Optional;
 /**
  * 확장 대상 19개 도시. 중심 좌표·반경은 데이터 정리(data_clean.py CITY_RADIUS)와 같은 값이다.
  * DB에는 이름(TOKYO 등) 문자열로 저장한다.
- * 지금 일정 생성은 도쿄만 지역(TripZone)이 있다. 다른 도시는 11월 확장 때 지역과 데이터를 넣는다.
+ * 숙소 좌표가 들어가는 도시가 여행의 기준 도시가 된다 ({@link #containing}, 11-18).
  */
 public enum City {
 
@@ -48,6 +48,11 @@ public enum City {
         this.radiusKm = radiusKm;
     }
 
+    /** 영어 이름 (예: Tokyo, Kawaguchiko). 포스터 그림 지시에 쓴다 */
+    public String englishName() {
+        return name().charAt(0) + name().substring(1).toLowerCase(Locale.ROOT);
+    }
+
     /** 한국어 이름 (예: 도쿄) */
     public String label() {
         return label;
@@ -72,6 +77,53 @@ public enum City {
     public boolean contains(double lat, double lng) {
         return GeoUtils.distanceMeters(centerLat, centerLng, lat, lng) <= radiusKm * 1000;
     }
+
+    /**
+     * 좌표가 범위 안에 들어가는 도시 중 중심이 가장 가까운 곳 (도쿄·요코하마처럼 범위가 겹치면 가까운 쪽).
+     * 어느 도시 범위에도 없으면 empty (서비스 지역 밖)
+     */
+    public static Optional<City> containing(double lat, double lng) {
+        return Arrays.stream(values())
+                .filter(city -> city.contains(lat, lng))
+                .min(java.util.Comparator.comparingDouble(
+                        city -> GeoUtils.distanceMeters(city.centerLat, city.centerLng, lat, lng)));
+    }
+
+    /**
+     * 숙소 이름·주소 글자로 도시 짐작 (여행을 만들 때, 좌표를 찾기 전). 일본어·한국어 도시 이름이 있으면 그 도시.
+     * 「東京都」 안의 「京都」처럼 겹치는 이름은 막는다. 여러 도시가 보이면 처음 맞는 것, 없으면 empty
+     */
+    public static Optional<City> guess(String... texts) {
+        StringBuilder sb = new StringBuilder();
+        for (String t : texts) if (t != null) sb.append(t).append(' ');
+        String text = sb.toString();
+        for (var entry : NAME_PATTERNS) {
+            if (entry.getValue().matcher(text).find()) return Optional.of(entry.getKey());
+        }
+        return Optional.empty();
+    }
+
+    /** 도시 이름 글자 (guess). 한국어 "나라"는 "우리나라" 같은 말과 겹쳐서 나라시·나라현·나라역만 */
+    private static final List<java.util.Map.Entry<City, java.util.regex.Pattern>> NAME_PATTERNS = List.of(
+            java.util.Map.entry(TOKYO, java.util.regex.Pattern.compile("東京|도쿄")),
+            java.util.Map.entry(YOKOHAMA, java.util.regex.Pattern.compile("横浜|요코하마")),
+            java.util.Map.entry(KAMAKURA, java.util.regex.Pattern.compile("鎌倉|가마쿠라")),
+            java.util.Map.entry(HAKONE, java.util.regex.Pattern.compile("箱根|하코네")),
+            java.util.Map.entry(KAWAGUCHIKO, java.util.regex.Pattern.compile("河口湖|가와구치코")),
+            java.util.Map.entry(OSAKA, java.util.regex.Pattern.compile("大阪|오사카")),
+            java.util.Map.entry(KYOTO, java.util.regex.Pattern.compile("(?<!東)京都|교토")),
+            java.util.Map.entry(KOBE, java.util.regex.Pattern.compile("神戸|고베")),
+            java.util.Map.entry(NARA, java.util.regex.Pattern.compile("奈良|나라시|나라현|나라역")),
+            java.util.Map.entry(NAGOYA, java.util.regex.Pattern.compile("名古屋|나고야")),
+            java.util.Map.entry(KANAZAWA, java.util.regex.Pattern.compile("金沢|가나자와")),
+            java.util.Map.entry(TAKAYAMA, java.util.regex.Pattern.compile("高山市|飛騨高山|다카야마")),
+            java.util.Map.entry(HIROSHIMA, java.util.regex.Pattern.compile("広島|히로시마")),
+            java.util.Map.entry(FUKUOKA, java.util.regex.Pattern.compile("福岡|博多|후쿠오카|하카타")),
+            java.util.Map.entry(BEPPU, java.util.regex.Pattern.compile("別府|벳푸")),
+            java.util.Map.entry(YUFUIN, java.util.regex.Pattern.compile("由布院|湯布院|由布市|유후인")),
+            java.util.Map.entry(SAPPORO, java.util.regex.Pattern.compile("札幌|삿포로")),
+            java.util.Map.entry(OTARU, java.util.regex.Pattern.compile("小樽|오타루")),
+            java.util.Map.entry(NAHA, java.util.regex.Pattern.compile("那覇|나하")));
 
     /** 권역에 속한 도시 목록 (선언 순서) */
     public static List<City> inRegion(Region region) {

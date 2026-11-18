@@ -150,6 +150,17 @@ public class Trip {
         return excludedRestaurantIds == null ? Set.of() : excludedRestaurantIds;
     }
 
+    /**
+     * 기본 제목("도쿄 3박 4일", "도쿄 당일치기", "도쿄 여행")이면 앞의 도시 이름을 숙소 도시로 바꾼다.
+     * 여행을 만들 때는 도시를 몰라서 도쿄로 지어 둔다 (11-18). 사용자가 바꾼 제목은 그대로
+     */
+    public void renameDefaultTitle(City city) {
+        if (title == null || city == null) return;
+        if (title.matches("도쿄 (여행|당일치기|\\d+박 \\d+일)")) {
+            title = city.label() + title.substring("도쿄".length());
+        }
+    }
+
     /** 여행 권역 (값이 없던 예전 여행은 수도권) */
     public Region getRegion() {
         return region == null ? Region.KANTO : region;

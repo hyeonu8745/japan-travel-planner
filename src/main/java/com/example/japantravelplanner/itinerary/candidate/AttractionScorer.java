@@ -6,7 +6,9 @@ import com.example.japantravelplanner.attraction.entity.Attraction;
 import com.example.japantravelplanner.attraction.entity.AttractionKind;
 import com.example.japantravelplanner.restaurant.entity.GoogleMatchStatus;
 import com.example.japantravelplanner.global.util.GeoUtils;
+import com.example.japantravelplanner.itinerary.zone.TripZone;
 import com.example.japantravelplanner.itinerary.zone.ZoneAssigner;
+import com.example.japantravelplanner.trip.region.City;
 import com.example.japantravelplanner.trip.entity.Interest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,11 +50,22 @@ public class AttractionScorer {
         return score(attractions, interests, Set.of());
     }
 
+    /** 여행 기준 도시의 지역에 들어가는 관광지만 점수 매기기 (일정 생성·교체·추가 후보) */
+    public List<ScoredAttraction> score(List<Attraction> attractions, Collection<Interest> interests,
+                                        Collection<Wish> wishes, City city) {
+        return score(attractions, interests, wishes, zone -> zone.getCity() == city);
+    }
+
     /**
      * @param wishes 대화에서 말한 취향(피규어 숍 등). 맞는 관광지에 관심사와 같은 크기의 가산점을 한 번 준다
      */
     public List<ScoredAttraction> score(List<Attraction> attractions, Collection<Interest> interests,
                                         Collection<Wish> wishes) {
+        return score(attractions, interests, wishes, zone -> true);
+    }
+
+    private List<ScoredAttraction> score(List<Attraction> attractions, Collection<Interest> interests,
+                                         Collection<Wish> wishes, java.util.function.Predicate<TripZone> zoneFilter) {
         double mean = attractions.stream()
                 .filter(a -> a.getRating() != null)
                 .mapToDouble(Attraction::getRating)
@@ -65,7 +78,7 @@ public class AttractionScorer {
 
             double lat = a.getLocation().getY();
             double lng = a.getLocation().getX();
-            zoneAssigner.assign(lat, lng).ifPresent(zone -> {
+            zoneAssigner.assign(lat, lng).filter(zoneFilter).ifPresent(zone -> {
                 double score = baseScore(a, mean, props)
                         + interestBonus(a, interests) + wishBonus(a, wishes);
                 result.add(new ScoredAttraction(a, zone, score));

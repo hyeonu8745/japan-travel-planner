@@ -140,7 +140,7 @@ class ItineraryAttractionNearbyTest {
                 scored(temple, TripZone.ROPPONGI_TOWER, 4.6),
                 scored(tower, TripZone.ROPPONGI_TOWER, 4.5)));
         all.addAll(List.of(extra));
-        when(scorer.score(any(), any())).thenReturn(all);
+        when(scorer.score(any(), any(), any(), any())).thenReturn(all);
     }
 
     private static List<Long> ids(AttractionCandidatesResponseDto response) {
@@ -199,7 +199,7 @@ class ItineraryAttractionNearbyTest {
 
     @Test
     void 이미_쓴_장소는_다른_지역으로_분류돼도_후보에서_빠진다() {
-        when(scorer.score(any(), any())).thenReturn(List.of(
+        when(scorer.score(any(), any(), any(), any())).thenReturn(List.of(
                 scored(hills, TripZone.GINZA_TOKYO, 4.8),
                 scored(stairs, TripZone.ROPPONGI_TOWER, 4.7),
                 scored(temple, TripZone.ROPPONGI_TOWER, 4.6),

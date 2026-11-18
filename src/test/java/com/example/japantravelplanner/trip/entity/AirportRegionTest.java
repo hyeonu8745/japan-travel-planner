@@ -4,6 +4,8 @@ import com.example.japantravelplanner.trip.region.City;
 import com.example.japantravelplanner.trip.region.Region;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import java.time.LocalTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,8 +31,36 @@ class AirportRegionTest {
     void 도쿄_공항_이동_시간은_예전_값_그대로이고_값이_없는_도시는_60분() {
         assertThat(Airport.NRT.transferMinutes(City.TOKYO)).isEqualTo(AirportAccess.of(Airport.NRT, City.TOKYO).orElseThrow().minutes());
         assertThat(Airport.HND.transferMinutes(City.TOKYO)).isEqualTo(AirportAccess.of(Airport.HND, City.TOKYO).orElseThrow().minutes());
-        assertThat(AirportAccess.of(Airport.KIX, City.OSAKA)).isEmpty();
-        assertThat(Airport.KIX.transferMinutes(City.OSAKA)).isEqualTo(60);
+        // 하네다 → 가마쿠라는 아직 확인 전
+        assertThat(AirportAccess.of(Airport.HND, City.KAMAKURA)).isEmpty();
+        assertThat(Airport.HND.transferMinutes(City.KAMAKURA)).isEqualTo(60);
+        assertThat(AirportAccess.of(Airport.HND, City.YOKOHAMA).orElseThrow().cheapYen()).isEqualTo(400);
+    }
+
+    @Test
+    void 확장_도시는_권역_공항에서_가는_값이_있다() {
+        // 11-18: 교통비 조사 문서(공식 확인) 값
+        assertThat(AirportAccess.of(Airport.KIX, City.OSAKA).orElseThrow().cheapYen()).isEqualTo(970);
+        assertThat(AirportAccess.of(Airport.KIX, City.OSAKA).orElseThrow().fastYen()).isEqualTo(1670);
+        assertThat(AirportAccess.of(Airport.KIX, City.KYOTO).orElseThrow().cheapYen()).isEqualTo(2200);
+        assertThat(AirportAccess.of(Airport.CTS, City.SAPPORO).orElseThrow().cheapYen()).isEqualTo(1230);
+        assertThat(AirportAccess.of(Airport.KMQ, City.KANAZAWA).orElseThrow().cheapYen()).isEqualTo(1400);
+        for (City city : List.of(City.OSAKA, City.KYOTO, City.KOBE, City.NARA, City.NAGOYA, City.KANAZAWA, City.TAKAYAMA,
+                City.HIROSHIMA, City.FUKUOKA, City.BEPPU, City.YUFUIN, City.SAPPORO, City.OTARU, City.NAHA)) {
+            boolean any = java.util.Arrays.stream(Airport.values())
+                    .filter(a -> a.region() == city.region())
+                    .anyMatch(a -> AirportAccess.of(a, city).isPresent());
+            assertThat(any).as(city.name()).isTrue();
+        }
+    }
+
+    @Test
+    void 공항_이동_값은_권역이_맞는_공항만_있다() {
+        for (Airport a : Airport.values()) {
+            for (City c : City.values()) {
+                AirportAccess.of(a, c).ifPresent(x -> assertThat(a.region()).as(a + "→" + c).isEqualTo(c.region()));
+            }
+        }
     }
 
     @Test
@@ -50,5 +80,20 @@ class AirportRegionTest {
         Trip osaka = Trip.builder().region(Region.KANSAI).baseCity(City.OSAKA)
                 .arrivalAirport("KIX").arrivalFlightTime(LocalTime.of(10, 0)).build();
         assertThat(osaka.arrivalAirportInfo()).contains(Airport.KIX);
+    }
+
+    @Test
+    void 기본_제목만_숙소_도시_이름으로_바뀐다() {
+        Trip a = Trip.builder().title("도쿄 3박 4일").build();
+        Trip b = Trip.builder().title("도쿄 당일치기").build();
+        Trip c = Trip.builder().title("도쿄 여행").build();
+        Trip mine = Trip.builder().title("도쿄 3박 4일 엄마랑").build();
+
+        for (Trip t : List.of(a, b, c, mine)) t.renameDefaultTitle(City.NAHA);
+
+        assertThat(a.getTitle()).isEqualTo("나하 3박 4일");
+        assertThat(b.getTitle()).isEqualTo("나하 당일치기");
+        assertThat(c.getTitle()).isEqualTo("나하 여행");
+        assertThat(mine.getTitle()).isEqualTo("도쿄 3박 4일 엄마랑");
     }
 }

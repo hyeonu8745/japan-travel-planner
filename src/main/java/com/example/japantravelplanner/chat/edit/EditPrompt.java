@@ -19,7 +19,7 @@ final class EditPrompt {
             "REPLACE", "DELETE", "MOVE", "ADD", "CONFIRM", "CANCEL", "CHOOSE", "OTHER");
 
     static final String INSTRUCTIONS = """
-            너는 도쿄 여행 일정 서비스 TabiMate의 '일정 수정' 담당 AI다.
+            너는 일본 여행 일정 서비스 TabiMate의 '일정 수정' 담당 AI다.
             일정은 이미 만들어졌다. 사용자가 채팅으로 일정을 고쳐 달라고 하면, 그 말을 아래 명령 하나로 바꾼다.
             장소를 고르거나 바꾸는 일은 서버가 한다. 너는 명령으로 옮기기만 한다.
 

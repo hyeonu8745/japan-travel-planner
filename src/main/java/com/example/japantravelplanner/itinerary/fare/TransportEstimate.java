@@ -21,7 +21,7 @@ public record TransportEstimate(Range perPerson, Range total, Subway subway, Air
 
     /**
      * @param legs       대중교통 구간 수
-     * @param minYen     그냥 탈 때 최소 (도쿄 메트로 운임) / maxYen 최대 (도에이 운임)
+     * @param minYen     그냥 탈 때 최소 / maxYen 최대 (도쿄: 메트로 운임 / 도에이 운임, 교토: 시버스 / 지하철)
      * @param passes     1일권을 쓰는 게 더 싸면 언제 어떤 권을 살지 (아니면 빈 목록)
      * @param passCost   1일권을 섞어 쓸 때 비용 (passes가 비어 있으면 maxYen과 같음)
      * @param savingsYen 1일권으로 아끼는 금액 (최대 요금 기준)
@@ -42,6 +42,6 @@ public record TransportEstimate(Range perPerson, Range total, Subway subway, Air
     public record Day(int dayNumber, LocalDate date, int legs, int minYen, int maxYen) {
     }
 
-    public static final String NOTE = "교통비는 지하철 거리별 운임(IC 카드)과 공항 철도·버스 요금으로 계산한 추정이에요. "
+    public static final String NOTE = "교통비는 그 도시의 지하철·버스·노면전차 운임과 1일권, 공항 철도·버스 요금으로 계산한 추정이에요. "
             + "갈아타거나 JR·사철 구간을 타면 더 나올 수 있어요. 택시·렌터카 비용은 넣지 않았어요.";
 }

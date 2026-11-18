@@ -1,5 +1,8 @@
 package com.example.japantravelplanner.itinerary.planner;
 
+import com.example.japantravelplanner.attraction.entity.Attraction;
+import com.example.japantravelplanner.itinerary.candidate.FullDayParks;
+
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -33,6 +36,14 @@ public final class StayTimes {
 
     /** 정적 메서드만 쓴다 */
     private StayTimes() {
+    }
+
+    /**
+     * 관광지 체류 시간 (종류별 기본 × 여행 속도 배율). 하루를 쓰는 테마파크(USJ 등)는 배율 없이 {@link FullDayParks#STAY_MINUTES}
+     */
+    public static int of(Attraction attraction, double multiplier) {
+        if (FullDayParks.isFullDay(attraction)) return FullDayParks.STAY_MINUTES;
+        return scaled(baseOf(attraction.typesOrKind()), multiplier);
     }
 
     /** 관광지의 기본 체류 시간 (배율 적용 전) */

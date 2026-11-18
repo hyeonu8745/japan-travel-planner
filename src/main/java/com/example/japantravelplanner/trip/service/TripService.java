@@ -5,6 +5,7 @@ import com.example.japantravelplanner.trip.dto.TripRequestDto;
 import com.example.japantravelplanner.trip.dto.TripResponseDto;
 import com.example.japantravelplanner.trip.entity.Airport;
 import com.example.japantravelplanner.trip.entity.Trip;
+import com.example.japantravelplanner.trip.region.City;
 import com.example.japantravelplanner.trip.repository.TripRepository;
 import com.example.japantravelplanner.user.entity.User;
 import com.example.japantravelplanner.user.repository.UserRepository;
@@ -34,9 +35,13 @@ public class TripService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다."));
 
+        // 숙소 이름·주소에 도시 이름이 있으면 그 도시로 (없으면 일정을 만들 때 숙소 좌표로 정한다)
+        City city = City.guess(request.getAccommodationName(), request.getAccommodationAddress()).orElse(City.TOKYO);
         Trip trip = Trip.builder()
                 .user(user)
-                .title(defaultTitle(request.getStartDate(), request.getEndDate()))
+                .title(defaultTitle(request.getStartDate(), request.getEndDate(), city))
+                .baseCity(city)
+                .region(city.region())
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
                 .travelers(request.getTravelers())
@@ -60,14 +65,20 @@ public class TripService {
 
     /** 날짜로 기본 제목 생성: "도쿄 3박 4일", 같은 날이면 "도쿄 당일치기" */
     static String defaultTitle(LocalDate startDate, LocalDate endDate) {
+        return defaultTitle(startDate, endDate, City.TOKYO);
+    }
+
+    /** 도시·날짜로 기본 제목: "오사카 3박 4일", 같은 날이면 "오사카 당일치기", 날짜가 없으면 "오사카 여행" */
+    static String defaultTitle(LocalDate startDate, LocalDate endDate, City city) {
+        String name = (city == null ? City.TOKYO : city).label();
         if (startDate == null || endDate == null) {
-            return "도쿄 여행";
+            return name + " 여행";
         }
         long nights = ChronoUnit.DAYS.between(startDate, endDate);
         if (nights <= 0) {
-            return "도쿄 당일치기";
+            return name + " 당일치기";
         }
-        return "도쿄 " + nights + "박 " + (nights + 1) + "일";
+        return name + " " + nights + "박 " + (nights + 1) + "일";
     }
 
     /** 내 여행 목록 */
@@ -82,4 +93,4 @@ public class TripService {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
         return TripResponseDto.from(trip);
     }
-}
+}

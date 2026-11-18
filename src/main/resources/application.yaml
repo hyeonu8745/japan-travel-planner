@@ -168,6 +168,144 @@ app:
     pass24-yen: 1000             # Tokyo Subway Ticket 24·48·72시간권 (메트로·도에이 전 노선)
     pass48-yen: 1500
     pass72-yen: 2000
+    cities:                      # 도쿄 밖 도시 (11-18, 교통비 조사 문서의 공식 확인 값). max-bands 가 없으면 min-bands 와 같다
+      OSAKA:              # 오사카 메트로 (3·7·13·19km)
+        min-bands:
+          - { max-km: 3, yen: 190 }
+          - { max-km: 7, yen: 240 }
+          - { max-km: 13, yen: 290 }
+          - { max-km: 19, yen: 340 }
+          - { max-km: 99, yen: 390 }
+        pass24-yen: 820
+        pass-name: "엔조이 에코 카드 (토·휴일 620)"
+      KYOTO:              # 최소 = 지하철 1구간 220 · 그 밖은 시버스 균일 230 / 최대 = 시영 지하철 (2025-10-01 개정)
+        min-bands:
+          - { max-km: 3, yen: 220 }
+          - { max-km: 99, yen: 230 }
+        max-bands:
+          - { max-km: 3, yen: 220 }
+          - { max-km: 7, yen: 260 }
+          - { max-km: 11, yen: 290 }
+          - { max-km: 15, yen: 330 }
+          - { max-km: 99, yen: 360 }
+        pass24-yen: 1100
+        pass-name: "지하철·버스 1일권"
+      KOBE:               # 고베 시영 지하철 (공식 PDF 경계)
+        min-bands:
+          - { max-km: 3, yen: 210 }
+          - { max-km: 7, yen: 240 }
+          - { max-km: 10, yen: 280 }
+          - { max-km: 13, yen: 310 }
+          - { max-km: 16, yen: 350 }
+          - { max-km: 19, yen: 380 }
+          - { max-km: 23, yen: 410 }
+          - { max-km: 27, yen: 440 }
+          - { max-km: 99, yen: 470 }
+        pass24-yen: 980
+        pass-name: "지하철 QR 1일 승차권"
+      NARA:               # 나라교통 시내 버스 230 (노선별 상이)
+        min-bands:
+          - { max-km: 99, yen: 230 }
+        pass24-yen: 600
+        pass-name: "나라공원·니시노쿄 세계유산 1-Day Pass"
+      YOKOHAMA:           # 최소 = 지하철 1구간 210 · 그 밖은 시영 버스 220 / 최대 = 시영 지하철 (이후 4km마다 +30)
+        min-bands:
+          - { max-km: 3, yen: 210 }
+          - { max-km: 99, yen: 220 }
+        max-bands:
+          - { max-km: 3, yen: 210 }
+          - { max-km: 7, yen: 250 }
+          - { max-km: 11, yen: 280 }
+          - { max-km: 15, yen: 310 }
+          - { max-km: 19, yen: 340 }
+          - { max-km: 23, yen: 370 }
+          - { max-km: 27, yen: 400 }
+          - { max-km: 31, yen: 430 }
+          - { max-km: 99, yen: 460 }
+        pass24-yen: 830
+        pass-name: "버스·지하철 1일권"
+      KAMAKURA:           # 에노덴 (가마쿠라→하세 200, →에노시마 260)
+        min-bands:
+          - { max-km: 3, yen: 200 }
+          - { max-km: 99, yen: 260 }
+        pass24-yen: 800
+        pass-name: "에노덴 1일권 노리오리쿤"
+      HAKONE:             # 하코네 프리패스로 다닌다 (오다와라발 2일 6,000 · 3일 6,400, 1일권 없음)
+        pass48-yen: 6000
+        pass72-yen: 6400
+        day-yen-if-ride: 6000
+        pass-name: "하코네 프리패스 (오다와라발)"
+      KAWAGUCHIKO:        # 후지큐 주유버스 2일 프리 승차권으로 다닌다 (1일권 없음)
+        pass48-yen: 2000
+        day-yen-if-ride: 2000
+        pass-name: "주유버스 2일 프리 승차권"
+      NAGOYA:             # 나고야 시영 지하철 (3·7·11·15km)
+        min-bands:
+          - { max-km: 3, yen: 210 }
+          - { max-km: 7, yen: 240 }
+          - { max-km: 11, yen: 270 }
+          - { max-km: 15, yen: 310 }
+          - { max-km: 99, yen: 340 }
+        pass24-yen: 760
+        pass-name: "지하철 전선 24시간권"
+      KANAZAWA:           # 호쿠테쓰 노선버스 220 (2026-02 인상)
+        min-bands:
+          - { max-km: 99, yen: 220 }
+        pass24-yen: 800
+        pass-name: "가나자와 시내 1일 프리 승차권"
+      TAKAYAMA:           # 노라마이카·마치나미 버스 100 ~ 노히 버스 210
+        min-bands:
+          - { max-km: 99, yen: 100 }
+        max-bands:
+          - { max-km: 99, yen: 210 }
+      HIROSHIMA:          # 히로덴 노면전차 240 균일 (2025-02-01 개정)
+        min-bands:
+          - { max-km: 99, yen: 240 }
+        pass24-yen: 700
+        pass-name: "전차 1일 승차권"
+      FUKUOKA:            # 후쿠오카 시영 지하철
+        min-bands:
+          - { max-km: 3, yen: 210 }
+          - { max-km: 7, yen: 260 }
+          - { max-km: 11, yen: 300 }
+          - { max-km: 15, yen: 340 }
+          - { max-km: 19, yen: 360 }
+          - { max-km: 99, yen: 380 }
+        pass24-yen: 640
+        pass-name: "지하철 1일 승차권"
+      BEPPU:              # My벳푸 미니 프리로 다닌다 (1일 1,100 · 2일 1,700)
+        pass24-yen: 1100
+        pass48-yen: 1700
+        day-yen-if-ride: 1100
+        pass-name: "My벳푸 미니 프리"
+      YUFUIN:             # My벳푸 와이드 프리 (벳푸·유후인, 1일 1,800 · 2일 2,800). 마을 안은 대부분 걷는다
+        pass24-yen: 1800
+        pass48-yen: 2800
+        day-yen-if-ride: 1800
+        pass-name: "My벳푸 와이드 프리"
+      SAPPORO:            # 삿포로 시영 지하철 (2026-04-01 갱신)
+        min-bands:
+          - { max-km: 3, yen: 210 }
+          - { max-km: 7, yen: 250 }
+          - { max-km: 11, yen: 290 }
+          - { max-km: 15, yen: 330 }
+          - { max-km: 19, yen: 360 }
+          - { max-km: 99, yen: 380 }
+        pass24-yen: 830
+        pass-name: "지하철 전용 1일 승차권 (토·일·공휴일 도니치카 520)"
+      OTARU:              # 중앙버스 시내 균일 240
+        min-bands:
+          - { max-km: 99, yen: 240 }
+        pass24-yen: 800
+        pass-name: "오타루 시내 1일 승차권"
+      NAHA:               # 유이레일 (공항 기준 겐초마에 290 · 마키시 320 · 슈리 360 으로 거리 근사)
+        min-bands:
+          - { max-km: 5, yen: 290 }
+          - { max-km: 8, yen: 320 }
+          - { max-km: 99, yen: 360 }
+        pass24-yen: 1000
+        pass48-yen: 1800
+        pass-name: "유이레일 1일권·2일권"
 
   poster:                        # 여행 포스터 (10-12): 1장 지도 포스터 + 상세 일정표 (모두 이미지 AI)
     enabled: true

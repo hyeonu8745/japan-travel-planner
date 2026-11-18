@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 거리별 지하철 운임과 1일권 계산. 상태 없는 계산만 둔다 (테스트하기 쉽게).
+ * 거리별 운임과 1일권 계산. 상태 없는 계산만 둔다 (테스트하기 쉽게).
  */
 public final class TransitFare {
 
@@ -46,7 +46,7 @@ public final class TransitFare {
             int[] prices = {props.pass24Yen(), props.pass48Yen(), props.pass72Yen()};
             for (int k = 0; k < 3; k++) {
                 int len = lengths[k];
-                if (i + len > n) continue;
+                if (i + len > n || prices[k] <= 0) continue;   // 0 = 그 도시에 없는 패스
                 // 지하철을 안 타는 날까지 1일권으로 덮을 이유는 없다 (그날 요금 0이면 건너뛴다)
                 boolean allRide = true;
                 for (int d = i; d < i + len; d++) if (dayFares.get(d) == 0) allRide = false;
@@ -67,15 +67,15 @@ public final class TransitFare {
                 continue;
             }
             int price = len == 1 ? props.pass24Yen() : len == 2 ? props.pass48Yen() : props.pass72Yen();
-            passes.add(new Pass(i + 1, i + len, len * 24, price));
+            passes.add(new Pass(i + 1, i + len, len * 24, price, props.passName()));
             i += len;
         }
         int payAsYouGo = dayFares.stream().mapToInt(Integer::intValue).sum();
         return new PassPlan(best[0], payAsYouGo, List.copyOf(passes));
     }
 
-    /** @param fromDay·toDay 1부터 (그 일정의 몇째 날), hours 24·48·72 */
-    public record Pass(int fromDay, int toDay, int hours, int yen) {
+    /** @param fromDay·toDay 1부터 (그 일정의 몇째 날), hours 24·48·72, name 패스 이름 (11-18 추가, 예: 엔조이 에코 카드) */
+    public record Pass(int fromDay, int toDay, int hours, int yen, String name) {
     }
 
     /** @param cost 1일권을 섞어 쓸 때 최소 비용, payAsYouGo 그냥 탈 때 */

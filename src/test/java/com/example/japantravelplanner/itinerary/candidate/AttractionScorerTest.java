@@ -267,4 +267,17 @@ class AttractionScorerTest {
                 place(2, "皇居外苑", 35.6800, 139.7570, 4.4)));
         assertThat(kept).containsExactly("皇居外苑");
     }
+
+    @Test
+    void 여행_도시를_주면_그_도시_지역의_관광지만_남는다() {
+        Attraction sensoji = Attraction.builder().id(1L).name("金龍山 浅草寺").kind(AttractionKind.TEMPLE).popularity(31)
+                .location(GF.createPoint(new Coordinate(139.7966, 35.7148))).build();
+        Attraction osakaCastle = Attraction.builder().id(2L).name("大阪城").kind(AttractionKind.CASTLE).popularity(40)
+                .location(GF.createPoint(new Coordinate(135.5257, 34.6870))).build();
+
+        List<String> osaka = scorer.score(List.of(sensoji, osakaCastle), List.of(), java.util.Set.of(),
+                com.example.japantravelplanner.trip.region.City.OSAKA).stream().map(s -> s.attraction().getName()).toList();
+
+        assertThat(osaka).containsExactly("大阪城");
+    }
 }

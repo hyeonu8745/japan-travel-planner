@@ -96,7 +96,7 @@ class TransportEstimatorTest {
         TransportEstimate t = TransportEstimator.estimate(trip, itinerary, props, 9.0, 1, WALK_LIMIT, 1.3);
 
         // 하루 메트로 252×4 = 1,008 / 도에이 272×4 = 1,088 → 이틀 2,176 > 48시간권 1,500
-        assertThat(t.subway().passes()).containsExactly(new TransitFare.Pass(1, 2, 48, 1500));
+        assertThat(t.subway().passes()).containsExactly(new TransitFare.Pass(1, 2, 48, 1500, "Tokyo Subway Ticket"));
         assertThat(t.subway().savingsYen()).isEqualTo(2176 - 1500);
         assertThat(t.subway().finalMinYen()).isEqualTo(1500);
         assertThat(t.subway().finalMaxYen()).isEqualTo(1500);
@@ -127,5 +127,26 @@ class TransportEstimatorTest {
         assertThat(t.rentalCar()).isTrue();
         assertThat(t.subway().legs()).isZero();
         assertThat(t.perPerson().maxYen()).isZero();
+    }
+
+    @Test
+    void 숙소_도시의_운임으로_계산하고_패스로만_다니는_곳은_타는_날마다_패스_값() {
+        FareProperties withCities = new FareProperties();
+        FareProperties.CitySettings hakone = new FareProperties.CitySettings();
+        hakone.setPass48Yen(6000);
+        hakone.setPass72Yen(6400);
+        hakone.setDayYenIfRide(6000);
+        hakone.setPassName("하코네 프리패스 (오다와라발)");
+        withCities.getCities().put(com.example.japantravelplanner.trip.region.City.HAKONE, hakone);
+        Trip trip = trip().baseCity(com.example.japantravelplanner.trip.region.City.HAKONE).build();
+        Itinerary itinerary = itinerary(trip, List.of(
+                List.of(stop(1, LegMode.TRANSIT, 5000, HOTEL_LAT, HOTEL_LNG)),
+                List.of(stop(1, LegMode.TRANSIT, 9000, HOTEL_LAT, HOTEL_LNG))));
+
+        TransportEstimate t = TransportEstimator.estimate(trip, itinerary, withCities, 9.0, 1, WALK_LIMIT, 1.3);
+
+        assertThat(t.days()).extracting(TransportEstimate.Day::maxYen).containsExactly(6000, 6000);
+        assertThat(t.subway().passes()).containsExactly(new TransitFare.Pass(1, 2, 48, 6000, "하코네 프리패스 (오다와라발)"));
+        assertThat(t.subway().finalMaxYen()).isEqualTo(6000);
     }
 }

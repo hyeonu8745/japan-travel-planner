@@ -18,9 +18,9 @@ import java.util.List;
 /**
  * 일정 → 교통비 추정. 저장하지 않고 식비 요약을 볼 때마다 계산한다.
  *
- * - 지하철: 일정의 대중교통(TRANSIT) 구간마다 거리별 운임. 하루 끝 마지막 장소 → 숙소도 걷기엔 멀면 한 구간 더한다
- *   (일정에는 숙소로 돌아가는 구간이 없다). 메트로 운임을 최소, 도에이 운임을 최대로 본다.
- * - 1일권: 날짜별 최대 요금으로 24·48·72시간권 조합을 찾고, 그냥 타는 것보다 싸면 안내한다.
+ * - 대중교통: 일정의 대중교통(TRANSIT) 구간마다 숙소 도시의 운임. 하루 끝 마지막 장소 → 숙소도 걷기엔 멀면 한 구간 더한다
+ *   (일정에는 숙소로 돌아가는 구간이 없다). 도쿄는 메트로 운임을 최소, 도에이 운임을 최대로 본다 (도시별은 FareProperties).
+ * - 1일권: 날짜별 최대 요금으로 그 도시의 24·48·72시간권(있는 것만) 조합을 찾고, 그냥 타는 것보다 싸면 안내한다.
  * - 공항: 여행 조건에 비행기 시각이 있으면 도착·출발 각각 저렴한 방법 ~ 빠른 방법 요금.
  * - 렌터카 여행은 지하철 요금을 넣지 않는다 (렌터카 비용은 모름).
  */
@@ -38,7 +38,7 @@ public final class TransportEstimator {
                                              int travelers, double walkLimitMeters, double transitDetour) {
         boolean rentalCar = trip.getTransportMode() == TransportMode.RENTAL_CAR;
         Point hotel = trip.getAccommodationLocation();
-        // 숙소 도시의 운임. 확장 전에는 도쿄 값만 있어서, 값이 없는 도시도 도쿄 값으로 계산한다
+        // 숙소 도시의 운임 (값이 없는 도시는 도쿄 값으로 계산한다)
         FareProperties.CityFare fare = props.forCity(trip.getBaseCity())
                 .orElseGet(() -> props.forCity(City.TOKYO).orElseThrow());
 
@@ -60,6 +60,10 @@ public final class TransportEstimator {
                     dayLegs++;
                     dayMin += TransitFare.fare(fare.minBands(), d);
                     dayMax += TransitFare.fare(fare.maxBands(), d);
+                }
+                if (fare.dayYenIfRide() > 0 && dayLegs > 0) {   // 패스로만 다니는 곳: 타는 날은 패스 값
+                    dayMin = fare.dayYenIfRide();
+                    dayMax = fare.dayYenIfRide();
                 }
             }
             legs += dayLegs;

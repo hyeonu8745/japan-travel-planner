@@ -100,7 +100,7 @@ public class PosterService {
             // 한국어 이름이 비어 있으면 채운다 (AI, 트랜잭션 밖). 일정이 없으면 404
             ItineraryResponseDto itinerary = koreanNames.fill(generationService.getLatest(userId, tripId));
             List<PosterPromptBuilder.PageSpec> specs = PosterPromptBuilder.build(
-                    itinerary, trip.getTitle(), trip.getStartDate(), props, options);
+                    itinerary, trip.getTitle(), trip.getStartDate(), props, options, trip.getBaseCity());
 
             poster = writeTransaction.execute(status -> {
                 TripPoster p = TripPoster.start(TripAccess.owned(tripRepository, userId, tripId), itinerary.version(), props.getModel(),

@@ -63,4 +63,31 @@ class MealPlannerHolidayTest {
         verify(finder, times(0)).find(anyDouble(), anyDouble(), eq(Meal.LUNCH), anyInt(), any(FoodFilter.class),
                 any(), anyInt(), any());
     }
+
+    @Test
+    void 저녁_위치가_숙소에서_멀고_근처에_식당이_없으면_숙소_근처에서_찾는다() {
+        // 산 위 전망대(숙소에서 약 6km)에서 끝난 날
+        com.example.japantravelplanner.restaurant.entity.Restaurant nearHotel =
+                com.example.japantravelplanner.restaurant.entity.Restaurant.builder().id(9L).name("숙소 옆 식당")
+                        .genre("洋食").ratingVal(3.6).build();
+        when(finder.find(anyDouble(), anyDouble(), any(Meal.class), anyInt(), any(FoodFilter.class), any(), anyInt(), any()))
+                .thenReturn(List.of());
+        when(finder.find(eq(HOTEL.lat()), eq(HOTEL.lng()), eq(Meal.DINNER), anyInt(), any(FoodFilter.class), any(), anyInt(), any()))
+                .thenReturn(List.of(new com.example.japantravelplanner.itinerary.meal.RestaurantCandidate(nearHotel, 200, 3.6, false)));
+        com.example.japantravelplanner.itinerary.candidate.ScoredAttraction mountain =
+                new com.example.japantravelplanner.itinerary.candidate.ScoredAttraction(
+                        com.example.japantravelplanner.attraction.entity.Attraction.builder().id(1L).name("展望台")
+                                .location(new org.locationtech.jts.geom.GeometryFactory(new org.locationtech.jts.geom.PrecisionModel(), 4326)
+                                        .createPoint(new org.locationtech.jts.geom.Coordinate(139.70, 35.755))).build(),
+                        TripZone.SHINJUKU, 5.0);
+        DayZone day = new DayZone(2, DATE, TripZone.SHINJUKU, List.of(mountain));
+        DayRoute route = new DayRoute(day, List.of(), List.of(mountain), null, List.of(), List.of(), null, 0);
+        DayWindow window = new DayWindow(LocalTime.of(9, 30), LocalTime.of(21, 0), false, true);
+
+        DayMeals meals = planner.plan(route, HOTEL, window, new MealBudget(3100, 5700),
+                new FoodFilter(Set.of(), Set.of(), false), new MealHistory());
+
+        assertThat(meals.dinner().found()).isTrue();
+        assertThat(meals.dinner().chosen().restaurant().getName()).isEqualTo("숙소 옆 식당");
+    }
 }
