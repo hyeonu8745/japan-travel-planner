@@ -43,7 +43,7 @@ class ExpansionDataFilesTest {
 
         assertThat(tabelog).hasSize(17_573);
         assertThat(chains).hasSize(3_906);
-        assertThat(attractions).hasSize(3_750);
+        assertThat(attractions).hasSize(3_752);   // 11-22 도다이지·니가쓰도 직접 추가 (must_see_manual)
         assertThat(facilities).hasSize(65_595);
 
         tabelog.forEach(ExpansionDataImporter::tabelogArgs);

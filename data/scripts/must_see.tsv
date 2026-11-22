@@ -31,7 +31,7 @@ kyoto	銀閣寺|慈照寺	은각사
 kyoto	嵐山|竹林	아라시야마 대나무숲
 kyoto	渡月橋	도게쓰쿄
 kyoto	八坂神社	야사카 신사
-kyoto	祇園|花見小路	기온·하나미코지
+kyoto	祇園|花見小路|花見小路 開始點	기온·하나미코지
 kyoto	二条城	니조성
 kyoto	錦市場	니시키 시장
 kyoto	三十三間堂	산주산겐도
@@ -79,7 +79,7 @@ nara	若草山	와카쿠사야마
 nara	依水園	이스이엔
 yokohama	中華街	차이나타운
 yokohama	山下公園	야마시타 공원
-yokohama	みなとみらい	미나토미라이
+yokohama	みなとみらい21|みなとみらい	미나토미라이
 yokohama	赤レンガ倉庫	아카렌가 창고
 yokohama	コスモクロック|コスモワールド	코스모 클록
 yokohama	ランドマークタワー|スカイガーデン	랜드마크 타워
@@ -210,7 +210,7 @@ beppu	明礬	묘반 온천
 beppu	アフリカンサファリ	아프리칸 사파리
 kawaguchiko	新倉山浅間公園|忠霊塔	아라쿠라야마 센겐 공원
 kawaguchiko	大石公園	오이시 공원
-kawaguchiko	河口湖	가와구치코
+# (11-22 뺌: 호수 자체가 아니라 河口湖美術館에 붙었다. 호수는 大石公園·유람선으로) kawaguchiko	河口湖	가와구치코
 kawaguchiko	富士急ハイランド	후지큐 하이랜드
 kawaguchiko	天上山|カチカチ山|ロープウェイ	가치카치야마 로프웨이
 kawaguchiko	忍野八海	오시노 핫카이

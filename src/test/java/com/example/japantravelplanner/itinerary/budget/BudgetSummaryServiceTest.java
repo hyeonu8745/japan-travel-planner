@@ -131,4 +131,43 @@ class BudgetSummaryServiceTest {
         assertThat(dto.days().get(0).meals().get(1).type()).isEqualTo(StopType.CAFE);
         assertThat(dto.note()).contains("쉬는 시간 카페");
     }
+
+    @Test
+    void 당일치기_날_숙소_도시_저녁과_테마파크_안_점심은_다른_날_평균으로_넣는다() {
+        Trip trip = Trip.builder().id(1L).travelers(2).budget(2_000_000)
+                .baseCity(com.example.japantravelplanner.trip.region.City.OSAKA).build();
+        Itinerary itinerary = Itinerary.create(trip, 1, 9.0);
+        ItineraryDay osaka = ItineraryDay.create(1, LocalDate.of(2026, 12, 7),
+                com.example.japantravelplanner.itinerary.zone.TripZone.NAMBA, LocalTime.of(9, 30), LocalTime.of(21, 0),
+                "", List.of(), List.of());
+        osaka.addStop(stop(1, StopType.LUNCH, restaurant(1, 1000, 1999, null, null)));
+        osaka.addStop(stop(2, StopType.DINNER, restaurant(2, null, null, 3000, 3999)));
+        ItineraryDay kyoto = ItineraryDay.create(2, LocalDate.of(2026, 12, 8),
+                com.example.japantravelplanner.itinerary.zone.TripZone.GION, LocalTime.of(9, 30), LocalTime.of(20, 12),
+                "", List.of(), List.of());
+        kyoto.addStop(stop(1, StopType.LUNCH, restaurant(3, 3000, 3999, null, null)));
+        ItineraryDay usj = ItineraryDay.create(3, LocalDate.of(2026, 12, 9),
+                com.example.japantravelplanner.itinerary.zone.TripZone.OSAKA_BAY, LocalTime.of(9, 30), LocalTime.of(21, 0),
+                "", List.of(), List.of(com.example.japantravelplanner.itinerary.candidate.FullDayParks.NOTE));
+        usj.addStop(stop(1, StopType.DINNER, restaurant(4, null, null, 1000, 1999)));
+        itinerary.addDay(osaka);
+        itinerary.addDay(kyoto);
+        itinerary.addDay(usj);
+
+        BudgetSummaryDto dto = BudgetSummaryService.summarize(trip, itinerary, 0.4);
+
+        // 저녁 평균 (3000~3999, 1000~1999) → 2000~3000, 점심 평균 (1000~1999, 3000~3999) → 2000~3000
+        BudgetSummaryDto.MealDto dinner = dto.days().get(1).meals().get(1);
+        assertThat(dinner.estimated()).isTrue();
+        assertThat(dinner.type()).isEqualTo(StopType.DINNER);
+        assertThat(dinner.name()).isEqualTo("오사카에서 저녁 (예상)");
+        assertThat(dinner.minYen()).isEqualTo(2000);
+        assertThat(dinner.maxYen()).isEqualTo(3000);
+        BudgetSummaryDto.MealDto parkLunch = dto.days().get(2).meals().get(1);
+        assertThat(parkLunch.estimated()).isTrue();
+        assertThat(parkLunch.name()).isEqualTo("테마파크 안 점심 (예상)");
+        assertThat(dto.food().meals()).isEqualTo(6);
+        assertThat(dto.days().get(0).meals()).extracting(BudgetSummaryDto.MealDto::estimated).containsOnly(false);
+        assertThat(dto.note()).contains("다른 날 끼니 평균");
+    }
 }

@@ -46,11 +46,19 @@ public record BudgetSummaryDto(Long tripId, int version, int travelers, double k
      *
      * @param budgetText 타베로그 원래 표기 ("￥1,000～￥1,999")
      * @param minYen     null이면 가격 정보 없음
+     * @param estimated  일정에 식당이 없는 끼니를 다른 날 끼니 평균으로 넣은 값이면 true (11-22:
+     *                   당일치기 날 숙소 도시로 돌아가서 먹는 저녁, 테마파크 안 점심). name 은 "오사카에서 저녁 (예상)" 같은 안내
      */
-    public record MealDto(StopType type, String name, String nameKo, String budgetText, Integer minYen, Integer maxYen) {
+    public record MealDto(StopType type, String name, String nameKo, String budgetText, Integer minYen, Integer maxYen,
+                          boolean estimated) {
+        /** 일정의 식당 끼니 */
+        public MealDto(StopType type, String name, String nameKo, String budgetText, Integer minYen, Integer maxYen) {
+            this(type, name, nameKo, budgetText, minYen, maxYen, false);
+        }
     }
 
     public static final String NOTE = "숙박비·관광지 입장료·쇼핑과 일정에 없는 아침·간식은 포함하지 않았어요. "
             + "식비는 일정에 들어간 점심·저녁 식당과 쉬는 시간 카페의 1인 예산 범위(타베로그)로, "
-            + "교통비는 지하철 거리별 운임과 공항 요금으로 계산한 대략적인 금액이에요.";
+            + "교통비는 지하철 거리별 운임과 공항 요금으로 계산한 대략적인 금액이에요. "
+            + "당일치기 날 숙소 도시에서 먹는 저녁과 테마파크 안 점심은 다른 날 끼니 평균으로 넣었어요.";
 }

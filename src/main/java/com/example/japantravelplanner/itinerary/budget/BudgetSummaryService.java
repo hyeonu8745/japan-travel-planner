@@ -1,5 +1,7 @@
 package com.example.japantravelplanner.itinerary.budget;
 
+import com.example.japantravelplanner.itinerary.candidate.FullDayParks;
+import com.example.japantravelplanner.itinerary.planner.DayTrips;
 import com.example.japantravelplanner.global.exception.NotFoundException;
 import com.example.japantravelplanner.itinerary.entity.Itinerary;
 import com.example.japantravelplanner.itinerary.entity.ItineraryDay;
@@ -65,6 +67,8 @@ public class BudgetSummaryService {
 
         List<BudgetSummaryDto.DayDto> days = new ArrayList<>();
         int personMin = 0, personMax = 0, meals = 0, unknown = 0;
+        Integer[] lunchAverage = average(itinerary, StopType.LUNCH);
+        Integer[] dinnerAverage = average(itinerary, StopType.DINNER);
         for (ItineraryDay day : itinerary.getDays()) {
             List<BudgetSummaryDto.MealDto> dayMeals = new ArrayList<>();
             int dayMin = 0, dayMax = 0;
@@ -87,6 +91,22 @@ public class BudgetSummaryService {
                         lunch ? r.getBudgetLunch() : r.getBudgetDinner(),
                         range == null ? null : range[0], range == null ? null : range[1]));
             }
+            // 일정에 식당이 없는 끼니: 당일치기 날 숙소 도시 저녁, 테마파크 안 점심 → 다른 날 평균 (11-22)
+            List<BudgetSummaryDto.MealDto> estimated = new ArrayList<>();
+            if (DayTrips.routeOf(trip, day.getZone()).isPresent() && !has(day, StopType.DINNER) && dinnerAverage != null) {
+                estimated.add(new BudgetSummaryDto.MealDto(StopType.DINNER, trip.getBaseCity().label() + "에서 저녁 (예상)",
+                        null, "다른 날 저녁 평균", dinnerAverage[0], dinnerAverage[1], true));
+            }
+            if (day.getWarnings().contains(FullDayParks.NOTE) && !has(day, StopType.LUNCH) && lunchAverage != null) {
+                estimated.add(new BudgetSummaryDto.MealDto(StopType.LUNCH, "테마파크 안 점심 (예상)",
+                        null, "다른 날 점심 평균", lunchAverage[0], lunchAverage[1], true));
+            }
+            for (BudgetSummaryDto.MealDto m : estimated) {
+                meals++;
+                dayMin += m.minYen();
+                dayMax += m.maxYen();
+            }
+            dayMeals.addAll(estimated);
             personMin += dayMin;
             personMax += dayMax;
             days.add(new BudgetSummaryDto.DayDto(day.getDayNumber(), day.getDate(), dayMin * travelers, dayMax * travelers,
@@ -126,6 +146,30 @@ public class BudgetSummaryService {
         int low = min != null ? min : max;
         int high = max != null ? max : min;
         return new Integer[]{Math.min(low, high), Math.max(low, high)};
+    }
+
+    /** 그날 이 끼니 식당이 있는지 */
+    private static boolean has(ItineraryDay day, StopType type) {
+        return day.getStops().stream().anyMatch(s -> s.getType() == type && s.getRestaurant() != null);
+    }
+
+    /** 일정 전체에서 이 끼니(점심·저녁) 1인 예산의 평균 [최소, 최대] (10엔 단위 반올림). 가격 있는 끼니가 없으면 null */
+    static Integer[] average(Itinerary itinerary, StopType type) {
+        long min = 0, max = 0;
+        int count = 0;
+        for (ItineraryDay day : itinerary.getDays()) {
+            for (ItineraryStop stop : day.getStops()) {
+                if (stop.getType() != type || stop.getRestaurant() == null) continue;
+                Restaurant r = stop.getRestaurant();
+                Integer[] range = type == StopType.LUNCH ? range(r.lunchMin(), r.lunchMax()) : range(r.dinnerMin(), r.dinnerMax());
+                if (range == null) continue;
+                min += range[0];
+                max += range[1];
+                count++;
+            }
+        }
+        if (count == 0) return null;
+        return new Integer[]{(int) (Math.round(min / 10.0 / count) * 10), (int) (Math.round(max / 10.0 / count) * 10)};
     }
 
     /** 엔 → 원 (반올림) */

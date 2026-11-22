@@ -417,6 +417,8 @@ public class ItineraryAttractionEditService {
                 .stream()
                 .filter(c -> !used.contains(c.attraction().getId()))
                 .filter(c -> !target.night() || NightSpots.isNightCandidate(c.attraction()))
+                .filter(c -> !com.example.japantravelplanner.itinerary.candidate.SeasonalClosures
+                        .closedOn(c.attraction(), target.day().getDate()))   // 그날 닫는 곳 (11-22)
                 .sorted(Comparator.comparingDouble(ScoredAttraction::score).reversed())
                 .toList();
 

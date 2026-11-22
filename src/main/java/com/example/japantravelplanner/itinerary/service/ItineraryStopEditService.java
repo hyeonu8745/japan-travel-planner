@@ -283,6 +283,8 @@ public class ItineraryStopEditService {
                         ctx.day().getZone().getCity())   // 그날 도시 (당일치기 날은 그 도시)
                 .stream()
                 .filter(c -> !used.contains(c.attraction().getId()))
+                .filter(c -> !com.example.japantravelplanner.itinerary.candidate.SeasonalClosures
+                        .closedOn(c.attraction(), ctx.day().getDate()))   // 그날 닫는 곳 (11-22)
                 .sorted(Comparator.comparingDouble(ScoredAttraction::score).reversed())
                 .toList();
 

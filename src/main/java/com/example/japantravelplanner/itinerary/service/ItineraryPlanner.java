@@ -8,6 +8,7 @@ import com.example.japantravelplanner.itinerary.candidate.DayZonePlanner;
 import com.example.japantravelplanner.itinerary.candidate.FullDayParks;
 import com.example.japantravelplanner.itinerary.candidate.NightSpotPlanner;
 import com.example.japantravelplanner.itinerary.candidate.ScoredAttraction;
+import com.example.japantravelplanner.itinerary.candidate.SeasonalClosures;
 import com.example.japantravelplanner.itinerary.candidate.Wish;
 import com.example.japantravelplanner.itinerary.meal.FoodFilter;
 import com.example.japantravelplanner.itinerary.meal.FoodFilterResolver;
@@ -174,11 +175,14 @@ public class ItineraryPlanner {
         return new ScheduledDay(day.dayNumber(), day.date(), day.zone(), day.stops(), day.dropped(), List.copyOf(warnings));
     }
 
-    /** 앞 날짜에 들어간 관광지와 같은 가게의 다른 지점(忍者体験カフェ原宿 ↔ 浅草)을 후보에서 뺀다 */
+    /** 앞 날짜에 들어간 관광지, 같은 가게의 다른 지점(忍者体験カフェ原宿 ↔ 浅草), 그날 문을 닫는 곳을 후보에서 뺀다 */
     static DayZone withoutUsed(DayZone day, Set<Long> usedIds, Set<String> usedBrands) {
-        if (usedIds.isEmpty()) return day;
+        if (usedIds.isEmpty() && day.candidates().stream().noneMatch(c -> SeasonalClosures.closedOn(c.attraction(), day.date()))) {
+            return day;
+        }
         return new DayZone(day.dayNumber(), day.date(), day.zone(),
                 day.candidates().stream()
+                        .filter(c -> !SeasonalClosures.closedOn(c.attraction(), day.date()))   // 그날 닫는 곳 (11-22)
                         .filter(c -> !usedIds.contains(c.attraction().getId()))
                         .filter(c -> !usedBrands.contains(BrandKey.of(c.attraction().getName())))
                         .toList(),
