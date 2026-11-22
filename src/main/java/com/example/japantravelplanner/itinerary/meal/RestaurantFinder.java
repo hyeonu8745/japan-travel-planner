@@ -256,8 +256,11 @@ public class RestaurantFinder {
                                               List<Integer> radii, int maxYen, double distancePenalty, int limit) {
         for (int radius : radii) {
             List<RestaurantCandidate> found = new ArrayList<>();
+            List<RestaurantCandidate> chains = new ArrayList<>();
             for (Restaurant r : restaurantRepository.findWithinRadius(lat, lng, radius)) {
-                if (excludeIds.contains(r.getId()) || r.getRatingVal() == null || r.getLocation() == null) continue;
+                if (excludeIds.contains(r.getId()) || r.getLocation() == null) continue;
+                boolean chain = r.getRatingVal() == null && isChainCafe(r);
+                if (r.getRatingVal() == null && !chain) continue;
                 if (r.isExcludedByGoogleMatch()) continue;
                 if (RegularHoliday.isClosedOn(r.getHoliday(), visitDate)) continue;
                 if (!isCafeLed(r.genreOrBrand()) || isDrinkLed(r.genreOrBrand())) continue;
@@ -265,15 +268,28 @@ public class RestaurantFinder {
                 Integer budget = r.lunchMax() != null ? r.lunchMax() : r.dinnerMax();
                 if (budget != null && budget > maxYen) continue;
                 double km = GeoUtils.distanceMeters(lat, lng, r.getLocation().getY(), r.getLocation().getX()) / 1000.0;
-                found.add(new RestaurantCandidate(r, (int) Math.round(km * 1000), r.getRatingVal() - km * distancePenalty, false));
+                int meters = (int) Math.round(km * 1000);
+                if (chain) chains.add(new RestaurantCandidate(r, meters, CHAIN_CAFE_SCORE - km * distancePenalty, false));
+                else found.add(new RestaurantCandidate(r, meters, r.getRatingVal() - km * distancePenalty, false));
             }
-            if (!found.isEmpty()) {
-                found.sort(Comparator.comparingDouble(RestaurantCandidate::score).reversed());
-                log.info("[Cafe] 반경 {}m → {}곳", radius, found.size());
-                return found.stream().limit(limit).toList();
+            // 평점 있는 카페가 이 반경에 없으면 체인 카페 (소도시: 히로시마 평점 있는 카페 3곳, 11-22)
+            List<RestaurantCandidate> pick = found.isEmpty() ? chains : found;
+            if (!pick.isEmpty()) {
+                pick.sort(Comparator.comparingDouble(RestaurantCandidate::score).reversed());
+                log.info("[Cafe] 반경 {}m → {}곳{}", radius, pick.size(), found.isEmpty() ? " (chain)" : "");
+                return pick.stream().limit(limit).toList();
             }
         }
         return List.of();
+    }
+
+    /** 체인 카페 순서용 점수 (평점이 없어 같은 값에서 거리만 뺀다) */
+    static final double CHAIN_CAFE_SCORE = 3.0;
+
+    /** 쉬는 시간에 앉아 쉬는 체인 카페 (스타벅스·도토루·코메다 등). 도넛·버블티 같은 디저트 체인, 콜라보 카페는 뺀다 */
+    static boolean isChainCafe(Restaurant r) {
+        return r.isChain() && r.getBrand().getCategory() == com.example.japantravelplanner.restaurant.entity.ChainCategory.CAFE
+                && !"애니 콜라보 카페".equals(r.getBrand().getGenreKo());
     }
 
     // 식사가 아니라 간식·디저트·음료가 중심인 장르 (끼니 후보에서 제외)
