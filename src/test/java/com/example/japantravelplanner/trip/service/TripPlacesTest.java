@@ -112,4 +112,28 @@ class TripPlacesTest {
         cleared.setDayTripCities(List.of());
         assertThat(TripPlaces.resolve(cleared, City.OSAKA, List.of(City.KYOTO)).dayTrips()).isEmpty();
     }
+
+    @Test
+    void 고른_숙소_도시가_있으면_그_도시이고_주소나_권역과_다르면_400() {
+        TripRequestDto r = request("Hotel ABC", "1-2-3 Chuo");   // 주소로는 도시를 알 수 없음
+        r.setRegion("KANSAI");
+        r.setBaseCity("kyoto");
+        r.setDayTripCities(List.of("NARA"));
+        TripPlaces places = TripPlaces.resolve(r, null);
+        assertThat(places.city()).isEqualTo(City.KYOTO);
+        assertThat(places.dayTrips()).containsExactly(City.NARA);
+
+        r.setRegion("KANTO");
+        assertThatThrownBy(() -> TripPlaces.resolve(r, null))
+                .hasMessage("숙소 도시(교토)가 고른 권역(수도권)에 없어요. 권역이나 숙소 도시를 확인해주세요.");
+
+        TripRequestDto osakaAddress = request("호텔", "大阪府大阪市北区");
+        osakaAddress.setBaseCity("KYOTO");
+        assertThatThrownBy(() -> TripPlaces.resolve(osakaAddress, null))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessage("숙소 주소는 오사카인데 숙소 도시를 교토(으)로 골랐어요. 숙소 도시나 주소를 확인해주세요.");
+
+        osakaAddress.setBaseCity("SENDAI");
+        assertThat(osakaAddress.isBaseCityKnown()).isFalse();
+    }
 }

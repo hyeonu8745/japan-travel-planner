@@ -75,6 +75,12 @@ public class TripRequestDto {
     private String region;
 
     /**
+     * 숙소 도시 (선택, 11-22). TOKYO·OSAKA 등 19개 도시 코드. 화면에서 권역 안 도시를 고르게 하고, 그 도시의 당일치기 후보를 보여 준다.
+     * 비어 있으면 숙소 이름·주소로 짐작한다. 주소의 도시와 다르면 400
+     */
+    private String baseCity;
+
+    /**
      * 당일치기로 다녀올 도시 (선택, 최대 3곳, 11-22). 예: ["KYOTO", "NARA"].
      * 숙소 도시에서 갈 수 있는 도시만 (GET /api/regions 의 dayTrips)
      */
@@ -92,6 +98,12 @@ public class TripRequestDto {
     public boolean isRegionKnown() {
         if (isBlank(region)) return true;
         return java.util.Arrays.stream(Region.values()).anyMatch(r -> r.name().equalsIgnoreCase(region.strip()));
+    }
+
+    /** 숙소 도시 이름이 맞는지 (비어 있으면 통과) */
+    @AssertTrue(message = "숙소 도시를 확인해주세요. (예: TOKYO, OSAKA, KYOTO)")
+    public boolean isBaseCityKnown() {
+        return isBlank(baseCity) || City.of(baseCity).isPresent();
     }
 
     /** 당일치기 도시 이름이 맞는지 (비어 있으면 통과) */

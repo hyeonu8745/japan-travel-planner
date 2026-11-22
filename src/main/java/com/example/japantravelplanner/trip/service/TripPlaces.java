@@ -17,8 +17,9 @@ import java.util.stream.Collectors;
  * 여행 조건의 장소 정하기 (11-22 확장 5단계): 기준 도시(숙소 도시)·권역·당일치기 도시, 공항이 그 권역인지.
  * 여행을 만들 때와 고칠 때 같은 규칙을 쓴다. 일정을 만들 때 숙소 좌표로 도시를 다시 정할 수 있다 (AccommodationLocator).
  *
- * - 숙소 이름·주소에 도시 이름이 있으면 그 도시 (City.guess)
- * - 없으면 고른 권역의 대표 도시(그 권역 첫 도시), 권역도 없으면 지금 도시(새 여행은 도쿄)
+ * - 고른 숙소 도시(baseCity)가 있으면 그 도시. 숙소 이름·주소의 도시 이름과 다르면 400
+ * - 없으면 숙소 이름·주소에 도시 이름이 있으면 그 도시 (City.guess)
+ * - 그것도 없으면 고른 권역의 대표 도시(그 권역 첫 도시), 권역도 없으면 지금 도시(새 여행은 도쿄)
  * - 고른 권역과 숙소 도시의 권역이 다르면 400
  * - 공항은 그 권역의 공항만, 당일치기 도시는 그 도시에서 갈 수 있는 곳만 (DayTripRoute), 같은 도시는 한 번
  *
@@ -48,8 +49,19 @@ public record TripPlaces(City city, List<City> dayTrips) {
         Region requested = regionOf(request.getRegion()).orElse(null);
         Optional<City> guessed = City.guess(request.getAccommodationName(), request.getAccommodationAddress());
 
+        City chosen = City.of(request.getBaseCity()).orElse(null);
         City city;
-        if (guessed.isPresent()) {
+        if (chosen != null) {
+            city = chosen;
+            if (requested != null && city.region() != requested) {
+                throw new BadRequestException("숙소 도시(" + city.label() + ")가 고른 권역(" + requested.label()
+                        + ")에 없어요. 권역이나 숙소 도시를 확인해주세요.");
+            }
+            if (guessed.isPresent() && guessed.get() != city) {
+                throw new BadRequestException("숙소 주소는 " + guessed.get().label() + "인데 숙소 도시를 "
+                        + city.label() + "(으)로 골랐어요. 숙소 도시나 주소를 확인해주세요.");
+            }
+        } else if (guessed.isPresent()) {
             city = guessed.get();
             if (requested != null && city.region() != requested) {
                 throw new BadRequestException("숙소 주소의 도시(" + city.label() + ")가 고른 권역(" + requested.label()
