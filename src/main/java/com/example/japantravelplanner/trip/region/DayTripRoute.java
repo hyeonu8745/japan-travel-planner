@@ -19,9 +19,8 @@ public enum DayTripRoute {
             City.KYOTO, new Station("교토역", 34.9858, 135.7588), 28, 580, "JR 신쾌속", true),
     OSAKA_KOBE(City.OSAKA, new Station("오사카역", 34.7025, 135.4959),
             City.KOBE, new Station("산노미야역", 34.6946, 135.1955), 22, 420, "JR 신쾌속", true),
-    // 신오사카 → 긴테쓰나라 970 에서 미도스지선 신오사카 → 난바 290 을 뺀 값
     OSAKA_NARA(City.OSAKA, new Station("오사카난바역", 34.6666, 135.5005),
-            City.NARA, new Station("긴테쓰나라역", 34.6843, 135.8279), 40, 680, "긴테쓰 나라선 쾌속급행", false),
+            City.NARA, new Station("긴테쓰나라역", 34.6843, 135.8279), 39, 680, "긴테쓰 나라선 쾌속급행", true),
     KYOTO_NARA(City.KYOTO, new Station("교토역", 34.9858, 135.7588),
             City.NARA, new Station("긴테쓰나라역", 34.6843, 135.8279), 46, 760, "긴테쓰 교토선 급행", true),
     KYOTO_KOBE(City.KYOTO, new Station("교토역", 34.9858, 135.7588),
@@ -39,9 +38,9 @@ public enum DayTripRoute {
             City.KAWAGUCHIKO, new Station("가와구치코역", 35.4986, 138.7686), 110, 2200, "고속버스 (예약)", true),
     SAPPORO_OTARU(City.SAPPORO, new Station("삿포로역", 43.0687, 141.3508),
             City.OTARU, new Station("오타루역", 43.1977, 140.9937), 35, 800, "JR 쾌속 에어포트", true),
-    // 후쿠오카 공항 → 유후인 고속버스 값과 같다고 봄 (하카타 출발 값은 다시 확인)
+    // 하카타 BT ↔ 유후인 약 2시간 7분, 운임은 예약 사이트의 이 노선 최대 운임 3,250 (후쿠오카 쪽 끝 정류장, 11-22)
     FUKUOKA_YUFUIN(City.FUKUOKA, new Station("하카타 버스터미널", 33.5904, 130.4205),
-            City.YUFUIN, new Station("유후인역 버스센터", 33.2663, 131.3557), 125, 3250, "고속버스 유후인호 (예약)", false),
+            City.YUFUIN, new Station("유후인역 버스센터", 33.2663, 131.3557), 125, 3250, "고속버스 유후인호 (예약)", true),
     FUKUOKA_BEPPU(City.FUKUOKA, new Station("니시테쓰 덴진 고속버스터미널", 33.5893, 130.3990),
             City.BEPPU, new Station("벳푸역", 33.2797, 131.5004), 170, 3250, "고속버스 도요노쿠니호 (예약)", true),
     BEPPU_YUFUIN(City.BEPPU, new Station("벳푸역", 33.2797, 131.5004),

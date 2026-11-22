@@ -25,7 +25,7 @@ class TripResponseDayTripTest {
         assertThat(dto.getBaseCity()).isEqualTo("OSAKA");
         assertThat(dto.getBaseCityLabel()).isEqualTo("오사카");
         assertThat(dto.getDayTripCities()).containsExactly(
-                new TripResponseDto.DayTripCityDto("NARA", "나라", 40, 680, "긴테쓰 나라선 쾌속급행", "오사카난바역", "긴테쓰나라역"));
+                new TripResponseDto.DayTripCityDto("NARA", "나라", 39, 680, "긴테쓰 나라선 쾌속급행", "오사카난바역", "긴테쓰나라역"));
     }
 
     @Test

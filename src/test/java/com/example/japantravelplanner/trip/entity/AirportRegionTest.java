@@ -31,9 +31,11 @@ class AirportRegionTest {
     void 도쿄_공항_이동_시간은_예전_값_그대로이고_값이_없는_도시는_60분() {
         assertThat(Airport.NRT.transferMinutes(City.TOKYO)).isEqualTo(AirportAccess.of(Airport.NRT, City.TOKYO).orElseThrow().minutes());
         assertThat(Airport.HND.transferMinutes(City.TOKYO)).isEqualTo(AirportAccess.of(Airport.HND, City.TOKYO).orElseThrow().minutes());
-        // 하네다 → 가마쿠라는 아직 확인 전
-        assertThat(AirportAccess.of(Airport.HND, City.KAMAKURA)).isEmpty();
-        assertThat(Airport.HND.transferMinutes(City.KAMAKURA)).isEqualTo(60);
+        // 값이 없는 짝은 60분 (11-22 하네다 → 가마쿠라·나리타 → 하코네는 확인해서 넣었다)
+        assertThat(AirportAccess.of(Airport.HND, City.NARA)).isEmpty();
+        assertThat(Airport.HND.transferMinutes(City.NARA)).isEqualTo(60);
+        assertThat(AirportAccess.of(Airport.HND, City.KAMAKURA).orElseThrow().cheapYen()).isEqualTo(837);
+        assertThat(AirportAccess.of(Airport.NRT, City.HAKONE).orElseThrow().fastYen()).isEqualTo(9547);
         assertThat(AirportAccess.of(Airport.HND, City.YOKOHAMA).orElseThrow().cheapYen()).isEqualTo(400);
     }
 
