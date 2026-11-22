@@ -50,7 +50,7 @@ class TripPlacesTest {
 
         assertThatThrownBy(() -> TripPlaces.resolve(r, null))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessage("숙소 주소의 도시(교토)가 고른 권역(수도권)에 없어요. 권역이나 숙소를 확인해주세요.");
+                .hasMessage("숙소 주소의 도시(교토)가 고른 권역(간토)에 없어요. 권역이나 숙소를 확인해주세요.");
     }
 
     @Test
@@ -125,7 +125,7 @@ class TripPlacesTest {
 
         r.setRegion("KANTO");
         assertThatThrownBy(() -> TripPlaces.resolve(r, null))
-                .hasMessage("숙소 도시(교토)가 고른 권역(수도권)에 없어요. 권역이나 숙소 도시를 확인해주세요.");
+                .hasMessage("숙소 도시(교토)가 고른 권역(간토)에 없어요. 권역이나 숙소 도시를 확인해주세요.");
 
         TripRequestDto osakaAddress = request("호텔", "大阪府大阪市北区");
         osakaAddress.setBaseCity("KYOTO");

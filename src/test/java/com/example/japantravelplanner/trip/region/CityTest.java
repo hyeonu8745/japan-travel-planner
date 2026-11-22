@@ -42,7 +42,7 @@ class CityTest {
     @Test
     void 이름표() {
         assertThat(City.TOKYO.label()).isEqualTo("도쿄");
-        assertThat(Region.KANTO.label()).isEqualTo("수도권");
+        assertThat(Region.KANTO.label()).isEqualTo("간토");
     }
 
     @Test

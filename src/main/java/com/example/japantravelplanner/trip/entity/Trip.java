@@ -46,7 +46,7 @@ public class Trip {
 
     /**
      * 권역과 숙소 도시 (확장 계획 0-16). 날짜마다 도는 도시는 그날 지역(TripZone)의 도시다.
-     * 지금은 모두 수도권·도쿄. 예전 행(값 없음)도 도쿄로 읽는다.
+     * 값이 없으면 간토·도쿄. 예전 행(값 없음)도 도쿄로 읽는다.
      */
     @Convert(converter = RegionConverters.RegionConverter.class)
     @Column(length = 20)
@@ -170,7 +170,7 @@ public class Trip {
         }
     }
 
-    /** 여행 권역 (값이 없던 예전 여행은 수도권) */
+    /** 여행 권역 (값이 없던 예전 여행은 간토) */
     public Region getRegion() {
         return region == null ? Region.KANTO : region;
     }

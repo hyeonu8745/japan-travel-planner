@@ -6,7 +6,7 @@ package com.example.japantravelplanner.trip.region;
  */
 public enum Region {
 
-    KANTO("수도권"),
+    KANTO("간토"),   // 도쿄 주변. "수도권"은 서울·경기로 읽혀서 바꿈 (11-22)
     KANSAI("간사이"),
     CHUBU("중부"),
     HIROSHIMA("히로시마"),
@@ -20,7 +20,7 @@ public enum Region {
         this.label = label;
     }
 
-    /** 한국어 이름 (예: 수도권) */
+    /** 한국어 이름 (예: 간토) */
     public String label() {
         return label;
     }
