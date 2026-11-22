@@ -30,6 +30,12 @@ public class PosterProperties {
 
     public enum DetailMode { DECORATION, TEXT }
 
+    /**
+     * 1장을 먼저 그리고 나머지 장은 1장을 참고 이미지로 붙여 그린다 (11-22: 장마다 따로 그려 캐릭터가 바뀌었다).
+     * 참고 이미지로 그리기가 실패하면 그 장은 참고 없이 다시 그린다
+     */
+    private boolean referenceFirstPage = true;
+
     /** 상세 일정표 한 장에 넣을 날 수 (detailMode TEXT 일 때) */
     private int daysPerDetailPage = 2;
     /** 지도 포스터에서 하루에 보여줄 장소 수 (일정 전체를 넣으려고 넉넉하게. 넘으면 식당·관광지 순으로 줄인다) */

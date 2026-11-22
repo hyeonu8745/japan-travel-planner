@@ -60,6 +60,7 @@ class PosterServiceTest {
         when(generationService.getLatest(USER_ID, TRIP_ID)).thenReturn(itinerary(3));
         when(koreanNames.fill(any())).thenAnswer(inv -> inv.getArgument(0));
         when(imageClient.generate(anyString(), anyString())).thenReturn(new byte[]{9, 9});
+        when(imageClient.edit(anyString(), anyString(), any())).thenReturn(new byte[]{8, 8});
         when(posterRepository.save(any())).thenAnswer(inv -> {
             TripPoster p = inv.getArgument(0);
             ReflectionTestUtils.setField(p, "id", 5L);
@@ -90,19 +91,26 @@ class PosterServiceTest {
                 .containsExactly(PosterPageKind.COVER, PosterPageKind.COVER,
                         PosterPageKind.DECORATION);   // 3일 → 지도 2장(이틀씩) + 상세 일정표 배경 1장 (11-22)
         assertThat(response.pages().get(0).imageUrl()).isEqualTo("/api/trips/9/posters/5/pages/1/image");
-        verify(imageClient, times(3)).generate(anyString(), eq("1088x1536"));
+        // 11-22: 1장을 먼저 그리고 나머지는 1장을 참고 이미지로 붙여 그린다 (캐릭터 맞추기)
+        verify(imageClient, times(1)).generate(anyString(), eq("1088x1536"));
+        verify(imageClient, times(2)).edit(org.mockito.ArgumentMatchers.contains("REFERENCE IMAGE"), eq("1088x1536"),
+                eq(new byte[]{9, 9}));
         assertThat(response.style()).isEqualTo(PosterStyle.WATERCOLOR);
-        assertThat(response.character()).isNull();
-        assertThat(service.image(USER_ID, TRIP_ID, 5L, 2)).containsExactly(9, 9);
+        assertThat(response.character()).isNull();   // 사용자가 정하지 않음 (그림에는 서버가 고른 캐릭터)
+        assertThat(service.image(USER_ID, TRIP_ID, 5L, 1)).containsExactly(9, 9);
+        assertThat(service.image(USER_ID, TRIP_ID, 5L, 2)).containsExactly(8, 8);
         assertThat(lock.tryAcquire(TRIP_ID)).isTrue();
     }
 
     @Test
     void 한_장이라도_실패하면_FAILED이고_그려진_장은_볼_수_있다() {
-        when(imageClient.generate(anyString(), anyString()))
-                .thenReturn(new byte[]{1})
+        when(imageClient.edit(anyString(), anyString(), any()))
                 .thenThrow(new AiServiceException("실패", null))
                 .thenReturn(new byte[]{3});
+        // 2장: 참고 이미지 실패 → 참고 없이 다시 그리기도 실패
+        when(imageClient.generate(anyString(), anyString()))
+                .thenReturn(new byte[]{1})
+                .thenThrow(new AiServiceException("실패", null));
 
         PosterResponseDto response = service.start(USER_ID, TRIP_ID);
 
@@ -119,7 +127,8 @@ class PosterServiceTest {
 
         assertThat(response.style()).isEqualTo(PosterStyle.STICKER);
         assertThat(response.character()).isEqualTo("안경 쓴 고양이");
-        verify(imageClient, times(3)).generate(org.mockito.ArgumentMatchers.contains("\"안경 쓴 고양이\""), anyString());   // 지도 2장 + 배경 1장
+        verify(imageClient).generate(org.mockito.ArgumentMatchers.contains("\"안경 쓴 고양이\""), anyString());   // 1장
+        verify(imageClient, times(2)).edit(org.mockito.ArgumentMatchers.contains("\"안경 쓴 고양이\""), anyString(), any());   // 지도 2장째 + 배경
     }
 
     @Test
@@ -175,5 +184,25 @@ class PosterServiceTest {
         assertThatThrownBy(() -> service.get(99L, TRIP_ID)).isInstanceOf(NotFoundException.class);
         assertThatThrownBy(() -> service.image(99L, TRIP_ID, 5L, 1)).isInstanceOf(NotFoundException.class);
         assertThatThrownBy(() -> service.start(99L, TRIP_ID)).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void 참고_이미지로_그리기가_실패하면_그_장은_참고_없이_다시_그린다() {
+        when(imageClient.edit(anyString(), anyString(), any())).thenThrow(new AiServiceException("지원 안 함", null));
+
+        PosterResponseDto response = service.start(USER_ID, TRIP_ID);
+
+        assertThat(response.status()).isEqualTo(PosterStatus.DONE);
+        verify(imageClient, times(3)).generate(anyString(), anyString());
+    }
+
+    @Test
+    void 참고_이미지를_끄면_예전처럼_모든_장을_따로() {
+        props.setReferenceFirstPage(false);
+
+        service.start(USER_ID, TRIP_ID);
+
+        verify(imageClient, times(3)).generate(anyString(), anyString());
+        verify(imageClient, org.mockito.Mockito.never()).edit(anyString(), anyString(), any());
     }
 }

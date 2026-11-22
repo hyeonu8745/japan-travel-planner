@@ -18,7 +18,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** OpenAI 이미지 생성 (POST /images/generations). GPT 이미지 모델은 base64로만 돌려준다 */
+/** OpenAI 이미지 생성 (POST /images/generations, 참고 이미지가 있으면 /images/edits). GPT 이미지 모델은 base64로만 돌려준다 */
 @Slf4j
 @Component
 public class PosterImageClient {
@@ -65,6 +65,43 @@ public class PosterImageClient {
             throw new AiServiceException("포스터 이미지를 만들지 못했어요. 잠시 후 다시 시도해주세요.", e);
         } catch (RestClientException e) {
             log.warn("[Poster] 이미지 생성 연결 실패: {}", e.getMessage());
+            throw new AiServiceException("포스터 이미지를 만들지 못했어요. 잠시 후 다시 시도해주세요.", e);
+        }
+    }
+
+    /**
+     * 참고 이미지를 붙여 그리기 (POST /images/edits, 11-22). 포스터 1장을 붙여 다른 장도 같은 캐릭터·화풍으로 그리게 한다.
+     * 실패하면 AiServiceException (부르는 쪽에서 참고 없이 다시 그린다)
+     */
+    public byte[] edit(String prompt, String size, byte[] reference) {
+        org.springframework.util.LinkedMultiValueMap<String, Object> form = new org.springframework.util.LinkedMultiValueMap<>();
+        form.add("model", props.getModel());
+        form.add("prompt", prompt);
+        form.add("size", size);
+        form.add("quality", props.getQuality());
+        form.add("output_format", "png");
+        form.add("n", "1");
+        form.add("image[]", new org.springframework.core.io.ByteArrayResource(reference) {
+            @Override
+            public String getFilename() {
+                return "reference.png";
+            }
+        });
+        long started = System.currentTimeMillis();
+        try {
+            String response = restClient.post().uri("/images/edits")
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(form)
+                    .retrieve().body(String.class);
+            byte[] image = parse(jsonMapper, response);
+            log.info("[Poster] 이미지 생성(참고 이미지) {} {} {} → {}KB, {}ms", props.getModel(), size, props.getQuality(),
+                    image.length / 1024, System.currentTimeMillis() - started);
+            return image;
+        } catch (RestClientResponseException e) {
+            log.warn("[Poster] 참고 이미지로 그리기 실패 HTTP {}: {}", e.getStatusCode().value(), e.getResponseBodyAsString());
+            throw new AiServiceException("포스터 이미지를 만들지 못했어요. 잠시 후 다시 시도해주세요.", e);
+        } catch (RestClientException e) {
+            log.warn("[Poster] 참고 이미지로 그리기 연결 실패: {}", e.getMessage());
             throw new AiServiceException("포스터 이미지를 만들지 못했어요. 잠시 후 다시 시도해주세요.", e);
         }
     }

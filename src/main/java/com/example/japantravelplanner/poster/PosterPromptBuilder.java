@@ -46,7 +46,10 @@ public final class PosterPromptBuilder {
     public static List<PageSpec> build(ItineraryResponseDto itinerary, String title, LocalDate startDate,
                                        PosterProperties props, PosterOptions options, City city) {
         String place = (city == null ? City.TOKYO : city).englishName();
-        PosterOptions opt = options == null ? PosterOptions.DEFAULT : options;
+        PosterOptions given = options == null ? PosterOptions.DEFAULT : options;
+        // 캐릭터를 정하지 않았으면 포스터마다 하나를 정해 모든 장에 같은 설명을 넣는다 (11-22: 장마다 다른 캐릭터)
+        PosterOptions opt = given.character() != null ? given
+                : new PosterOptions(given.style(), DEFAULT_MASCOTS.get(Math.floorMod(String.valueOf(title).hashCode(), DEFAULT_MASCOTS.size())));
         List<DayDto> days = itinerary.days().stream().filter(d -> !d.stops().isEmpty()).toList();
         List<List<DayDto>> covers = chunks(days, props.getCoverDaysPerPage());
         List<List<DayDto>> details = chunks(days, props.getDaysPerDetailPage());
@@ -264,6 +267,23 @@ public final class PosterPromptBuilder {
                 + "clean readable Korean typography in rounded handwriting style, high legibility, no photorealism, "
                 + "no real people, no copyrighted characters, no brand logos or advertising mascots, no readable text on signs.\n";
     }
+
+    /** 캐릭터를 정하지 않았을 때 고르는 새 캐릭터 (기존 캐릭터와 닮지 않은 단순한 설명) */
+    static final List<String> DEFAULT_MASCOTS = List.of(
+            "작고 통통한 삼색 고양이, 빨간 목도리, 접은 지도를 든 모습",
+            "둥근 귀의 주황색 아기 여우, 노란 배낭",
+            "하얀 주먹밥 모양의 작은 캐릭터, 분홍 볼, 작은 밀짚모자",
+            "갈색 강아지, 초록 반다나, 작은 카메라",
+            "파란 기차 모양 몸에 동그란 눈이 달린 작은 로봇");
+
+    /** 2장부터 붙이는 참고 이미지 안내 (1장 그림을 붙여 같은 캐릭터·화풍으로) */
+    public static final String REFERENCE_NOTE = """
+
+            REFERENCE IMAGE: the attached image is page 1 of this same poster set.
+            Draw the character exactly as in the reference (same species, face, colors, clothes, accessories and proportions)
+            and use the same art style, line work and color palette. Do not copy the reference's layout, texts or places:
+            draw this page as described above.
+            """;
 
     static final String TEXT_RULES = """
             TEXT RULES (very important):

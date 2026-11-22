@@ -116,23 +116,50 @@ public class PosterService {
         long posterId = poster.getId();
         log.info("[Poster] 시작 tripId={} posterId={} 일정 v{} {}장", tripId, posterId, poster.getItineraryVersion(),
                 poster.getPages().size());
-        List<CompletableFuture<Void>> jobs = poster.getPages().stream()
-                .map(page -> CompletableFuture.runAsync(
-                        () -> render(tripId, posterId, page.getPageNo(), page.getPrompt(), page.getSize()), executor))
-                .toList();
-        CompletableFuture.allOf(jobs.toArray(CompletableFuture[]::new)).whenComplete((r, e) -> finish(posterId));
+        // 1장을 먼저 그리고, 나머지 장은 1장을 참고 이미지로 붙여 동시에 그린다 (캐릭터·화풍 맞추기, 11-22)
+        List<RenderJob> pages = poster.getPages().stream()
+                .sorted(java.util.Comparator.comparingInt(TripPosterPage::getPageNo))
+                .map(p -> new RenderJob(p.getPageNo(), p.getPrompt(), p.getSize())).toList();
+        RenderJob first = pages.get(0);
+        CompletableFuture.supplyAsync(() -> render(tripId, posterId, first, null), executor)
+                .thenCompose(reference -> CompletableFuture.allOf(pages.stream().skip(1)
+                        .map(job -> CompletableFuture.runAsync(() -> render(tripId, posterId, job,
+                                props.isReferenceFirstPage() ? reference : null), executor))
+                        .toArray(CompletableFuture[]::new)))
+                .whenComplete((r, e) -> finish(posterId));
         return get(userId, tripId);
     }
 
-    /** 한 장 그리기: 그림 생성 → 파일 저장 → 장 상태 완료. 실패하면 그 장만 실패 */
-    private void render(long tripId, long posterId, int pageNo, String prompt, String size) {
+    /** 그릴 장 하나 (트랜잭션 밖에서 쓰려고 엔티티 대신 값만) */
+    private record RenderJob(int pageNo, String prompt, String size) {
+    }
+
+    /**
+     * 한 장 그리기: 그림 생성 → 파일 저장 → 장 상태 완료. 실패하면 그 장만 실패.
+     * reference 가 있으면 참고 이미지로 붙여 그리고, 그게 실패하면 참고 없이 다시 그린다
+     * @return 그린 PNG (실패하면 null → 다른 장은 참고 없이 그린다)
+     */
+    private byte[] render(long tripId, long posterId, RenderJob job, byte[] reference) {
+        int pageNo = job.pageNo();
         try {
-            byte[] png = imageClient.generate(prompt, size);
+            byte[] png;
+            if (reference != null) {
+                try {
+                    png = imageClient.edit(job.prompt() + PosterPromptBuilder.REFERENCE_NOTE, job.size(), reference);
+                } catch (RuntimeException e) {
+                    log.warn("[Poster] {}번 포스터 {}장 참고 이미지 없이 다시 그림: {}", posterId, pageNo, e.getMessage());
+                    png = imageClient.generate(job.prompt(), job.size());
+                }
+            } else {
+                png = imageClient.generate(job.prompt(), job.size());
+            }
             String path = storage.save(tripId, posterId, pageNo, png);
             updatePage(posterId, pageNo, page -> page.done(path));
+            return png;
         } catch (RuntimeException e) {
             log.warn("[Poster] {}번 포스터 {}장 실패: {}", posterId, pageNo, e.getMessage());
             updatePage(posterId, pageNo, TripPosterPage::failed);
+            return null;
         }
     }
 

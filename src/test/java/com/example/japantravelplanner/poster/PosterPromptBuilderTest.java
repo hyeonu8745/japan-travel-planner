@@ -101,9 +101,14 @@ class PosterPromptBuilderTest {
         assertThat(pages.get(0).prompt()).contains("walks along the path");
         assertThat(pages.get(2).prompt()).contains("very small, inside the bottom-right corner");
 
-        // 없으면 AI가 자유롭게
-        String free = PosterPromptBuilder.build(itinerary(1), "t", LocalDate.of(2026, 1, 1), props).get(0).prompt();
-        assertThat(free).contains("up to you").doesNotContain("user description");
+        // 11-22: 정하지 않으면 서버가 포스터마다 하나를 골라 모든 장에 같은 설명 (예전: AI 자유 → 장마다 다른 캐릭터)
+        List<PosterPromptBuilder.PageSpec> auto = PosterPromptBuilder.build(itinerary(3), "오사카 4박 5일",
+                LocalDate.of(2026, 1, 1), props);
+        String mascot = PosterPromptBuilder.DEFAULT_MASCOTS.stream()
+                .filter(m -> auto.get(0).prompt().contains("\"" + m + "\"")).findFirst().orElseThrow();
+        assertThat(auto).allSatisfy(p -> assertThat(p.prompt()).contains("\"" + mascot + "\"").doesNotContain("up to you"));
+        assertThat(PosterPromptBuilder.build(itinerary(3), "오사카 4박 5일", LocalDate.of(2026, 1, 1), props).get(0).prompt())
+                .contains(mascot);   // 같은 여행 제목이면 같은 캐릭터
     }
 
     @Test
@@ -129,7 +134,7 @@ class PosterPromptBuilderTest {
         assertThat(pages.get(3).prompt())
                 .contains("itinerary of Osaka, Japan").contains("winter")
                 .contains("Absolutely no text").contains("completely empty")
-                .contains("top 8%").contains("No ribbon").contains("pale").contains("No characters")   // 11-22: 리본·큰 그림이 글자를 가렸다
+                .contains("top 8%").contains("No ribbon").contains("pale").contains("very small, inside the bottom-right corner")   // 11-22: 리본·큰 그림이 글자를 가렸다
                 .contains("watercolor")
                 .doesNotContain("Korean typography").doesNotContain("Row:").doesNotContain("오사카 5박 6일");
     }
