@@ -20,9 +20,20 @@ public record TransitPlan(String fromStation, String fromStationKo, int walkToMe
      * 노선 하나 타기
      * @param line   노선 이름 (예: 東京メトロ銀座線), mode subway·train·tram·monorail·light_rail·funicular·bus
      * @param colour 노선 색 (#RRGGBB, 없으면 null), stops 지나는 정거장 수
+     * @param path   타는 역부터 내리는 역까지 지나는 역 순서와 좌표 (지도에 노선을 그릴 때, 11-22). 정거장을 이은 꺾은선이다
      */
     public record Segment(String line, String mode, String ref, String colour, String operator,
-                          String from, String fromKo, String to, String toKo, int stops) {
+                          String from, String fromKo, String to, String toKo, int stops, List<Point> path) {
+
+        /** 좌표 없이 (테스트·예전 호출) */
+        public Segment(String line, String mode, String ref, String colour, String operator,
+                       String from, String fromKo, String to, String toKo, int stops) {
+            this(line, mode, ref, colour, operator, from, fromKo, to, toKo, stops, List.of());
+        }
+    }
+
+    /** 역 하나의 이름과 좌표 */
+    public record Point(String name, String nameKo, double lat, double lng) {
     }
 
     /** 갈아타는 역 (직통이면 null). 응답 JSON 에도 나간다 */

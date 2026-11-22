@@ -97,4 +97,17 @@ class TransitGuideTest {
 
         assertThat(json).contains("\"transferStation\":\"C駅\"").contains("\"segments\":[").contains("\"colour\":\"#009BBF\"");
     }
+
+    @Test
+    void 구간마다_지나는_역의_좌표를_순서대로_준다() {
+        TransitPlan plan = guide.plan(35.0, 139.0, 34.980, 139.0242).orElseThrow();
+
+        assertThat(plan.segments().get(0).path()).extracting(TransitPlan.Point::name).containsExactly("A", "B", "C駅");
+        assertThat(plan.segments().get(1).path()).extracting(TransitPlan.Point::name).containsExactly("C駅", "E", "F");
+        assertThat(plan.segments().get(1).path().get(2)).satisfies(p -> {
+            assertThat(p.lat()).isEqualTo(34.98);
+            assertThat(p.lng()).isEqualTo(139.0242);
+        });
+        assertThat(plan.segments().get(0).path()).hasSize(plan.segments().get(0).stops() + 1);
+    }
 }

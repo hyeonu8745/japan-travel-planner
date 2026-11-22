@@ -153,8 +153,20 @@ public class TransitGuide {
             TransitGraph.Line line = g.line(lineIndex);
             TransitGraph.Station a = g.station(line.stations()[fromPos]);
             TransitGraph.Station b = g.station(line.stations()[toPos]);
+            List<TransitPlan.Point> path = new ArrayList<>();
+            int step = toPos >= fromPos ? 1 : -1;
+            for (int pos = fromPos; ; pos += step) {
+                TransitGraph.Station st = g.station(line.stations()[pos]);
+                path.add(new TransitPlan.Point(st.name(), st.nameKo(), round(st.lat()), round(st.lng())));
+                if (pos == toPos) break;
+            }
             return new TransitPlan.Segment(line.name(), line.mode(), line.ref(), line.colour(), line.operator(),
-                    a.name(), a.nameKo(), b.name(), b.nameKo(), Math.abs(toPos - fromPos));
+                    a.name(), a.nameKo(), b.name(), b.nameKo(), Math.abs(toPos - fromPos), List.copyOf(path));
+        }
+
+        /** 좌표는 소수 6자리 (약 10cm) */
+        private static double round(double v) {
+            return Math.round(v * 1_000_000d) / 1_000_000d;
         }
     }
 
