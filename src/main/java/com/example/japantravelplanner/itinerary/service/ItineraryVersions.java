@@ -54,6 +54,8 @@ public final class ItineraryVersions {
     private final GenerationLock lock;
     private final TransactionTemplate readTransaction;
     private final TransactionTemplate writeTransaction;
+    // 대중교통 구간의 대강의 경로 (11-22). 서비스가 스프링에서 만들어질 때 넣는다 (테스트에서 직접 만든 서비스는 없음 → 경로 안내 없이)
+    private ItineraryResponseDto.TransitLookup transit = ItineraryResponseDto.TransitLookup.NONE;
 
     /** 각 서비스가 자기 의존성으로 만든다 (스프링 빈이 아님) */
     public ItineraryVersions(ItineraryRepository itineraryRepository, ItineraryStopRepository stopRepository,
@@ -69,6 +71,11 @@ public final class ItineraryVersions {
         this.readTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction.setReadOnly(true);
         this.writeTransaction = new TransactionTemplate(transactionManager);
+    }
+
+    /** 대중교통 경로 찾기를 넣는다 (TransitGuide::plan) */
+    public void useTransit(ItineraryResponseDto.TransitLookup transit) {
+        this.transit = transit == null ? ItineraryResponseDto.TransitLookup.NONE : transit;
     }
 
     // ===================== 트랜잭션·잠금 =====================
@@ -196,7 +203,7 @@ public final class ItineraryVersions {
         Map<Long, Restaurant> alternatives = ids.isEmpty() ? Map.of()
                 : restaurantRepository.findAllById(ids).stream()
                   .collect(Collectors.toMap(Restaurant::getId, Function.identity()));
-        return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels, alternatives, reasons);
+        return ItineraryResponseDto.from(itinerary, typeLabels::toVisibleLabels, alternatives, reasons, transit);
     }
 
     /** 최신 버전에 있는 항목 하나와 그 날 */

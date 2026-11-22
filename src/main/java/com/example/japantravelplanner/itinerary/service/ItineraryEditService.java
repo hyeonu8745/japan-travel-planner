@@ -140,6 +140,12 @@ public class ItineraryEditService {
                 reasonContextLoader, lock, transactionManager);
     }
 
+    /** 대중교통 구간의 대강의 경로를 응답에 붙인다 (11-22, 생성자를 늘리지 않으려고 따로 넣는다) */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setTransitGuide(com.example.japantravelplanner.itinerary.transit.TransitGuide transitGuide) {
+        versions.useTransit(transitGuide::plan);
+    }
+
     // ===================== 변경 이력 =====================
 
     /** 이 여행의 모든 버전 (최신이 먼저). 일정을 아직 안 만들었으면 빈 목록 */

@@ -124,6 +124,12 @@ public class ItineraryAttractionEditService {
                 reasonContextLoader, lock, transactionManager);
     }
 
+    /** 대중교통 구간의 대강의 경로를 응답에 붙인다 (11-22, 생성자를 늘리지 않으려고 따로 넣는다) */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setTransitGuide(com.example.japantravelplanner.itinerary.transit.TransitGuide transitGuide) {
+        versions.useTransit(transitGuide::plan);
+    }
+
     // ===================== 후보 조회 =====================
 
     /** 관광지 항목 하나를 바꿀 때의 후보 (같은 지역 먼저, 점수 순, 넣었을 때 하루가 얼마나 밀리는지) */

@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.itinerary.dto;
 
+import com.example.japantravelplanner.itinerary.transit.TransitPlan;
 import com.example.japantravelplanner.attraction.entity.Attraction;
 import com.example.japantravelplanner.global.util.GeoUtils;
 import com.example.japantravelplanner.itinerary.entity.DroppedPlace;
@@ -128,7 +129,25 @@ public record ItineraryResponseDto(
         }
     }
 
-    public record TravelDto(LegMode mode, int minutes, int distanceMeters, boolean estimated) {
+    /**
+     * 앞 장소 → 이 장소 이동
+     * @param route   대중교통 구간이면 대강의 경로 (가까운 역·탈 노선, 정차역 순서로 찾은 참고용, 11-22). 못 찾으면 null
+     * @param mapsUrl Google 지도 길찾기 링크 (앞 장소 좌표가 있을 때). 정확한 경로·시간은 여기서 확인
+     */
+    public record TravelDto(LegMode mode, int minutes, int distanceMeters, boolean estimated,
+                            TransitPlan route, String mapsUrl) {
+        /** 경로 안내 없이 (교체 후보 미리보기 등) */
+        public TravelDto(LegMode mode, int minutes, int distanceMeters, boolean estimated) {
+            this(mode, minutes, distanceMeters, estimated, null, null);
+        }
+    }
+
+    /** 구간 대중교통 경로 찾기 (TransitGuide.plan). 응답을 만들 때만 쓰고 저장하지 않는다 */
+    @FunctionalInterface
+    public interface TransitLookup {
+        java.util.Optional<TransitPlan> plan(double fromLat, double fromLng, double toLat, double toLng);
+
+        TransitLookup NONE = (a, b, c, d) -> java.util.Optional.empty();
     }
 
     /**
@@ -237,11 +256,20 @@ public record ItineraryResponseDto(
      */
     public static ItineraryResponseDto from(Itinerary itinerary, Function<String, List<String>> typeLabels,
                                             Map<Long, Restaurant> alternatives, ReasonContext reasons) {
+        return from(itinerary, typeLabels, alternatives, reasons, TransitLookup.NONE);
+    }
+
+    /** @param transit 대중교통 구간의 대강의 경로 찾기 (11-22) */
+    public static ItineraryResponseDto from(Itinerary itinerary, Function<String, List<String>> typeLabels,
+                                            Map<Long, Restaurant> alternatives, ReasonContext reasons,
+                                            TransitLookup transit) {
         ReasonContext context = ReasonContext.orNone(reasons);
         Trip trip = itinerary.getTrip();
         int lastDay = itinerary.getDays().stream().mapToInt(ItineraryDay::getDayNumber).max().orElse(1);
+        TransitLookup lookup = transit == null ? TransitLookup.NONE : transit;
         List<DayDto> days = itinerary.getDays().stream()
-                .map(day -> toDay(day, typeLabels, alternatives, context, transfersOf(trip, day, lastDay))).toList();
+                .map(day -> toDay(day, typeLabels, alternatives, context, transfersOf(trip, day, lastDay),
+                        travels(trip, day, lookup))).toList();
         AccommodationDto accommodation = new AccommodationDto(trip.getAccommodationName(),
                 trip.getAccommodationAddress(), GeoUtils.lat(trip.getAccommodationLocation()), GeoUtils.lng(trip.getAccommodationLocation()));
         return new ItineraryResponseDto(itinerary.getId(), trip.getId(), itinerary.getVersionNo(), itinerary.getSource(),
@@ -270,12 +298,53 @@ public record ItineraryResponseDto(
         return steps.stream().map(st -> new TransferDto(st.time(), st.kind(), st.label(), st.position())).toList();
     }
 
+    /**
+     * 그날 항목마다 이동 (앞 장소 → 이 장소). 첫 항목의 앞 장소는 숙소, 당일치기 날은 그 도시 도착역.
+     * 대중교통 구간은 대강의 경로, 모든 구간에 Google 지도 길찾기 링크
+     */
+    static Map<ItineraryStop, TravelDto> travels(Trip trip, ItineraryDay day, TransitLookup transit) {
+        Map<ItineraryStop, TravelDto> result = new java.util.IdentityHashMap<>();
+        com.example.japantravelplanner.itinerary.travel.TravelPoint previous = null;
+        if (trip != null && trip.getAccommodationLocation() != null) {
+            previous = com.example.japantravelplanner.itinerary.planner.DayTrips.startPoint(trip, day.getZone(),
+                    com.example.japantravelplanner.itinerary.travel.TravelPoint.of(trip.getAccommodationName(), trip.getAccommodationLocation()));
+        }
+        List<ItineraryStop> ordered = day.getStops().stream()
+                .sorted(java.util.Comparator.comparingInt(ItineraryStop::getStopOrder)).toList();
+        for (ItineraryStop stop : ordered) {
+            org.locationtech.jts.geom.Point at = stop.getAttraction() != null ? stop.getAttraction().getLocation()
+                    : stop.getRestaurant() != null ? stop.getRestaurant().getLocation() : null;
+            TransitPlan route = null;
+            String url = null;
+            if (previous != null && at != null) {
+                url = mapsUrl(previous.lat(), previous.lng(), at.getY(), at.getX(), stop.getTravelMode());
+                if (stop.getTravelMode() == LegMode.TRANSIT) {
+                    route = transit.plan(previous.lat(), previous.lng(), at.getY(), at.getX()).orElse(null);
+                }
+            }
+            result.put(stop, new TravelDto(stop.getTravelMode(), stop.getTravelMinutes(),
+                    stop.getTravelDistanceMeters(), stop.isTravelEstimated(), route, url));
+            if (at != null) previous = new com.example.japantravelplanner.itinerary.travel.TravelPoint(null, at.getY(), at.getX());
+        }
+        return result;
+    }
+
+    /** Google 지도 길찾기 링크 (대중교통·도보·자동차) */
+    static String mapsUrl(double fromLat, double fromLng, double toLat, double toLng, LegMode mode) {
+        String travelMode = mode == LegMode.WALK ? "walking" : mode == LegMode.DRIVE ? "driving" : "transit";
+        return String.format(java.util.Locale.ROOT,
+                "https://www.google.com/maps/dir/?api=1&origin=%.6f,%.6f&destination=%.6f,%.6f&travelmode=%s",
+                fromLat, fromLng, toLat, toLng, travelMode);
+    }
+
     /** 하루 엔티티 → 응답 (항목, 지역, 빠진 장소, 안내, 공항 이동) */
     private static DayDto toDay(ItineraryDay day, Function<String, List<String>> typeLabels,
-                                Map<Long, Restaurant> alternatives, ReasonContext reasons, List<TransferDto> transfers) {
+                                Map<Long, Restaurant> alternatives, ReasonContext reasons, List<TransferDto> transfers,
+                                Map<ItineraryStop, TravelDto> travels) {
         return new DayDto(day.getDayNumber(), day.getDate(), day.getZone(), day.getZone().getLabel(),
                 day.getWindowStart(), day.getWindowEnd(), day.getDescription(),
-                day.getStops().stream().map(stop -> toStop(stop, day.getDate(), typeLabels, alternatives, reasons)).toList(),
+                day.getStops().stream().map(stop -> toStop(stop, day.getDate(), typeLabels, alternatives, reasons,
+                        travels.get(stop))).toList(),
                 day.getDropped().stream().map(ItineraryResponseDto::toDropped).toList(),
                 List.copyOf(day.getWarnings()), zonesOf(day), TripZone.labelOf(zonesOf(day)), transfers);
     }
@@ -293,8 +362,8 @@ public record ItineraryResponseDto(
 
     /** 항목 엔티티 → 응답 (관광지면 종류·이유, 식당이면 장르·예산·대안·이유, 이동) */
     private static StopDto toStop(ItineraryStop stop, LocalDate date, Function<String, List<String>> typeLabels,
-                                  Map<Long, Restaurant> alternatives, ReasonContext reasons) {
-        TravelDto travel = new TravelDto(stop.getTravelMode(), stop.getTravelMinutes(),
+                                  Map<Long, Restaurant> alternatives, ReasonContext reasons, TravelDto computed) {
+        TravelDto travel = computed != null ? computed : new TravelDto(stop.getTravelMode(), stop.getTravelMinutes(),
                 stop.getTravelDistanceMeters(), stop.isTravelEstimated());
 
         if (stop.getType() == StopType.ATTRACTION) {

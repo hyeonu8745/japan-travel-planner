@@ -205,4 +205,54 @@ class ItineraryResponseDtoExtendedTest {
         assertThat(alternatives.get(1).closedOnVisitDay()).isFalse();
     }
 
+
+    // ===== 구간 대중교통 경로·길찾기 링크 (11-22) =====
+
+    private static ScheduledStop transitStop(Attraction a) {
+        return new ScheduledStop(StopType.ATTRACTION, new ScoredAttraction(a, TripZone.SHINJUKU, 4.5), null,
+                LocalTime.of(10, 0), LocalTime.of(11, 0), 60, 0, new TravelLeg(20, 3200, LegMode.TRANSIT, false));
+    }
+
+    @Test
+    void 대중교통_구간은_숙소에서_출발한_경로와_길찾기_링크를_담고_도보는_링크만() {
+        ScheduledDay day = new ScheduledDay(1, LocalDate.of(2026, 10, 20), TripZone.SHINJUKU,
+                List.of(transitStop(garden), dinnerStop(chosen, List.of())), List.of(), List.of());
+        Itinerary itinerary = ItineraryMapper.toEntity(tripWithHotel(), 1, 9.0, List.of(day),
+                List.of(new DayWindow(LocalTime.of(9, 0), LocalTime.of(22, 0), false, true)), Map.of(),
+                id -> garden, id -> chosen);
+        double[] asked = new double[4];
+        com.example.japantravelplanner.itinerary.transit.TransitPlan plan = new com.example.japantravelplanner.itinerary.transit.TransitPlan(
+                "新宿", "신주쿠", 300, "新宿御苑前", "신주쿠교엔마에", 200,
+                List.of(new com.example.japantravelplanner.itinerary.transit.TransitPlan.Segment(
+                        "丸ノ内線", "subway", "M", "#F62E36", "東京メトロ", "新宿", "신주쿠", "新宿御苑前", "신주쿠교엔마에", 2)));
+
+        List<ItineraryResponseDto.StopDto> stops = ItineraryResponseDto.from(itinerary, t -> List.of(), Map.of(),
+                null, (a, b, c, d) -> {
+                    asked[0] = a; asked[1] = b; asked[2] = c; asked[3] = d;
+                    return java.util.Optional.of(plan);
+                }).days().get(0).stops();
+
+        ItineraryResponseDto.TravelDto first = stops.get(0).travel();
+        assertThat(asked).containsExactly(35.6944, 139.7030, 35.6851, 139.7100);   // 숙소 → 新宿御苑
+        assertThat(first.route()).isSameAs(plan);
+        assertThat(first.minutes()).isEqualTo(20);                                 // 시간은 일정 계산 그대로
+        assertThat(first.mapsUrl()).isEqualTo("https://www.google.com/maps/dir/?api=1&origin=35.694400,139.703000"
+                + "&destination=35.685100,139.710000&travelmode=transit");
+
+        ItineraryResponseDto.TravelDto second = stops.get(1).travel();
+        assertThat(second.route()).isNull();
+        assertThat(second.mapsUrl()).startsWith("https://www.google.com/maps/dir/?api=1&origin=35.685100,139.710000")
+                .endsWith("travelmode=walking");
+    }
+
+    @Test
+    void 숙소_좌표가_없으면_첫_구간은_링크도_경로도_없다() {
+        Trip trip = Trip.builder().id(5L).accommodationName("테스트 호텔").build();
+        ItineraryResponseDto.TravelDto first = ItineraryResponseDto.from(itinerary(trip, List.of()), t -> List.of())
+                .days().get(0).stops().get(0).travel();
+
+        assertThat(first.route()).isNull();
+        assertThat(first.mapsUrl()).isNull();
+        assertThat(first.mode()).isEqualTo(LegMode.WALK);
+    }
 }

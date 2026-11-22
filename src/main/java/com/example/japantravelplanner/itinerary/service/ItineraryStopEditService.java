@@ -118,6 +118,12 @@ public class ItineraryStopEditService {
                 reasonContextLoader, lock, transactionManager);
     }
 
+    /** 대중교통 구간의 대강의 경로를 응답에 붙인다 (11-22, 생성자를 늘리지 않으려고 따로 넣는다) */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setTransitGuide(com.example.japantravelplanner.itinerary.transit.TransitGuide transitGuide) {
+        versions.useTransit(transitGuide::plan);
+    }
+
     // ===================== 삭제 =====================
 
     /** 항목 하나(관광지·점심·저녁)를 지운다. 그날에 항목이 하나뿐이면 지울 수 없다 */

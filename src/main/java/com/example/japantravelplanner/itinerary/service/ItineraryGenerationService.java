@@ -118,6 +118,12 @@ public class ItineraryGenerationService {
                 reasonContextLoader, lock, transactionManager);
     }
 
+    /** 대중교통 구간의 대강의 경로를 응답에 붙인다 (11-22, 생성자를 늘리지 않으려고 따로 넣는다) */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setTransitGuide(com.example.japantravelplanner.itinerary.transit.TransitGuide transitGuide) {
+        versions.useTransit(transitGuide::plan);
+    }
+
     // ===================== 생성 =====================
 
     /** 일정 만들기 (잠금): ① 계산 → ①-1 고른 식당 Google 확인(폐업이면 빼고 다시 계산) → ①-2 한국어 이름 → ② AI 설명 → ③ 저장 */
@@ -271,4 +277,4 @@ public class ItineraryGenerationService {
     /** ① 단계 결과: 계산된 일정과 설명을 쓸 때 필요한 여행 정보 */
     private record Planned(ItineraryPlanner.Result result, TripBrief brief) {
     }
-}
+}
