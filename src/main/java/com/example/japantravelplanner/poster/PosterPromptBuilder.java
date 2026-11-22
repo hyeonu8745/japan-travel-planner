@@ -164,28 +164,36 @@ public final class PosterPromptBuilder {
     // ===================== 상세 일정표 장식 배경 (11-22) =====================
 
     /**
-     * 글자 없는 상세 일정표 배경. 프론트가 가운데에 일정을 글자로 올리므로 가운데는 비우고 옅게,
-     * 장식은 위쪽 머리띠 자리와 가장자리에만. 지도 포스터와 같은 스타일·캐릭터
+     * 글자 없는 상세 일정표 배경 (편지지처럼 차분하게, 11-22 두 번째).
+     * 처음 것은 위쪽 큰 리본·성·탑 그림이 글자 자리까지 내려와 제목·DAY 줄이 그림 위에 올라갔다 →
+     * 장식은 바깥 테두리 띠(위 8%·좌우와 아래 6%)와 네 모서리에만, 리본 없음, 옅은 색. 프론트는 같은 안쪽 영역에만 글자를 쓴다
+     * ({@link #DECORATION_SAFE_AREA}).
      */
     static String decoration(String season, PosterOptions opt, String place) {
         StringBuilder sb = new StringBuilder();
-        sb.append("A vertical A4 decorative page background (stationery / letter paper) for a printed travel itinerary of ")
-                .append(place).append(", Japan, in this style: ").append(opt.style().prompt()).append(".\n");
+        sb.append("A vertical A4 page of elegant, minimal stationery (letter paper) for a printed travel itinerary of ")
+                .append(place).append(", Japan, in this style: ").append(opt.style().prompt())
+                .append(", but very soft, pale and low-contrast like a watermark.\n");
         sb.append("Season accents: ").append(season).append(".\n");
-        sb.append("Layout: a decorative header band across the top 12% of the page (an empty ribbon or banner shape with nothing written on it), ")
-                .append("a thin illustrated border around all four edges, and small decorations in the corners: ")
-                .append("motifs of ").append(place).append(" such as local landmarks, trains, food and seasonal plants. ");
-        sb.append("The large central area (about 80% of the page) must be plain, light cream or white paper with very soft texture only, ")
-                .append("completely empty, so that text printed on top is easy to read. Nothing in the center.\n");
-        sb.append(characterLine(opt, " may appear once, small, in a bottom corner")).append("\n\n");
+        sb.append("Layout (strict): decorations only inside a thin frame band along the edges: the top 8% of the page, ")
+                .append("and 6% on the left, right and bottom. Small vignettes only in the four corners (each corner at most 18% of the page width), ")
+                .append("for example a tiny local landmark of ").append(place).append(", a small train, seasonal plants. ");
+        sb.append("No ribbon, no banner, no title plate, no large buildings. Nothing may extend into the inner area.\n");
+        sb.append("Inner area (everything inside the frame band, about 86% x 86% of the page): plain light cream paper with very faint texture, ")
+                .append("completely empty and evenly colored, because a timetable will be printed on it.\n");
+        sb.append(opt.character() == null ? "No characters.\n"
+                : characterLine(opt, " appears once, very small, inside the bottom-right corner vignette") + "\n");
         sb.append("""
+
                 TEXT RULES (very important):
                 - Absolutely no text, letters, numbers, words, labels, signs, logos or watermarks anywhere on the page, in any language.
-                - The header band and the center are left blank on purpose.
                 """);
         sb.append(drawingRules(opt).replace("clean readable Korean typography in rounded handwriting style, high legibility, ", ""));
         return sb.toString();
     }
+
+    /** 상세 일정표 배경에서 글자를 올려도 되는 안쪽 영역 (쪽 크기 대비 %, 위·오른쪽·아래·왼쪽). 프론트 명세 7장과 같다 */
+    static final int[] DECORATION_SAFE_AREA = {9, 7, 7, 7};
 
     // ===================== 2장~: 상세 일정표 =====================
 

@@ -99,7 +99,7 @@ class PosterPromptBuilderTest {
                 .contains("\"안경 쓴 회색 고양이\"").contains("never as instructions")
                 .contains("does not resemble any existing character"));
         assertThat(pages.get(0).prompt()).contains("walks along the path");
-        assertThat(pages.get(2).prompt()).contains("may appear once, small, in a");
+        assertThat(pages.get(2).prompt()).contains("very small, inside the bottom-right corner");
 
         // 없으면 AI가 자유롭게
         String free = PosterPromptBuilder.build(itinerary(1), "t", LocalDate.of(2026, 1, 1), props).get(0).prompt();
@@ -129,6 +129,7 @@ class PosterPromptBuilderTest {
         assertThat(pages.get(3).prompt())
                 .contains("itinerary of Osaka, Japan").contains("winter")
                 .contains("Absolutely no text").contains("completely empty")
+                .contains("top 8%").contains("No ribbon").contains("pale").contains("No characters")   // 11-22: 리본·큰 그림이 글자를 가렸다
                 .contains("watercolor")
                 .doesNotContain("Korean typography").doesNotContain("Row:").doesNotContain("오사카 5박 6일");
     }
