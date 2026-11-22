@@ -5,7 +5,7 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-/** 여행 포스터: 1장 = 일러스트 지도 포스터, 2장부터 = 상세 일정표. 모두 이미지 AI가 그린다 */
+/** 여행 포스터: 일러스트 지도 포스터 + 상세 일정표 장식 배경(글자 없음, 11-22). 모두 이미지 AI가 그린다 */
 @Getter
 @Setter
 @Component
@@ -22,7 +22,15 @@ public class PosterProperties {
     private String pageSize = "1088x1536";
     /** 지도 포스터 한 장에 넣을 날 수. 넘으면 지도를 여러 장으로 (A4 한 크기라 3일 → 2일) */
     private int coverDaysPerPage = 2;
-    /** 상세 일정표 한 장에 넣을 날 수 */
+    /**
+     * 상세 일정표 만드는 방식 (11-22). DECORATION = 글자 없는 장식 배경 한 장만 그리고 글자는 프론트가 쓴다(기본),
+     * TEXT = 예전처럼 이미지 AI가 글자까지 그린 상세 일정표 (daysPerDetailPage 일씩)
+     */
+    private DetailMode detailMode = DetailMode.DECORATION;
+
+    public enum DetailMode { DECORATION, TEXT }
+
+    /** 상세 일정표 한 장에 넣을 날 수 (detailMode TEXT 일 때) */
     private int daysPerDetailPage = 2;
     /** 지도 포스터에서 하루에 보여줄 장소 수 (일정 전체를 넣으려고 넉넉하게. 넘으면 식당·관광지 순으로 줄인다) */
     private int coverItemsPerDay = 8;

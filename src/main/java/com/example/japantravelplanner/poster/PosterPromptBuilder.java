@@ -60,6 +60,10 @@ public final class PosterPromptBuilder {
             pages.add(new PageSpec(pageNo, PosterPageKind.COVER, props.getPageSize(), cover(chunk, heading, season, pageNo, props, opt, place)));
             pageNo++;
         }
+        if (props.getDetailMode() == PosterProperties.DetailMode.DECORATION) {
+            pages.add(new PageSpec(pageNo, PosterPageKind.DECORATION, props.getPageSize(), decoration(season, opt, place)));
+            return pages;
+        }
         for (int i = 0; i < details.size(); i++) {
             boolean last = i == details.size() - 1;
             pages.add(new PageSpec(pageNo, PosterPageKind.DETAIL, props.getPageSize(),
@@ -157,13 +161,39 @@ public final class PosterPromptBuilder {
         return s.name().replace("\"", "") + kind;
     }
 
+    // ===================== 상세 일정표 장식 배경 (11-22) =====================
+
+    /**
+     * 글자 없는 상세 일정표 배경. 프론트가 가운데에 일정을 글자로 올리므로 가운데는 비우고 옅게,
+     * 장식은 위쪽 머리띠 자리와 가장자리에만. 지도 포스터와 같은 스타일·캐릭터
+     */
+    static String decoration(String season, PosterOptions opt, String place) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("A vertical A4 decorative page background (stationery / letter paper) for a printed travel itinerary of ")
+                .append(place).append(", Japan, in this style: ").append(opt.style().prompt()).append(".\n");
+        sb.append("Season accents: ").append(season).append(".\n");
+        sb.append("Layout: a decorative header band across the top 12% of the page (an empty ribbon or banner shape with nothing written on it), ")
+                .append("a thin illustrated border around all four edges, and small decorations in the corners: ")
+                .append("motifs of ").append(place).append(" such as local landmarks, trains, food and seasonal plants. ");
+        sb.append("The large central area (about 80% of the page) must be plain, light cream or white paper with very soft texture only, ")
+                .append("completely empty, so that text printed on top is easy to read. Nothing in the center.\n");
+        sb.append(characterLine(opt, " may appear once, small, in a bottom corner")).append("\n\n");
+        sb.append("""
+                TEXT RULES (very important):
+                - Absolutely no text, letters, numbers, words, labels, signs, logos or watermarks anywhere on the page, in any language.
+                - The header band and the center are left blank on purpose.
+                """);
+        sb.append(drawingRules(opt).replace("clean readable Korean typography in rounded handwriting style, high legibility, ", ""));
+        return sb.toString();
+    }
+
     // ===================== 2장~: 상세 일정표 =====================
 
     /** 상세 일정표 한 장의 그림 지시: 시각·장소 이름·짧은 설명을 그대로 적게 한다 */
     static String detail(List<DayDto> days, String title, String season, int pageNo, int detailPages, boolean last,
                          PosterOptions opt) {
         StringBuilder sb = new StringBuilder();
-        sb.append("A vertical A4 printable travel itinerary page, clean and simple, in the same style as the Tokyo travel map poster: ")
+        sb.append("A vertical A4 printable travel itinerary page, clean and simple, in the same style as the travel map poster: ")
                 .append(opt.style().prompt()).append(". ");
         sb.append("Mostly white or cream background so the text is easy to read. Season accents: ").append(season).append(".\n");
         sb.append("Layout: a small header ribbon at the top, then one rounded card per day. Inside each card, a timetable with three columns: time in a small pill, place name in bold, a short note in lighter text. ");

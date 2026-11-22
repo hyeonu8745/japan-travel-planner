@@ -88,9 +88,9 @@ class PosterServiceTest {
         assertThat(response.stale()).isFalse();
         assertThat(response.pages()).extracting(PosterResponseDto.PageDto::kind)
                 .containsExactly(PosterPageKind.COVER, PosterPageKind.COVER,
-                        PosterPageKind.DETAIL, PosterPageKind.DETAIL);   // 3일 → 지도 2장(이틀씩) + 상세 2장
+                        PosterPageKind.DECORATION);   // 3일 → 지도 2장(이틀씩) + 상세 일정표 배경 1장 (11-22)
         assertThat(response.pages().get(0).imageUrl()).isEqualTo("/api/trips/9/posters/5/pages/1/image");
-        verify(imageClient, times(4)).generate(anyString(), eq("1088x1536"));
+        verify(imageClient, times(3)).generate(anyString(), eq("1088x1536"));
         assertThat(response.style()).isEqualTo(PosterStyle.WATERCOLOR);
         assertThat(response.character()).isNull();
         assertThat(service.image(USER_ID, TRIP_ID, 5L, 2)).containsExactly(9, 9);
@@ -109,7 +109,7 @@ class PosterServiceTest {
         assertThat(response.status()).isEqualTo(PosterStatus.FAILED);
         assertThat(response.errorMessage()).contains("일부 장");
         assertThat(response.pages()).extracting(PosterResponseDto.PageDto::status)
-                .containsExactly(PosterStatus.DONE, PosterStatus.FAILED, PosterStatus.DONE, PosterStatus.DONE);
+                .containsExactly(PosterStatus.DONE, PosterStatus.FAILED, PosterStatus.DONE);
         assertThatThrownBy(() -> service.image(USER_ID, TRIP_ID, 5L, 2)).isInstanceOf(NotFoundException.class);
     }
 
@@ -119,7 +119,7 @@ class PosterServiceTest {
 
         assertThat(response.style()).isEqualTo(PosterStyle.STICKER);
         assertThat(response.character()).isEqualTo("안경 쓴 고양이");
-        verify(imageClient, times(4)).generate(org.mockito.ArgumentMatchers.contains("\"안경 쓴 고양이\""), anyString());
+        verify(imageClient, times(3)).generate(org.mockito.ArgumentMatchers.contains("\"안경 쓴 고양이\""), anyString());   // 지도 2장 + 배경 1장
     }
 
     @Test

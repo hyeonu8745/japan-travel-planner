@@ -25,7 +25,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
- * 여행 포스터. 1장 = 일러스트 지도 포스터, 2장부터 = 상세 일정표 (모두 이미지 AI).
+ * 여행 포스터. 앞장 = 일러스트 지도 포스터(이틀씩), 끝 = 상세 일정표 장식 배경 한 장(글자 없음, 프론트가 일정 글자를 올림, 11-22).
+ * detailMode TEXT 면 예전처럼 상세 일정표도 이미지 AI가 글자까지 그린다.
  * 한 장에 수십 초가 걸려서 요청은 바로 202로 돌려주고 따로 그린다 → 화면은 GET으로 상태를 확인.
  * 그림 내용(제목·DAY·장소 이름·시각)은 서버가 일정에서 정하고, AI는 그대로 그리기만 한다 (PosterPromptBuilder).
  * 이미지 AI 호출은 트랜잭션 밖. 여행당 24시간 dailyLimit번.

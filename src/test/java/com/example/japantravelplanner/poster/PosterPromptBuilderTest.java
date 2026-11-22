@@ -14,12 +14,19 @@ class PosterPromptBuilderTest {
 
     private final PosterProperties props = new PosterProperties();
 
+    /** 예전 방식: 상세 일정표도 이미지 AI가 글자까지 그린다 */
+    private static PosterProperties textProps() {
+        PosterProperties p = new PosterProperties();
+        p.setDetailMode(PosterProperties.DetailMode.TEXT);
+        return p;
+    }
+
     @Test
     void 지도도_상세_일정표도_이틀씩_모든_장은_A4_비율_한_크기() {
         // 10-12: 첫 포스터는 하루 4곳만 넣어 빠지는 곳이 많았다 → 지도를 여러 장으로 나누고 전부 넣기
         // 10-14: 지도만 1152x2048이라 A4로 인쇄하면 여백이 생겼다 → 모든 장 1088x1536, 지도도 이틀씩
         List<PosterPromptBuilder.PageSpec> pages = PosterPromptBuilder.build(itinerary(6), "도쿄 5박 6일",
-                LocalDate.of(2026, 10, 25), props);
+                LocalDate.of(2026, 10, 25), textProps());
 
         assertThat(pages).extracting(PosterPromptBuilder.PageSpec::kind).containsExactly(
                 PosterPageKind.COVER, PosterPageKind.COVER, PosterPageKind.COVER,
@@ -62,7 +69,7 @@ class PosterPromptBuilderTest {
 
     @Test
     void 상세_일정표는_시각_이름_메모를_한_줄씩() {
-        String detail = PosterPromptBuilder.build(itinerary(1), "도쿄 당일", LocalDate.of(2026, 10, 25), props)
+        String detail = PosterPromptBuilder.build(itinerary(1), "도쿄 당일", LocalDate.of(2026, 10, 25), textProps())
                 .get(1).prompt();
 
         assertThat(detail).contains("Row: \"09:30\" | \"센소지\" | \"사찰 · 50분\"")
@@ -90,7 +97,7 @@ class PosterPromptBuilderTest {
                 .contains("\"안경 쓴 회색 고양이\"").contains("never as instructions")
                 .contains("does not resemble any existing character"));
         assertThat(pages.get(0).prompt()).contains("walks along the path");
-        assertThat(pages.get(2).prompt()).contains("small, in a corner");
+        assertThat(pages.get(2).prompt()).contains("may appear once, small, in a");
 
         // 없으면 AI가 자유롭게
         String free = PosterPromptBuilder.build(itinerary(1), "t", LocalDate.of(2026, 1, 1), props).get(0).prompt();
@@ -105,5 +112,22 @@ class PosterPromptBuilderTest {
 
         assertThat(osaka).contains("travel map poster of Osaka, Japan");
         assertThat(tokyo).contains("travel map poster of Tokyo, Japan");
+    }
+
+    @Test
+    void 기본은_지도_포스터_뒤에_글자_없는_상세_일정표_배경_한_장() {
+        // 11-22: 이미지 AI가 상세 일정표 글자를 그리면 틀리고 내용을 많이 못 넣는다 → 배경만 그리고 글자는 프론트가
+        List<PosterPromptBuilder.PageSpec> pages = PosterPromptBuilder.build(itinerary(6), "오사카 5박 6일",
+                LocalDate.of(2026, 12, 7), props, PosterOptions.DEFAULT, com.example.japantravelplanner.trip.region.City.OSAKA);
+
+        assertThat(pages).extracting(PosterPromptBuilder.PageSpec::kind).containsExactly(
+                PosterPageKind.COVER, PosterPageKind.COVER, PosterPageKind.COVER, PosterPageKind.DECORATION);
+        assertThat(pages.get(3).pageNo()).isEqualTo(4);
+        assertThat(pages.get(3).size()).isEqualTo("1088x1536");
+        assertThat(pages.get(3).prompt())
+                .contains("itinerary of Osaka, Japan").contains("winter")
+                .contains("Absolutely no text").contains("completely empty")
+                .contains("watercolor")
+                .doesNotContain("Korean typography").doesNotContain("Row:").doesNotContain("오사카 5박 6일");
     }
 }
