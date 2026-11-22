@@ -255,4 +255,23 @@ class ItineraryResponseDtoExtendedTest {
         assertThat(first.mapsUrl()).isNull();
         assertThat(first.mode()).isEqualTo(LegMode.WALK);
     }
+
+    @Test
+    void USJ는_정문_좌표로_길을_찾는다() {
+        Attraction usj = Attraction.builder().id(70L).name("ユニバーサル・スタジオ・ジャパン").types("amusement_park")
+                .location(GF.createPoint(new Coordinate(135.432598, 34.6657375))).build();
+        ScheduledDay day = new ScheduledDay(1, LocalDate.of(2026, 10, 20), TripZone.SHINJUKU,
+                List.of(transitStop(usj)), List.of(), List.of());
+        Itinerary itinerary = ItineraryMapper.toEntity(tripWithHotel(), 1, 9.0, List.of(day),
+                List.of(new DayWindow(LocalTime.of(9, 0), LocalTime.of(22, 0), false, false)), Map.of(),
+                id -> usj, id -> chosen);
+        double[] asked = new double[2];
+
+        ItineraryResponseDto.TravelDto travel = ItineraryResponseDto.from(itinerary, t -> List.of(), Map.of(), null,
+                (a, b, c, d) -> { asked[0] = c; asked[1] = d; return java.util.Optional.empty(); })
+                .days().get(0).stops().get(0).travel();
+
+        assertThat(asked).containsExactly(34.6662, 135.4367);
+        assertThat(travel.mapsUrl()).contains("destination=34.666200,135.436700");
+    }
 }

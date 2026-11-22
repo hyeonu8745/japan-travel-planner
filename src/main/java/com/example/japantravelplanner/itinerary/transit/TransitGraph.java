@@ -89,9 +89,60 @@ public final class TransitGraph {
             if (seq.size() < 2) continue;
             int lineIndex = lines.size();
             int[] arr = seq.stream().mapToInt(Integer::intValue).toArray();
-            lines.add(new Line(r.id(), r.mode(), r.ref(), r.line(), r.operator(), r.colour(), arr));
+            lines.add(new Line(r.id(), r.mode(), joined(r.ref()), lineName(r.line(), r.operator()), joined(r.operator()),
+                    colour(r.colour()), arr));
             for (int pos = 0; pos < arr.length; pos++) stopsAt.get(arr[pos]).add(new Stop(lineIndex, pos));
         }
+    }
+
+    /** 이름이 열차 종별뿐인 노선 ("快速急行", "各駅停車") */
+    private static final java.util.regex.Pattern SERVICE_ONLY = java.util.regex.Pattern.compile(
+            "^(快速急行|急行|準急|区間急行|区間準急|普通|快速|各駅停車|通勤急行|通勤準急|新快速|通勤快速|直通特急|特急)$");
+    /** 회사 이름 → 짧은 이름 (종별뿐인 노선 이름 앞에 붙인다) */
+    private static final Map<String, String> SHORT_OPERATOR = Map.ofEntries(
+            Map.entry("近畿日本鉄道", "近鉄"), Map.entry("阪神電気鉄道", "阪神"), Map.entry("阪急電鉄", "阪急"),
+            Map.entry("小田急電鉄", "小田急"), Map.entry("京王電鉄", "京王"), Map.entry("東急電鉄", "東急"),
+            Map.entry("京阪電気鉄道", "京阪"), Map.entry("南海電気鉄道", "南海"), Map.entry("西日本鉄道", "西鉄"),
+            Map.entry("山陽電気鉄道", "山陽"), Map.entry("西武鉄道", "西武"), Map.entry("東武鉄道", "東武"),
+            Map.entry("京成電鉄", "京成"), Map.entry("京浜急行電鉄", "京急"), Map.entry("名古屋鉄道", "名鉄"));
+
+    /** "快速急行" + "近畿日本鉄道;阪神電気鉄道" → "近鉄·阪神 快速急行". 그 밖에는 그대로 */
+    static String lineName(String line, String operator) {
+        if (line == null || operator == null || !SERVICE_ONLY.matcher(line.strip()).matches()) return line;
+        List<String> names = new ArrayList<>();
+        for (String op : operator.split(";")) {
+            String o = op.strip();
+            if (!o.isEmpty()) names.add(SHORT_OPERATOR.getOrDefault(o, o));
+        }
+        return names.isEmpty() ? line : String.join("·", names) + " " + line.strip();
+    }
+
+    /** OSM 의 여러 값 "K;B" → "K·B" */
+    static String joined(String value) {
+        if (value == null) return null;
+        String v = String.join("·", java.util.Arrays.stream(value.split(";")).map(String::strip).filter(x -> !x.isEmpty()).toList());
+        return v.isEmpty() ? null : v;
+    }
+
+    /** 색 이름(CSS)·3자리 색 → #RRGGBB. 모르는 값은 null */
+    private static final Map<String, String> CSS_COLOURS = Map.ofEntries(
+            Map.entry("blue", "#0000FF"), Map.entry("yellow", "#FFFF00"), Map.entry("gray", "#808080"),
+            Map.entry("grey", "#808080"), Map.entry("orangered", "#FF4500"), Map.entry("deepskyblue", "#00BFFF"),
+            Map.entry("green", "#008000"), Map.entry("darkblue", "#00008B"), Map.entry("red", "#FF0000"),
+            Map.entry("darkgreen", "#006400"), Map.entry("orange", "#FFA500"), Map.entry("white", "#FFFFFF"),
+            Map.entry("black", "#000000"), Map.entry("purple", "#800080"), Map.entry("brown", "#A52A2A"),
+            Map.entry("pink", "#FFC0CB"), Map.entry("navy", "#000080"), Map.entry("skyblue", "#87CEEB"));
+
+    static String colour(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String c = raw.strip();
+        if (c.matches("#[0-9A-Fa-f]{6}")) return c.toUpperCase(java.util.Locale.ROOT);
+        if (c.matches("#[0-9A-Fa-f]{3}")) {
+            StringBuilder b = new StringBuilder("#");
+            for (char ch : c.substring(1).toCharArray()) b.append(ch).append(ch);
+            return b.toString().toUpperCase(java.util.Locale.ROOT);
+        }
+        return CSS_COLOURS.get(c.toLowerCase(java.util.Locale.ROOT));
     }
 
     /** 역 수 */

@@ -316,15 +316,19 @@ public record ItineraryResponseDto(
                     : stop.getRestaurant() != null ? stop.getRestaurant().getLocation() : null;
             TransitPlan route = null;
             String url = null;
-            if (previous != null && at != null) {
-                url = mapsUrl(previous.lat(), previous.lng(), at.getY(), at.getX(), stop.getTravelMode());
+            // 넓은 곳(USJ 등)은 입구 좌표로 길을 찾는다
+            double[] point = at == null ? null : com.example.japantravelplanner.itinerary.transit.Entrances
+                    .of(stop.getAttraction() != null ? stop.getAttraction().getName() : null)
+                    .orElse(new double[]{at.getY(), at.getX()});
+            if (previous != null && point != null) {
+                url = mapsUrl(previous.lat(), previous.lng(), point[0], point[1], stop.getTravelMode());
                 if (stop.getTravelMode() == LegMode.TRANSIT) {
-                    route = transit.plan(previous.lat(), previous.lng(), at.getY(), at.getX()).orElse(null);
+                    route = transit.plan(previous.lat(), previous.lng(), point[0], point[1]).orElse(null);
                 }
             }
             result.put(stop, new TravelDto(stop.getTravelMode(), stop.getTravelMinutes(),
                     stop.getTravelDistanceMeters(), stop.isTravelEstimated(), route, url));
-            if (at != null) previous = new com.example.japantravelplanner.itinerary.travel.TravelPoint(null, at.getY(), at.getX());
+            if (point != null) previous = new com.example.japantravelplanner.itinerary.travel.TravelPoint(null, point[0], point[1]);
         }
         return result;
     }

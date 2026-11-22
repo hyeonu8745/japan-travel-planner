@@ -35,7 +35,8 @@ public class TransitGuide {
     /** 800m 안에서 못 찾으면 한 번 더 넓혀 본다 (역에서 먼 전망대·공원). 그래도 다 걷는 것보다 빠를 때만 */
     static final double WIDE_WALK_RADIUS = 1500;
     static final int NEAR_LIMIT = 6;
-    static final int NEAR_POOL = 30;
+    static final int NEAR_POOL = 60;
+    static final int EXTRA_RAIL = 2;
     static final double MIN_LEG_METERS = 600;
     static final double WALK_PER_MIN = 80;
     static final double RAIL_PER_MIN = 600;
@@ -160,9 +161,21 @@ public class TransitGuide {
     /** 걸어갈 수 있는 역 중 쓸 수 있는 노선이 서는 곳 (가까운 순 NEAR_LIMIT 곳). 신칸센 승강장처럼 따로 묶인 역은 건너뛴다 */
     private static List<int[]> usableNear(TransitGraph g, double lat, double lng, double radius) {
         List<int[]> result = new ArrayList<>();
+        int rail = 0;
         for (int[] n : g.near(lat, lng, radius, NEAR_POOL)) {
-            if (g.stopsAt(n[0]).stream().anyMatch(s -> usable(g.line(s.line())))) result.add(n);
-            if (result.size() >= NEAR_LIMIT) break;
+            boolean usable = g.stopsAt(n[0]).stream().anyMatch(s -> usable(g.line(s.line())));
+            if (!usable) continue;
+            boolean hasRail = g.stopsAt(n[0]).stream()
+                    .anyMatch(s -> usable(g.line(s.line())) && !"bus".equals(g.line(s.line()).mode()));
+            // 가까운 역 6곳 + 버스 정류장에 밀린 철도역 2곳까지 (교토 시내처럼 정류장이 촘촘한 곳)
+            if (result.size() < NEAR_LIMIT) {
+                result.add(n);
+                if (hasRail) rail++;
+            } else if (hasRail && rail < EXTRA_RAIL) {
+                result.add(n);
+                rail++;
+            }
+            if (result.size() >= NEAR_LIMIT && rail >= EXTRA_RAIL) break;
         }
         return result;
     }
