@@ -78,6 +78,16 @@ public enum Airport {
         return Arrays.stream(values()).filter(a -> a.name().equals(c)).findFirst();
     }
 
+    /** 비어 있거나, 아는 공항 코드면 true (권역은 여행을 만들 때 숙소 도시와 맞춰 본다, 11-22) */
+    public static boolean isKnownOrBlank(String code) {
+        return code == null || code.isBlank() || of(code).isPresent();
+    }
+
+    /** 이 권역의 공항 (선언 순서) */
+    public static java.util.List<Airport> inRegion(Region region) {
+        return Arrays.stream(values()).filter(a -> a.region == region).toList();
+    }
+
     /** 비어 있거나, 이 권역의 공항 코드면 true */
     public static boolean isKnownOrBlank(String code, Region region) {
         return code == null || code.isBlank() || of(code).filter(a -> a.region == region).isPresent();

@@ -87,7 +87,7 @@ public record ItineraryResponseDto(
     /**
      * 공항 이동 한 단계 (일정 항목이 아니라 서버가 여행 조건으로 계산해 붙이는 안내).
      *
-     * @param kind     FLIGHT_ARRIVAL, AIRPORT_TO_HOTEL, HOTEL_DROP / CHECKOUT, HOTEL_PICKUP, HOTEL_TO_AIRPORT, FLIGHT_DEPARTURE
+     * @param kind     FLIGHT_ARRIVAL, AIRPORT_TO_HOTEL, HOTEL_DROP / CHECKOUT, HOTEL_PICKUP, HOTEL_TO_AIRPORT, FLIGHT_DEPARTURE / DAY_TRIP_GO, DAY_TRIP_BACK (당일치기 날, 11-22)
      * @param position BEFORE = 그날 첫 장소 앞에, AFTER = 마지막 장소 뒤에 보여준다
      */
     public record TransferDto(LocalTime time, String kind, String label, String position) {
@@ -256,12 +256,17 @@ public record ItineraryResponseDto(
         return ids;
     }
 
-    /** 첫날은 공항 → 숙소, 마지막 날은 체크아웃 … 숙소 → 공항 (당일치기면 둘 다) */
+    /** 첫날은 공항 → 숙소, 마지막 날은 체크아웃 … 숙소 → 공항 (하루짜리 여행이면 둘 다), 당일치기 날은 숙소 ↔ 그 도시 */
     static List<TransferDto> transfersOf(Trip trip, ItineraryDay day, int lastDay) {
         if (trip == null) return List.of();
         List<AirportPlan.Step> steps = new java.util.ArrayList<>();
         if (day.getDayNumber() == 1) steps.addAll(AirportPlan.arrivalSteps(trip));
         if (day.getDayNumber() == lastDay) steps.addAll(AirportPlan.departureSteps(trip, day.getWindowStart()));
+        // 당일치기 날: 숙소 → 역 → 그 도시 / 마지막 장소 → 역 → 숙소 (11-22)
+        java.time.LocalTime lastDeparture = day.getStops().stream()
+                .max(java.util.Comparator.comparingInt(ItineraryStop::getStopOrder))
+                .map(ItineraryStop::getDepartureTime).orElse(day.getWindowEnd());
+        steps.addAll(com.example.japantravelplanner.itinerary.planner.DayTrips.steps(trip, day.getZone(), day.getWindowStart(), lastDeparture));
         return steps.stream().map(st -> new TransferDto(st.time(), st.kind(), st.label(), st.position())).toList();
     }
 

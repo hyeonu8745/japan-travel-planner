@@ -12,9 +12,10 @@ import java.util.List;
  * @param airport    공항 ↔ 시내 (여행 조건에 비행기 시각이 있을 때만, 없으면 null)
  * @param rentalCar  렌터카 여행이면 true (지하철 요금 없음, 렌터카 비용은 넣지 않음)
  * @param note       화면에 그대로 보여줄 안내
+ * @param dayTrips   당일치기 날 (숙소 도시 ↔ 그 도시 왕복 + 그 도시 안 이동, 11-22). 없으면 빈 목록. perPerson 에 들어 있다
  */
 public record TransportEstimate(Range perPerson, Range total, Subway subway, Airport airport, boolean rentalCar,
-                                List<Day> days, String note) {
+                                List<Day> days, String note, List<DayTrip> dayTrips) {
 
     public record Range(int minYen, int maxYen, int minKrw, int maxKrw) {
     }
@@ -38,7 +39,16 @@ public record TransportEstimate(Range perPerson, Range total, Subway subway, Air
     public record Leg(String airport, int cheapYen, String cheapLabel, int fastYen, String fastLabel) {
     }
 
-    /** 하루 지하철 (1인). 1일권 적용 전 요금 */
+    /**
+     * 당일치기 하루 (1인)
+     * @param roundTripYen 숙소 도시 역 ↔ 그 도시 역 왕복 운임
+     * @param minYen·maxYen 왕복 + 그 도시 안 지하철·버스 (그 도시 운임, 1일권은 계산하지 않는다)
+     */
+    public record DayTrip(int dayNumber, String city, String cityLabel, String route, int roundTripYen,
+                          int minYen, int maxYen) {
+    }
+
+    /** 하루 지하철 (1인). 1일권 적용 전 요금. 당일치기 날은 그 도시 안 이동만 */
     public record Day(int dayNumber, LocalDate date, int legs, int minYen, int maxYen) {
     }
 

@@ -51,6 +51,14 @@ public final class PlanSummary {
         List<ItineraryStop> stops = itinerary.getDays().stream().flatMap(day -> day.getStops().stream()).toList();
         List<String> lines = new ArrayList<>();
 
+        // 당일치기 날 (11-22): "3일차는 교토 당일치기예요 (오사카역에서 JR 신쾌속 약 28분)."
+        itinerary.getDays().stream()
+                .sorted(java.util.Comparator.comparingInt(com.example.japantravelplanner.itinerary.entity.ItineraryDay::getDayNumber))
+                .forEach(day -> com.example.japantravelplanner.itinerary.planner.DayTrips.routeOf(itinerary.getTrip(), day.getZone())
+                        .ifPresent(r -> lines.add(day.getDayNumber() + "일차는 " + day.getZone().getCity().label()
+                                + " 당일치기예요 (" + r.stationOf(itinerary.getTrip().getBaseCity()).name() + "에서 "
+                                + r.label() + " 약 " + r.minutes() + "분).")));
+
         // 관심사 (조건 입력에서 고른 순서대로)
         Map<Interest, Set<String>> byInterest = new LinkedHashMap<>();
         ctx.interests().forEach(interest -> byInterest.put(interest, new LinkedHashSet<>()));

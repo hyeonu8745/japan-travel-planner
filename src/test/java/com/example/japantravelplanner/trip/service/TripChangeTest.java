@@ -162,8 +162,11 @@ class TripChangeTest {
     @Test
     void 모르는_공항이나_공항_없는_비행기_시각은_입력_오류() {
         TripRequestDto request = sameAs(trip);
-        request.setArrivalAirport("KIX");
+        request.setArrivalAirport("XYZ");
         assertThat(request.isAirportKnown()).isFalse();
+        // 11-22: 다른 권역 공항도 코드로는 통과 (숙소 권역과 맞는지는 TripPlaces 가 본다)
+        request.setArrivalAirport("KIX");
+        assertThat(request.isAirportKnown()).isTrue();
 
         request.setArrivalAirport(null);
         request.setArrivalFlightTime(java.time.LocalTime.of(10, 0));
@@ -172,5 +175,28 @@ class TripChangeTest {
 
         request.setArrivalAirport("HND");
         assertThat(request.isAirportGivenWithTime()).isTrue();
+    }
+
+    // ── 11-22 확장 5단계: 숙소 도시·당일치기 도시 ──
+
+    @Test
+    void 당일치기_도시를_고르거나_숙소_도시가_바뀌면_일정을_새로_만든다() {
+        Trip osaka = trip();
+        osaka.setBaseCity(com.example.japantravelplanner.trip.region.City.OSAKA);
+        osaka.setRegion(com.example.japantravelplanner.trip.region.Region.KANSAI);
+        osaka.setAccommodationAddress("大阪府大阪市中央区難波5-1-60");
+        TripRequestDto request = sameAs(osaka);
+        request.setDayTripCities(List.of("KYOTO"));
+
+        TripChange dayTrip = TripChange.between(osaka, request, TripPlaces.resolve(request, osaka.getBaseCity()));
+        assertThat(dayTrip.impact()).isEqualTo(TripChange.Impact.REGENERATE);
+        assertThat(dayTrip.fields()).containsExactly("dayTripCities");
+        assertThat(dayTrip.labels()).isEqualTo("당일치기 도시");
+
+        TripRequestDto moved = sameAs(osaka);
+        moved.setAccommodationAddress("京都府京都市下京区東塩小路町");   // 주소만 바뀌면 원래는 시각만 다시 계산
+        TripChange city = TripChange.between(osaka, moved, TripPlaces.resolve(moved, osaka.getBaseCity()));
+        assertThat(city.impact()).isEqualTo(TripChange.Impact.REGENERATE);
+        assertThat(city.fields()).containsExactly("accommodationAddress", "baseCity");
     }
 }

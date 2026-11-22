@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.itinerary.service;
 
+import com.example.japantravelplanner.itinerary.planner.DayTrips;
 import com.example.japantravelplanner.attraction.policy.SensitivePlaces;
 import com.example.japantravelplanner.global.exception.BadRequestException;
 import com.example.japantravelplanner.global.exception.ConflictException;
@@ -292,7 +293,7 @@ public class ItineraryEditService {
         for (ItineraryDay day : latest.getDays()) {
             boolean edited = day.getDayNumber() == target.day().getDayNumber();
             next.addDay(edited
-                    ? retimedDay(day, stop, chosen, repeated, hotel, target.options())
+                    ? retimedDay(day, stop, chosen, repeated, DayTrips.startPoint(target.trip(), day.getZone(), hotel), target.options())
                     : DayCopies.copyDay(day, repeated));
         }
 
@@ -374,7 +375,7 @@ public class ItineraryEditService {
 
         Itinerary next = ItineraryVersions.next(trip, latest, ItinerarySource.EDITED, changeNote);
         for (ItineraryDay day : latest.getDays()) {
-            next.addDay(retimedDay(day, null, null, Map.of(), hotel, options));
+            next.addDay(retimedDay(day, null, null, Map.of(), DayTrips.startPoint(trip, day.getZone(), hotel), options));
         }
 
         versions.save(next);
@@ -494,7 +495,8 @@ public class ItineraryEditService {
         } else {
             anchor = TravelPoint.of(target.stop());
         }
-        TravelPoint previous = before != null ? before : hotelPoint(target.trip());
+        TravelPoint previous = before != null ? before
+                : DayTrips.startPoint(target.trip(), target.day().getZone(), hotelPoint(target.trip()));
 
         List<RestaurantCandidate> found = wantedGenres == null || wantedGenres.isEmpty()
                 ? restaurantFinder.find(anchor.lat(), anchor.lng(), meal, maxYen,

@@ -112,18 +112,18 @@ public class TripEditService {
     /** ① 조건 저장 (트랜잭션): 바뀐 항목 판단, 날짜가 바뀌면 제목을 다시, 숙소 주소가 바뀌면 좌표를 지우고, 일정이 있고 영향이 있으면 상태 변경 */
     private Saved save(Long userId, Long tripId, TripRequestDto request) {
         Trip trip = TripAccess.owned(tripRepository, userId, tripId);
-        TripChange change = TripChange.between(trip, request);
+        TripPlaces places = TripPlaces.resolve(request, trip.getBaseCity(), trip.getDayTripCities());
+        TripChange change = TripChange.between(trip, request, places);
         boolean hasItinerary = itineraryRepository.findFirstByTripIdOrderByVersionNoDesc(tripId).isPresent();
         boolean wasAwaiting = trip.isAwaitingConfirmation();   // 완성 전이었는지 (시각만 다시 계산하면 그대로 둔다)
 
         if (change.changed("accommodationAddress")) {
             trip.setAccommodationLocation(null);   // 새 주소로 다시 찾게 한다
-            // 새 주소에 도시 이름이 있으면 그 도시로 (없으면 일정을 다시 만들 때 좌표로)
-            City.guess(request.getAccommodationName(), request.getAccommodationAddress()).ifPresent(city -> {
-                trip.setBaseCity(city);
-                trip.setRegion(city.region());
-            });
         }
+        // 숙소 이름·주소의 도시 이름 또는 고른 권역 (없으면 일정을 다시 만들 때 좌표로)
+        trip.setBaseCity(places.city());
+        trip.setRegion(places.region());
+        trip.setDayTripCities(new ArrayList<>(places.dayTrips()));
         if (change.changed("startDate") || change.changed("endDate")) {
             trip.setTitle(TripService.defaultTitle(request.getStartDate(), request.getEndDate(), trip.getBaseCity()));
         }

@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.itinerary.service;
 
+import com.example.japantravelplanner.itinerary.planner.DayTrips;
 import com.example.japantravelplanner.attraction.entity.Attraction;
 import com.example.japantravelplanner.attraction.repository.AttractionRepository;
 import com.example.japantravelplanner.global.exception.BadRequestException;
@@ -412,7 +413,7 @@ public class ItineraryAttractionEditService {
         Set<Long> used = usedAttractionIds(target.latest());
         List<ScoredAttraction> eligible = attractionScorer
                 .score(attractionRepository.findAll(), ItineraryPlanner.interestsOf(target.trip()), java.util.Set.of(),
-                        target.trip().getBaseCity())
+                        target.day().getZone().getCity())   // 그날 도시 (당일치기 날은 그 도시)
                 .stream()
                 .filter(c -> !used.contains(c.attraction().getId()))
                 .filter(c -> !target.night() || NightSpots.isNightCandidate(c.attraction()))
@@ -467,7 +468,8 @@ public class ItineraryAttractionEditService {
         TripPreference preference = preferenceRepository.findByTripId(tripId).orElse(null);
         TravelOptions options = TravelOptions.of(trip, ItineraryPlanner.constraintsOf(preference), travelProperties);
         Point hotelLocation = accommodationLocator.locate(trip);
-        TravelPoint hotel = TravelPoint.of(trip.getAccommodationName(), hotelLocation);
+        // 당일치기 날은 그 도시 도착역이 출발·도착 지점 (11-22)
+        TravelPoint hotel = DayTrips.startPoint(trip, day.getZone(), TravelPoint.of(trip.getAccommodationName(), hotelLocation));
 
         List<ItineraryStop> stops = day.getStops();
         int index = stops.indexOf(stop);

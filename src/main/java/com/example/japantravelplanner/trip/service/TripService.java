@@ -35,13 +35,15 @@ public class TripService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다."));
 
-        // 숙소 이름·주소에 도시 이름이 있으면 그 도시로 (없으면 일정을 만들 때 숙소 좌표로 정한다)
-        City city = City.guess(request.getAccommodationName(), request.getAccommodationAddress()).orElse(City.TOKYO);
+        // 숙소 이름·주소에 도시 이름이 있으면 그 도시로, 없으면 고른 권역의 대표 도시 (일정을 만들 때 숙소 좌표로 다시 정한다)
+        TripPlaces places = TripPlaces.resolve(request, null);
+        City city = places.city();
         Trip trip = Trip.builder()
                 .user(user)
                 .title(defaultTitle(request.getStartDate(), request.getEndDate(), city))
                 .baseCity(city)
                 .region(city.region())
+                .dayTripCities(new java.util.ArrayList<>(places.dayTrips()))
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
                 .travelers(request.getTravelers())

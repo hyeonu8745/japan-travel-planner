@@ -108,6 +108,26 @@ class RouteOptimizerTest {
     }
 
     @Test
+    void 하루_관광지_수에_야경이_들어가고_예비는_넘기지_않는다() {
+        // 11-22: 보통 4곳 = 낮 3곳 + 야경 1곳, 저녁 전 빈 시간은 관광지로 채우지 않는다
+        DayRoute route = optimizer.optimize(day(List.of(tocho, gyoen, hanazono, omoide, goldengai, spare)),
+                hotel, TravelPace.NORMAL, transit, tocho, Set.of(tocho.attraction().getId()), 4, false);
+
+        assertThat(route.night()).isEqualTo(tocho);
+        assertThat(route.daytime()).containsExactlyInAnyOrder(gyoen, hanazono, omoide);
+        assertThat(route.spares()).isEmpty();
+    }
+
+    @Test
+    void 당일치기_날은_정한_수만큼() {
+        DayRoute route = optimizer.optimize(day(List.of(gyoen, hanazono, omoide, goldengai, spare)),
+                hotel, TravelPace.FULL, transit, null, Set.of(), TravelPace.FULL.dayTripAttractions(), false);
+
+        assertThat(route.daytime()).containsExactlyInAnyOrder(gyoen, hanazono, omoide);
+        assertThat(route.morning()).hasSize(2);
+    }
+
+    @Test
     void 정해진_야경_장소를_저녁_후로_빼고_예비가_낮을_채운다() {
         DayRoute route = optimizer.optimize(day(List.of(tocho, gyoen, hanazono, omoide, goldengai, spare)),
                 hotel, TravelPace.NORMAL, transit, tocho, Set.of(tocho.attraction().getId()));

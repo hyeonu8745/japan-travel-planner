@@ -28,7 +28,8 @@ public record TripChange(Impact impact, List<String> fields) {
     /** 일정을 새로 만들어야 하는 항목 */
     private static final Set<String> REGENERATE_FIELDS = Set.of(
             "startDate", "endDate", "travelers", "budget", "travelPace", "interests", "allergies",
-            "arrivalAirport", "arrivalFlightTime", "departureAirport", "departureFlightTime");
+            "arrivalAirport", "arrivalFlightTime", "departureAirport", "departureFlightTime",
+            "baseCity", "dayTripCities");
 
     /** 시각만 다시 계산하면 되는 항목 */
     private static final Set<String> RETIME_FIELDS = Set.of(
@@ -36,6 +37,13 @@ public record TripChange(Impact impact, List<String> fields) {
 
     /** 저장된 여행과 새 요청을 비교해 바뀐 항목과 일정에 줄 영향(새로 만들기 / 시각만 / 없음)을 정한다 */
     public static TripChange between(Trip trip, TripRequestDto request) {
+        return between(trip, request, new TripPlaces(trip.getBaseCity(), trip.getDayTripCities()));
+    }
+
+    /**
+     * @param places 요청으로 정한 기준 도시·당일치기 도시 (TripPlaces.resolve). 도시나 당일치기 도시가 바뀌면 새로 만든다 (11-22)
+     */
+    public static TripChange between(Trip trip, TripRequestDto request, TripPlaces places) {
         List<String> fields = new ArrayList<>();
         check(fields, "startDate", trip.getStartDate(), request.getStartDate());
         check(fields, "endDate", trip.getEndDate(), request.getEndDate());
@@ -52,6 +60,8 @@ public record TripChange(Impact impact, List<String> fields) {
         check(fields, "arrivalFlightTime", trip.getArrivalFlightTime(), request.getArrivalFlightTime());
         check(fields, "departureAirport", trip.getDepartureAirport(), Airport.normalize(request.getDepartureAirport()));
         check(fields, "departureFlightTime", trip.getDepartureFlightTime(), request.getDepartureFlightTime());
+        check(fields, "baseCity", trip.getBaseCity(), places.city());
+        check(fields, "dayTripCities", List.copyOf(trip.getDayTripCities()), List.copyOf(places.dayTrips()));
 
         Impact impact = Impact.NONE;
         if (fields.stream().anyMatch(REGENERATE_FIELDS::contains)) {
@@ -87,6 +97,8 @@ public record TripChange(Impact impact, List<String> fields) {
             case "accommodationName" -> "숙소 이름";
             case "accommodationAddress" -> "숙소 주소";
             case "arrivalAirport" -> "도착 공항";
+            case "baseCity" -> "숙소 도시";
+            case "dayTripCities" -> "당일치기 도시";
             case "arrivalFlightTime" -> "비행기 도착 시각";
             case "departureAirport" -> "출발 공항";
             case "departureFlightTime" -> "비행기 출발 시각";

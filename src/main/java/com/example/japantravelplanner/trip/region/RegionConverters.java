@@ -42,4 +42,24 @@ public final class RegionConverters {
             return value == null || value.isBlank() ? null : City.valueOf(value);
         }
     }
+
+    /** 도시 목록 → "KYOTO,NARA" (당일치기 도시, 11-22). 순서를 지킨다 */
+    @Converter
+    public static class CityListConverter implements AttributeConverter<java.util.List<City>, String> {
+        /** 도시 목록 → DB 문자열 (비어 있으면 null) */
+        @Override
+        public String convertToDatabaseColumn(java.util.List<City> cities) {
+            if (cities == null || cities.isEmpty()) return null;
+            return String.join(",", cities.stream().map(Enum::name).toList());
+        }
+
+        /** DB 문자열 → 도시 목록 (모르는 이름은 건너뛴다) */
+        @Override
+        public java.util.List<City> convertToEntityAttribute(String value) {
+            if (value == null || value.isBlank()) return new java.util.ArrayList<>();
+            java.util.List<City> result = new java.util.ArrayList<>();
+            for (String part : value.split(",")) City.of(part).ifPresent(result::add);
+            return result;
+        }
+    }
 }

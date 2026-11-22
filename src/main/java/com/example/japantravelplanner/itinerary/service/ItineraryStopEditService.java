@@ -1,5 +1,6 @@
 package com.example.japantravelplanner.itinerary.service;
 
+import com.example.japantravelplanner.itinerary.planner.DayTrips;
 import com.example.japantravelplanner.attraction.entity.Attraction;
 import com.example.japantravelplanner.attraction.repository.AttractionRepository;
 import com.example.japantravelplanner.global.exception.BadRequestException;
@@ -279,7 +280,7 @@ public class ItineraryStopEditService {
                 .collect(Collectors.toSet());
         List<ScoredAttraction> eligible = attractionScorer
                 .score(attractionRepository.findAll(), ItineraryPlanner.interestsOf(ctx.trip()), java.util.Set.of(),
-                        ctx.trip().getBaseCity())
+                        ctx.day().getZone().getCity())   // 그날 도시 (당일치기 날은 그 도시)
                 .stream()
                 .filter(c -> !used.contains(c.attraction().getId()))
                 .sorted(Comparator.comparingDouble(ScoredAttraction::score).reversed())
@@ -388,8 +389,10 @@ public class ItineraryStopEditService {
         TripPreference preference = preferenceRepository.findByTripId(trip.getId()).orElse(null);
         TravelOptions options = TravelOptions.of(trip, ItineraryPlanner.constraintsOf(preference), travelProperties);
         Point hotel = accommodationLocator.locate(trip);
-        return new Context(trip, latest, day, options,
+        // 당일치기 날은 그 도시 도착역이 출발·도착 지점 (11-22)
+        TravelPoint start = DayTrips.startPoint(trip, day == null ? null : day.getZone(),
                 TravelPoint.of(trip.getAccommodationName(), hotel));
+        return new Context(trip, latest, day, options, start);
     }
 
     // ===================== 작은 도우미 =====================

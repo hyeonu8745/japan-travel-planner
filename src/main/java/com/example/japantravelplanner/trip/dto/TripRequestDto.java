@@ -4,6 +4,7 @@ import com.example.japantravelplanner.trip.entity.Airport;
 import com.example.japantravelplanner.trip.entity.Interest;
 import com.example.japantravelplanner.trip.entity.TransportMode;
 import com.example.japantravelplanner.trip.entity.TravelPace;
+import com.example.japantravelplanner.trip.region.City;
 import com.example.japantravelplanner.trip.region.Region;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
@@ -67,10 +68,36 @@ public class TripRequestDto {
     private String departureAirport;
     private LocalTime departureFlightTime;
 
-    // 공항은 여행 권역의 공항만. 지금 여행은 모두 수도권(도쿄)이라 NRT·HND (11월 확장 때 요청에 권역을 받는다)
-    @AssertTrue(message = "공항은 NRT(나리타), HND(하네다) 중에서 골라주세요.")
+    /**
+     * 권역 (선택, 11-22). KANTO·KANSAI·CHUBU·HIROSHIMA·KYUSHU_NORTH·HOKKAIDO·OKINAWA.
+     * 숙소 이름·주소로 도시를 알 수 없을 때 이 권역의 대표 도시로 시작한다. 숙소 도시와 다르면 400
+     */
+    private String region;
+
+    /**
+     * 당일치기로 다녀올 도시 (선택, 최대 3곳, 11-22). 예: ["KYOTO", "NARA"].
+     * 숙소 도시에서 갈 수 있는 도시만 (GET /api/regions 의 dayTrips)
+     */
+    @Size(max = 3, message = "당일치기 도시는 3곳까지 고를 수 있어요.")
+    private List<String> dayTripCities;
+
+    // 공항은 아는 코드인지만 여기서 본다. 숙소 권역의 공항인지는 TripPlaces 가 본다 (11-22, 예전에는 NRT·HND만)
+    @AssertTrue(message = "공항 코드를 확인해주세요. (예: NRT, HND, KIX, FUK)")
     public boolean isAirportKnown() {
-        return Airport.isKnownOrBlank(arrivalAirport, Region.KANTO) && Airport.isKnownOrBlank(departureAirport, Region.KANTO);
+        return Airport.isKnownOrBlank(arrivalAirport) && Airport.isKnownOrBlank(departureAirport);
+    }
+
+    /** 권역 이름이 맞는지 (비어 있으면 통과) */
+    @AssertTrue(message = "권역을 확인해주세요. (KANTO, KANSAI, CHUBU, HIROSHIMA, KYUSHU_NORTH, HOKKAIDO, OKINAWA)")
+    public boolean isRegionKnown() {
+        if (isBlank(region)) return true;
+        return java.util.Arrays.stream(Region.values()).anyMatch(r -> r.name().equalsIgnoreCase(region.strip()));
+    }
+
+    /** 당일치기 도시 이름이 맞는지 (비어 있으면 통과) */
+    @AssertTrue(message = "당일치기 도시 이름을 확인해주세요. (예: KYOTO, NARA)")
+    public boolean isDayTripCitiesKnown() {
+        return dayTripCities == null || dayTripCities.stream().allMatch(c -> City.of(c).isPresent());
     }
 
     /** 비행기 시각을 넣었으면 그 공항도 골랐는지 */

@@ -38,4 +38,18 @@ class ItineraryResponseTransfersTest {
         assertThat(ItineraryResponseDto.transfersOf(trip, day(1, LocalTime.of(12, 35)), 1)).hasSize(7);
         assertThat(ItineraryResponseDto.transfersOf(Trip.builder().build(), day(1, LocalTime.of(9, 30)), 1)).isEmpty();
     }
+
+    @Test
+    void 숙소_도시가_아닌_지역의_날은_당일치기_이동이_앞뒤로_붙는다() {
+        Trip osaka = Trip.builder().baseCity(com.example.japantravelplanner.trip.region.City.OSAKA)
+                .region(com.example.japantravelplanner.trip.region.Region.KANSAI).build();
+        ItineraryDay kyoto = ItineraryDay.create(2, LocalDate.of(2026, 12, 8), TripZone.GION, LocalTime.of(9, 30),
+                LocalTime.of(20, 12), null, List.of(), List.of());
+
+        List<ItineraryResponseDto.TransferDto> steps = ItineraryResponseDto.transfersOf(osaka, kyoto, 4);
+        assertThat(steps).extracting(ItineraryResponseDto.TransferDto::kind).containsExactly("DAY_TRIP_GO", "DAY_TRIP_BACK");
+        assertThat(steps.get(0).time()).isEqualTo(LocalTime.of(8, 42));
+        assertThat(steps.get(1).time()).isEqualTo(LocalTime.of(20, 12));   // 항목이 없으면 그날 끝 시각
+        assertThat(steps.get(1).position()).isEqualTo("AFTER");
+    }
 }

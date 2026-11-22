@@ -58,6 +58,15 @@ public class Trip {
     @Builder.Default
     private City baseCity = City.TOKYO;
 
+    /**
+     * 숙소에서 당일치기로 다녀올 도시 (11-22 확장 5단계, 예: 오사카 숙소 + 교토·나라). 여행 조건에서 고르고,
+     * 일정의 가운데 날(첫날·마지막 날 아님)에 하루씩 넣는다. 갈 수 있는 도시는 DayTripRoute. DB에는 "KYOTO,NARA"
+     */
+    @Convert(converter = RegionConverters.CityListConverter.class)
+    @Column(name = "day_trip_cities", length = 200)
+    @Builder.Default
+    private java.util.List<City> dayTripCities = new java.util.ArrayList<>();
+
     // 인원 수 (1~20)
     private Integer travelers;
 
@@ -164,6 +173,11 @@ public class Trip {
     /** 여행 권역 (값이 없던 예전 여행은 수도권) */
     public Region getRegion() {
         return region == null ? Region.KANTO : region;
+    }
+
+    /** 당일치기 도시 (없으면 빈 목록) */
+    public java.util.List<City> getDayTripCities() {
+        return dayTripCities == null ? java.util.List.of() : dayTripCities;
     }
 
     /** 숙소가 있는 기준 도시 (값이 없던 예전 여행은 도쿄) */

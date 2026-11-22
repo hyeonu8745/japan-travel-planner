@@ -149,4 +149,44 @@ class TransportEstimatorTest {
         assertThat(t.subway().passes()).containsExactly(new TransitFare.Pass(1, 2, 48, 6000, "하코네 프리패스 (오다와라발)"));
         assertThat(t.subway().finalMaxYen()).isEqualTo(6000);
     }
+
+    @Test
+    void 당일치기_날은_왕복_운임을_따로_더하고_숙소_도시_계산과_1일권에서_뺀다() {
+        Trip trip = trip().baseCity(com.example.japantravelplanner.trip.region.City.OSAKA)
+                .region(com.example.japantravelplanner.trip.region.Region.KANSAI).build();
+        Itinerary itinerary = Itinerary.create(trip, 1, 9.0);
+        ItineraryDay osaka = ItineraryDay.create(1, LocalDate.of(2026, 12, 7), com.example.japantravelplanner.itinerary.zone.TripZone.NAMBA,
+                LocalTime.of(9, 30), LocalTime.of(21, 0), "", List.of(), List.of());
+        osaka.addStop(stop(1, LegMode.TRANSIT, 5000, HOTEL_LAT, HOTEL_LNG));   // 숙소 옆에서 끝
+        ItineraryDay kyoto = ItineraryDay.create(2, LocalDate.of(2026, 12, 8), com.example.japantravelplanner.itinerary.zone.TripZone.GION,
+                LocalTime.of(9, 30), LocalTime.of(20, 12), "", List.of(), List.of());
+        kyoto.addStop(stop(2, LegMode.TRANSIT, 5000, 34.9858, 135.7588));      // 교토역 옆에서 끝 (돌아가는 구간 없음)
+        itinerary.addDay(osaka);
+        itinerary.addDay(kyoto);
+
+        TransportEstimate t = TransportEstimator.estimate(trip, itinerary, props, 9.0, 2, WALK_LIMIT, 1.3);
+
+        assertThat(t.subway().legs()).isEqualTo(1);                             // 숙소 도시 날만
+        assertThat(t.dayTrips()).singleElement().satisfies(d -> {
+            assertThat(d.dayNumber()).isEqualTo(2);
+            assertThat(d.city()).isEqualTo("KYOTO");
+            assertThat(d.cityLabel()).isEqualTo("교토");
+            assertThat(d.route()).isEqualTo("JR 신쾌속");
+            assertThat(d.roundTripYen()).isEqualTo(1160);
+            assertThat(d.minYen()).isGreaterThan(1160);                          // + 교토 안 이동 한 구간
+        });
+        assertThat(t.days()).extracting(TransportEstimate.Day::legs).containsExactly(1, 1);
+        assertThat(t.perPerson().minYen()).isEqualTo(t.subway().finalMinYen() + t.dayTrips().get(0).minYen());
+    }
+
+    @Test
+    void 렌터카_여행은_당일치기_운임도_넣지_않는다() {
+        Trip trip = trip().transportMode(TransportMode.RENTAL_CAR)
+                .baseCity(com.example.japantravelplanner.trip.region.City.OSAKA).build();
+        Itinerary itinerary = Itinerary.create(trip, 1, 9.0);
+        itinerary.addDay(ItineraryDay.create(2, LocalDate.of(2026, 12, 8), com.example.japantravelplanner.itinerary.zone.TripZone.GION,
+                LocalTime.of(9, 30), LocalTime.of(20, 12), "", List.of(), List.of()));
+
+        assertThat(TransportEstimator.estimate(trip, itinerary, props, 9.0, 2, WALK_LIMIT, 1.3).dayTrips()).isEmpty();
+    }
 }

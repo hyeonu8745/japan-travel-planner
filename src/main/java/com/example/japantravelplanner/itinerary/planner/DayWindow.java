@@ -64,6 +64,16 @@ public record DayWindow(LocalTime start, LocalTime end, boolean lunch, boolean d
         return new DayWindow(toTime(start), toTime(end), lunch, dinner);
     }
 
+    /**
+     * 시작·끝(분)으로 만든 시간대. 끼니 규칙은 of 와 같다 (당일치기 날, 11-22). 시작이 끝보다 늦으면 빈 날
+     */
+    public static DayWindow between(int start, int end) {
+        if (start >= end) return new DayWindow(null, null, false, false);
+        boolean lunch = start <= LUNCH_LATEST && end >= LUNCH_EARLIEST + LUNCH_MINUTES;
+        boolean dinner = start <= DINNER_LATEST && end >= DINNER_EARLIEST + DINNER_MINUTES;
+        return new DayWindow(toTime(start), toTime(end), lunch, dinner);
+    }
+
     /** 이 날 일정을 넣을 수 없는지 (시간이 없음) */
     public boolean isEmpty() {
         return start == null;
@@ -78,4 +88,4 @@ public record DayWindow(LocalTime start, LocalTime end, boolean lunch, boolean d
     private static LocalTime toTime(int minutes) {
         return LocalTime.of(minutes / 60, minutes % 60);
     }
-}
+}

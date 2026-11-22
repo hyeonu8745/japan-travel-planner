@@ -45,6 +45,15 @@ public class RouteOptimizer {
      */
     public DayRoute optimize(DayZone day, TravelPoint hotel, TravelPace pace, TravelOptions options,
                              ScoredAttraction night, Set<Long> reserved) {
+        return optimize(day, hotel, pace, options, night, reserved, pace.attractionsPerDay() + (night == null ? 0 : 1), true);
+    }
+
+    /**
+     * @param limit      그날 관광지 수 (야경 장소 포함). 낮 관광지는 limit − (야경이 있으면 1)
+     * @param withSpares false면 예비 후보를 넘기지 않는다 (저녁 전 빈 시간을 관광지로 채우지 않음, 11-22)
+     */
+    public DayRoute optimize(DayZone day, TravelPoint hotel, TravelPace pace, TravelOptions options,
+                             ScoredAttraction night, Set<Long> reserved, int limit, boolean withSpares) {
         // ① 낮 후보: 야경 장소와 다른 날 야경 장소를 빼고, 야경이 전망대면 다른 전망대도 뺀다
         //    (예비로 두면 빈 시간 채우기에서 다시 낮에 들어가 낮·밤 모두 전망대가 된다)
         boolean observatoryNight = night != null && NightSpots.isObservatory(night.attraction());
@@ -62,9 +71,9 @@ public class RouteOptimizer {
         }
 
         // ② 낮 관광지와 예비 후보
-        int perDay = Math.min(pace.attractionsPerDay(), pool.size());
+        int perDay = Math.max(0, Math.min(limit - (night == null ? 0 : 1), pool.size()));
         List<ScoredAttraction> stops = pool.subList(0, perDay);
-        List<ScoredAttraction> spares = List.copyOf(pool.subList(perDay, pool.size()));
+        List<ScoredAttraction> spares = withSpares ? List.copyOf(pool.subList(perDay, pool.size())) : List.of();
 
         // 이동 시간 표: 0 = 숙소, 1..n = 낮 관광지, n+1 = 야경 장소(있으면)
         List<TravelPoint> points = new ArrayList<>();
