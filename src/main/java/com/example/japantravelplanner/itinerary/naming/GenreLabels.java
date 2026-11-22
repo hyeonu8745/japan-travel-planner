@@ -15,7 +15,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 타베로그 장르(일본어) → 한국어 이름표 (resources/data/genre_labels.csv, 데이터의 장르 222개 전부).
+ * 타베로그 장르(일본어) → 한국어 이름표 (resources/data/genre_labels.csv, 데이터의 장르 278개 전부, 11-22 확장 데이터 장르 56개 추가).
  * 화면 칩과 AI 하루 설명이 같은 이름을 쓴다 (AI 가 그때그때 옮기면 とんかつ가 "돈카쓰"처럼 된다).
  * 표기는 여행자가 실제로 부르는 이름 (사용자 의견: 돈카츠·츠케멘·야키토리. 국립국어원식 "돈가스"·"쓰케멘"은 쓰지 않는다).
  * 순수 계산이라 정적 메서드로 쓴다 (응답 DTO 변환이 정적이라서).
@@ -38,7 +38,7 @@ public final class GenreLabels {
         Set<String> result = new LinkedHashSet<>();
         for (String g : genreCsv.split("[,、]")) {
             String genre = g.trim();
-            if (!genre.isEmpty()) result.add(LABELS.getOrDefault(genre, genre));
+            if (!genre.isEmpty()) result.add(LABELS.getOrDefault(key(genre), genre));
         }
         return List.copyOf(result);
     }
@@ -51,7 +51,15 @@ public final class GenreLabels {
 
     /** 이름표에 있는 장르인지 */
     static boolean has(String genre) {
-        return LABELS.containsKey(genre);
+        return genre != null && LABELS.containsKey(key(genre));
+    }
+
+    /**
+     * 표의 키: 전각·반각을 맞춘다 (11-22). 확장 데이터는 "和食(その他)"(반각 괄호), 표는 "和食（その他）"(전각)이라
+     * 같은 장르가 일본어 그대로 나갔다 (포스터에 "カレー")
+     */
+    static String key(String genre) {
+        return java.text.Normalizer.normalize(genre, java.text.Normalizer.Form.NFKC);
     }
 
     /** resources/data/genre_labels.csv 를 읽어 장르 → 한국어 표로 */
@@ -65,7 +73,7 @@ public final class GenreLabels {
             while ((line = reader.readLine()) != null) {
                 if (line.isBlank()) continue;
                 List<String> fields = CsvParser.parseLine(line);
-                if (fields.size() >= 2) labels.put(fields.get(0).trim(), fields.get(1).trim());
+                if (fields.size() >= 2) labels.put(key(fields.get(0).trim()), fields.get(1).trim());
             }
         } catch (IOException e) {
             throw new UncheckedIOException("장르 이름표를 읽지 못했습니다.", e);

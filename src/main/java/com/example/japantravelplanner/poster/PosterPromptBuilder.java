@@ -254,7 +254,7 @@ public final class PosterPromptBuilder {
     static String drawingRules(PosterOptions opt) {
         return "\nSTYLE: " + opt.style().prompt() + ", warm and friendly, the same style on every page, "
                 + "clean readable Korean typography in rounded handwriting style, high legibility, no photorealism, "
-                + "no real people, no copyrighted characters.\n";
+                + "no real people, no copyrighted characters, no brand logos or advertising mascots, no readable text on signs.\n";
     }
 
     static final String TEXT_RULES = """
@@ -262,15 +262,24 @@ public final class PosterPromptBuilder {
             - Write every text in double quotes below exactly as given, character by character, in Korean. Do not translate, shorten or reorder it.
             - Do not add any other words, place names, prices, phone numbers, logos or brand names.
             - Draw only the places listed. Do not add other famous landmarks as labeled places.
+            - Signs, shop signs, lanterns, banners and billboards inside the illustrations must have no readable text in any language
+              (blank or simple patterns only). The words after 'draw:' are hints for the picture and must never appear as text.
+            - No real advertising billboards, company mascots or brand logos (for example famous neon advertisements in shopping streets).
             """;
 
     /** 지도·일정표에 쓰는 이름: 관광지는 한국어 이름, 식당은 음식 종류 (예: "츠케멘") */
     static String label(StopDto s) {
         if (s.type() != StopType.ATTRACTION && s.restaurant() != null && s.restaurant().genreLabels() != null
                 && !s.restaurant().genreLabels().isEmpty()) {
-            return s.restaurant().genreLabels().get(0);
+            // 한국어 이름표가 없는 장르(일본어 그대로)는 건너뛴다: 그림 글자는 한국어만 (11-22 "カレー")
+            return s.restaurant().genreLabels().stream().filter(PosterPromptBuilder::hasHangul).findFirst()
+                    .orElse(s.type() == StopType.CAFE ? "카페" : "식당");
         }
         return displayName(s);
+    }
+
+    private static boolean hasHangul(String text) {
+        return text != null && text.codePoints().anyMatch(c -> c >= 0xAC00 && c <= 0xD7A3);
     }
 
     /** 그림에 쓸 장소 이름 (한국어 이름이 있으면 그것, 따옴표는 지운다) */

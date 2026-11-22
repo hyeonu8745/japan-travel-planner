@@ -55,6 +55,8 @@ class PosterPromptBuilderTest {
                 .contains("exactly as given").contains("Do not add other famous landmarks")
                 .contains("autumn")                                  // 10월
                 .contains("no copyrighted characters")               // 캐릭터 저작권
+                .contains("no readable text in any language")         // 11-22: 간판에 黒門市場 같은 일본어
+                .contains("No real advertising billboards")           // 11-22: 도톤보리 광고판(실제 회사 캐릭터)
                 .contains("watercolor")                              // 기본 스타일
                 .doesNotContain("red beret");                        // 10-14: 고정 마스코트 뺌
     }
@@ -129,5 +131,22 @@ class PosterPromptBuilderTest {
                 .contains("Absolutely no text").contains("completely empty")
                 .contains("watercolor")
                 .doesNotContain("Korean typography").doesNotContain("Row:").doesNotContain("오사카 5박 6일");
+    }
+
+    @Test
+    void 식당_이름표는_한국어_장르만_없으면_식당_카페() {
+        ItineraryResponseDto.StopDto lunch = meal(com.example.japantravelplanner.itinerary.planner.StopType.LUNCH, "12:00", "가게", "x");
+        java.util.function.BiFunction<com.example.japantravelplanner.itinerary.planner.StopType, List<String>, ItineraryResponseDto.StopDto> with =
+                (type, labels) -> new ItineraryResponseDto.StopDto(lunch.id(), lunch.order(), type, lunch.name(), lunch.arrival(),
+                        lunch.departure(), lunch.stayMinutes(), lunch.waitMinutes(), lunch.travel(), lunch.lat(), lunch.lng(), null,
+                        new ItineraryResponseDto.RestaurantDto(2L, "x", 3.6, null, null, false, false, 1, null, 1, null, false, labels),
+                        List.of(), List.of(), "가게");
+
+        assertThat(PosterPromptBuilder.label(with.apply(com.example.japantravelplanner.itinerary.planner.StopType.LUNCH,
+                List.of("ペルー風", "양식")))).isEqualTo("양식");
+        assertThat(PosterPromptBuilder.label(with.apply(com.example.japantravelplanner.itinerary.planner.StopType.DINNER,
+                List.of("ペルー風")))).isEqualTo("식당");
+        assertThat(PosterPromptBuilder.label(with.apply(com.example.japantravelplanner.itinerary.planner.StopType.CAFE,
+                List.of("ペルー風")))).isEqualTo("카페");
     }
 }

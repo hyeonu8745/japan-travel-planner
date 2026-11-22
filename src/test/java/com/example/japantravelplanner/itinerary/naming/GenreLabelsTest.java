@@ -33,4 +33,13 @@ class GenreLabelsTest {
                 "和食（その他）", "ケーキ", "パスタ", "つけ麺");
         assertThat(top).allMatch(GenreLabels::has);
     }
+
+    @Test
+    void 확장_데이터의_반각_괄호_장르와_새_장르도_한국어로() {
+        // 11-22: 포스터·칩에 "カレー", "海鮮", "和食(その他)" 가 일본어로 나갔다
+        assertThat(GenreLabels.of("カレー,洋食")).containsExactly("카레", "양식");
+        assertThat(GenreLabels.of("和食(その他),海鮮")).containsExactly("일식", "해산물");
+        assertThat(GenreLabels.of("クレープ・ガレット,カフェ")).containsExactly("크레페·갈레트", "카페");
+        assertThat(GenreLabels.of("郷土料理,肉料理,バル")).containsExactly("향토 요리", "고기 요리", "바르");
+    }
 }
